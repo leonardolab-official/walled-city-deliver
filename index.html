@@ -20384,7 +20384,9 @@ function makeCitizen(spec) {
   const shoeMat = clothMat(spec.shoes, 1, "leather");
   const sleeveMat = spec.sleeve === "skin" ? skin : topMat;
   const foreMat = spec.sleeve === "long" ? topMat : skin;
-  const skirted = !!spec.skirt || ((spec.hair === "bob" || spec.hair === "bun") && (spec.scale || 1) >= 0.85);
+  // skirt: false keeps a perm or a bun and drops the rigid skirt, so a
+  // seated or sleeping woman is not standing in a hoop.
+  const skirted = spec.skirt !== false && (!!spec.skirt || ((spec.hair === "bob" || spec.hair === "bun") && (spec.scale || 1) >= 0.85));
   const canvas = spec.shoes !== 0x1a1816;
   const legMat = skirted ? skin : pantsMat;
   const hip = new THREE.Group();
@@ -21950,57 +21952,93 @@ streetPaths.forEach(p => {
   });
   laneRoleN++;
 });
+// The fourteen figures from the character studio. Stalls, the person at a
+// door, the chase and the sleepers borrow these instead of a generic outfit.
+const STUDIO = {
+  chan:  { top: "check", sleeve: "long", pants: 0x334155, hair: "short", skin: 0, shoes: 0x1e1b18, coat: 0xf8fafc, glasses: 1 },
+  wong:  { top: 0x7c2d12, sleeve: "long", pants: 0x1e293b, hair: "grey", skin: 3, shoes: 0x0f172a, glasses: 1 },
+  keung: { top: 0xf8fafc, sleeve: "skin", pants: 0x374151, hair: "short", skin: 1, shoes: 0x111827, apron: true, apronColor: 0xd6d3d1, straps: 0xdc2626, shorts: true, towel: true },
+  biao:  { top: 0xb91c1c, sleeve: "short", pants: 0x1f2937, hair: "short", skin: 3, shoes: 0x7f1d1d, apron: true, apronColor: 0x44403c, straps: 0x292524 },
+  may:   { top: 0xbe185d, sleeve: "short", pants: 0x1e293b, hair: "bob", skin: 1, shoes: 0x451a03, apron: true, apronColor: 0xfce7f3, straps: 0x9f1239 },
+  lung:  { top: 0x18181b, sleeve: "short", pants: 0x1e293b, hair: "short", skin: 2, shoes: 0x09090b, coat: 0x18181b, habit: "smoke", glasses: 1 },
+  kwok:  { top: 0x0284c7, sleeve: "short", pants: 0x1d4ed8, hair: "short", skin: 1, shoes: 0xf8fafc, scale: 0.9 },
+  fong:  { top: 0x881337, sleeve: "long", pants: 0x334155, hair: "bun", skin: 4, shoes: 0x312e81, cloth: 0x1c1917, glasses: 1 },
+  ho:    { top: 0x0f766e, sleeve: "short", pants: 0x4b5563, hair: "grey", skin: 2, shoes: 0x78350f },
+  leung: { top: 0xcbd5e1, sleeve: "long", pants: 0x475569, hair: "grey", skin: 3, shoes: 0x0284c7, straps: 0x64748b, glasses: 1 },
+  fei:   { top: 0xf5f5f4, sleeve: "long", pants: 0xe7e5e4, hair: "short", skin: 1, shoes: 0xf8fafc, coat: 0xf5f5f4, glasses: "gold" },
+  wah:   { top: 0x1e3a8a, sleeve: "skin", pants: 0x171717, hair: "short", skin: 2, shoes: 0x09090b },
+  wai:   { top: 0x7e22ce, sleeve: "short", pants: 0x2563eb, hair: "short", skin: 1, shoes: 0xef4444, scale: 0.94 },
+  hung:  { top: 0x18181b, sleeve: "long", pants: 0x18181b, hair: "short", skin: 0, shoes: 0x09090b, coat: 0x18181b, glasses: 1, habit: "smoke" }
+};
+const STUDIO_CIVIL = ["chan", "wong", "keung", "biao", "may", "lung", "kwok", "fong", "ho", "leung"];
+const STUDIO_GANG = ["fei", "wah", "wai", "hung"];
+const STUDIO_ALL = STUDIO_CIVIL.concat(STUDIO_GANG);
+function wearCopy(src, extra) {
+  const wear = {};
+  for (const k in src) wear[k] = src[k];
+  if (extra) for (const k in extra) wear[k] = extra[k];
+  return wear;
+}
+function studioPick(list, n) {
+  const i = ((n % list.length) + list.length) % list.length;
+  return STUDIO[list[i]];
+}
+// Fishball and tofu alternate Auntie May and Little Kwok. An even post is
+// May, so the next stall along the street is the other one.
+function stallHand(i) {
+  return (i & 1) ? STUDIO.kwok : STUDIO.may;
+}
 // What the person behind the counter is wearing, and what their hands do
 // when nobody is at the door. A coat for the clinics, an apron for the
 // food and the dry goods, work clothes for the factories.
 const KEEPER_LOOK = {
-  dentist:    { top: "check", sleeve: "long", pants: 0x334155, hair: "short", skin: 0, shoes: 0x1e1b18, coat: 0xf8fafc, glasses: 1 },
-  doctor:     { top: 0xe7eee8, sleeve: "long", pants: 0x243044, hair: "grey", skin: 1, shoes: 0x1a1816, coat: 0xf3f6f2 },
-  pharmacy:   { top: 0xf3efe4, sleeve: "long", pants: 0x2a3140, hair: "bob", skin: 4, shoes: 0x1a1816, coat: 0xf7f4ee },
+  dentist:    STUDIO.chan,
+  doctor:     STUDIO.chan,
+  pharmacy:   STUDIO.chan,
   bonesetter: { top: 0x9a3412, sleeve: "long", pants: 0x1e293b, hair: "grey", skin: 2, shoes: 0x0f172a, glasses: 1 },
-  herbal:     { top: 0x7c2d12, sleeve: "long", pants: 0x1e293b, hair: "grey", skin: 3, shoes: 0x0f172a, glasses: 1 },
+  herbal:     STUDIO.wong,
   grocery:    { top: 0xe6e0d2, sleeve: "skin", pants: 0x2a2826, hair: "short", skin: 0, shoes: 0x1a1816, apron: true, apronColor: 0xe8dfd0, straps: 0x4a4038, shorts: true, towel: true, mix: 1 },
   rice:       { top: 0xd7c8a4, sleeve: "short", pants: 0x3a342c, hair: "short", skin: 2, shoes: 0x1a1816, apron: true, apronColor: 0xd2c4ae, straps: 0x6a5438, mix: 1 },
-  cafe:       { top: 0xbe185d, sleeve: "short", pants: 0x1e293b, hair: "bob", skin: 1, shoes: 0x451a03, apron: true, apronColor: 0xfce7f3, straps: 0x9f1239 },
+  cafe:       STUDIO.may,
   barber:     { top: 0xf7f4ee, sleeve: "short", pants: 0x1c2430, hair: "short", skin: 0, shoes: 0x1a1816, apron: true, apronColor: 0xf3efe4, straps: 0x3a342c },
-  electrical: { top: 0x0f766e, sleeve: "short", pants: 0x4b5563, hair: "grey", skin: 2, shoes: 0x78350f },
+  electrical: STUDIO.ho,
   hardware:   { top: 0x6a645c, sleeve: "long", pants: 0x2a2824, hair: "short", skin: 3, shoes: 0x1a1816, apron: true, apronColor: 0x8a847c, straps: 0x3e4650 },
-  mahjong:    { top: 0xcbd5e1, sleeve: "long", pants: 0x475569, hair: "grey", skin: 3, shoes: 0x0284c7, straps: 0x64748b, glasses: 1 },
-  paikau:     { top: 0x18181b, sleeve: "long", pants: 0x18181b, hair: "short", skin: 0, shoes: 0x09090b, coat: 0x18181b, glasses: 1, habit: "smoke" },
-  dogmeat:    { top: 0x8a3030, sleeve: "short", pants: 0x1f2937, hair: "short", skin: 1, shoes: 0x7f1d1d, apron: true, apronColor: 0x44403c, straps: 0x292524 },
-  fishball:   { top: 0xe7e2d4, sleeve: "skin", pants: 0x1c3a44, hair: "short", skin: 2, shoes: 0x1a1816, apron: true, apronColor: 0xf0eadc, straps: 0x2a4038, shorts: true, towel: true },
-  noodle:     { top: 0xf8fafc, sleeve: "skin", pants: 0x374151, hair: "short", skin: 1, shoes: 0x111827, apron: true, apronColor: 0xd6d3d1, straps: 0xdc2626, shorts: true, towel: true },
-  bbq:        { top: 0xb91c1c, sleeve: "short", pants: 0x1f2937, hair: "short", skin: 3, shoes: 0x7f1d1d, apron: true, apronColor: 0x44403c, straps: 0x292524 },
-  tofu:       { top: 0xf4f1ea, sleeve: "skin", pants: 0x2a3a30, hair: "bun", skin: 4, shoes: 0x1a1816, apron: true, apronColor: 0xf7f4ee, straps: 0xd9d4c6, cloth: 0xe8e2d4 },
+  mahjong:    STUDIO.leung,
+  paikau:     STUDIO.hung,
+  dogmeat:    STUDIO.biao,
+  fishball:   STUDIO.may,
+  noodle:     STUDIO.keung,
+  bbq:        STUDIO.biao,
+  tofu:       STUDIO.kwok,
   candy:      { top: 0xf7e27a, sleeve: "short", pants: 0x6a1830, hair: "bob", skin: 1, shoes: 0x7a3030, apron: true, apronColor: 0xf3efe4, straps: 0xc44a58 },
   plastic:    { top: 0x5a635c, sleeve: "long", pants: 0x2a3028, hair: "short", skin: 2, shoes: 0x1a1816, apron: true, apronColor: 0x6a736c, straps: 0x3a4038 },
   textile:    { top: 0x881337, sleeve: "long", pants: 0x334155, hair: "bun", skin: 4, shoes: 0x312e81, cloth: 0x1c1917 },
   joss:       { top: 0x8a3030, sleeve: "short", pants: 0x2a1814, hair: "grey", skin: 3, shoes: 0x1a1816, mix: 1 },
-  water:      { top: 0xd5dde2, sleeve: "skin", pants: 0x1a3040, hair: "short", skin: 0, shoes: 0x1a1816, shorts: true, towel: true }
+  water:      STUDIO.ho
 };
-function keeperTrade(kind) {
+function keeperTrade(kind, i) {
   if (kind === "dentist" || kind === "doctor" || kind === "pharmacy") return "clinic";
   if (kind === "herbal" || kind === "bonesetter") return "grind";
   if (kind === "cafe") return "pour";
   if (kind === "bbq" || kind === "dogmeat") return "chop";
-  if (kind === "fishball" || kind === "noodle" || kind === "tofu" || kind === "plastic") return "make";
+  if (kind === "fishball" || kind === "tofu") return (i & 1) ? "make" : "pour";
+  if (kind === "noodle" || kind === "plastic") return "make";
   if (kind === "textile") return "sew";
   if (kind === "barber") return "cut";
-  if (kind === "electrical") return "splice";
+  if (kind === "electrical" || kind === "water") return "splice";
   if (kind === "mahjong") return "elder";
   if (kind === "paikau") return "ledger";
   return "counter";
 }
 function keeperWear(kind, i, stance) {
-  const src = KEEPER_LOOK[kind] || KEEPER_LOOK.grocery;
+  const src = (kind === "fishball" || kind === "tofu") ? stallHand(i) : (KEEPER_LOOK[kind] || KEEPER_LOOK.grocery);
   const wear = { gait: "slow" };
   for (const k in src) if (k !== "mix") wear[k] = src[k];
   if (src.mix && (i % 2)) {
     wear.hair = i % 4 === 1 ? "bun" : "bob";
     wear.shorts = false;
   }
-  // A bob or a bun hangs a rigid skirt. It cannot fold over a chair.
-  if (stance === "sit" && (wear.hair === "bob" || wear.hair === "bun")) wear.hair = "short";
+  if (stance === "sit" && (wear.hair === "bob" || wear.hair === "bun")) wear.skirt = false;
   return wear;
 }
 const keepers = [];
@@ -22071,7 +22109,7 @@ function spawnKeeper(post, now) {
   fig.userData.live = 1;
   fig.userData.keeper = 1;
   fig.userData.post = post;
-  fig.userData.trade = keeperTrade(post.kind);
+  fig.userData.trade = keeperTrade(post.kind, post.i);
   fig.userData.stance = post.stance || "work";
   fig.userData.offset = post.phase;
   fig.userData.phase = post.phase;
@@ -22326,11 +22364,14 @@ function syncPavement(now) {
 // are dropped together, and only after the last of them has left the lens.
 const alleyHeat = [];
 const heat = { phase: "quiet", nights: 0, prev: null, rolled: false, decided: false, want: false, t: 0, spot: null, leaving: false };
-const HEAT_WEAR = [
-  { role: "run", top: 0xe8e2d4, sleeve: "skin", pants: 0x1c1a18, hair: "short", skin: 0, shoes: 0x1a1816, shorts: true, towel: true, habit: "smoke", gait: "walk" },
-  { role: "shove", top: 0x6a1820, sleeve: "skin", pants: 0x1a1816, hair: "short", skin: 2, shoes: 0x1a1816, shorts: true, gait: "walk" },
-  { role: "follow", top: 0x2a3344, sleeve: "short", pants: 0x1c1a18, hair: "short", skin: 4, shoes: 0x2a241c, towel: true, gait: "walk" }
-];
+// One resident runs. The two behind them are gang, and the night picks which.
+function heatCastWear(nights) {
+  return [
+    wearCopy(studioPick(STUDIO_CIVIL, nights * 5 + 1), { role: "run", gait: "walk" }),
+    wearCopy(studioPick(STUDIO_GANG, nights + 1), { role: "shove", gait: "walk" }),
+    wearCopy(studioPick(STUDIO_GANG, nights), { role: "follow", gait: "walk" })
+  ];
+}
 function heatUnit(n) {
   let x = Math.imul(n | 0, 0x9e3779b1) ^ 0xA11E7;
   x = Math.imul(x ^ (x >>> 16), 0x7feb352d);
@@ -22692,8 +22733,9 @@ function beginHeat(spot) {
     { along: spot.start, dir: -d },
     { along: spot.start - 0.85 * d, dir: d }
   ];
-  for (let i = 0; i < HEAT_WEAR.length; i++) {
-    const wear = HEAT_WEAR[i];
+  const cast = heatCastWear(heat.nights);
+  for (let i = 0; i < cast.length; i++) {
+    const wear = cast[i];
     const seat = seats[i];
     const along = Math.max(0.35, Math.min(span - 0.35, seat.along));
     const rec = {
@@ -23190,15 +23232,11 @@ function stepGangFight(now, dt) {
 // Passed out against an alley wall after midnight. The same places each
 // night, off the walking line. The body only exists on the street, the way
 // a keeper does, and it is gone again by morning.
-const SLEEP_WEAR = [
-  { top: 0xe8e2d4, sleeve: "skin", pants: 0x1c1a18, hair: "short", skin: 0, shoes: 0x1a1816, shorts: true, towel: true, gait: "walk" },
-  { top: 0xe6e0d2, sleeve: "skin", pants: 0x22201e, hair: "short", skin: 2, shoes: 0x1a1816, shorts: true, gait: "slow" },
-  { top: "check", sleeve: "short", pants: 0x2a241c, hair: "short", skin: 1, shoes: 0x1a1816, habit: "smoke", gait: "walk" },
-  { top: 0x8d7b62, sleeve: "long", pants: 0x2c2824, hair: "grey", skin: 3, shoes: 0x2a241c, gait: "slow" },
-  { top: 0x6d7870, sleeve: "short", pants: 0x1e1c1a, hair: "short", skin: 4, shoes: 0x1a1816, shorts: true, gait: "walk" },
-  { top: 0xd9d3c6, sleeve: "skin", pants: 0x1c1a18, hair: "short", skin: 0, shoes: 0x1a1816, shorts: true, towel: true, gait: "slow" },
-  { top: 0x3c5160, sleeve: "short", pants: 0x1c1a18, hair: "short", skin: 2, shoes: 0x1a1816, gait: "walk" }
-];
+function sleepWear(n) {
+  const wear = wearCopy(studioPick(STUDIO_ALL, n * 3 + 2), { gait: "walk" });
+  if (wear.hair === "bob" || wear.hair === "bun") wear.skirt = false;
+  return wear;
+}
 function sleepNight() {
   return clockHour() < 8;
 }
@@ -23417,7 +23455,7 @@ function gatherSleepSpots() {
           if (Math.hypot(spots[s].x - spot.x, spots[s].z - spot.z) < 8) clash = true;
         }
         if (clash) continue;
-        spot.wear = SLEEP_WEAR[spots.length % SLEEP_WEAR.length];
+        spot.wear = sleepWear(spots.length);
         spot.phase = spots.length * 1.7;
         spots.push(spot);
         placed = true;
@@ -26961,12 +26999,10 @@ function runPerson(job) {
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
   const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
   if (!walkMode || (here > 18 && !onDeck)) return;
-  const fig = makeCitizen({
-    top: 0xd8d0c4, sleeve: "short", pants: 0x3a342c, hair: "short",
-    skin: job.id % 5, shoes: 0x1a1816, gait: "walk"
-  });
+  const wear = wearCopy(studioPick(STUDIO_ALL, job.id), { gait: "walk" });
+  const fig = makeCitizen(wear);
   const rig = fig.userData.rig;
-  fig.userData = { errand: true, act: "gaze", offset: job.id * 0.37, bias: 1, scale: 1, rig: rig };
+  fig.userData = { errand: true, act: "gaze", offset: job.id * 0.37, bias: 1, scale: wear.scale || 1, rig: rig };
   // The group sits on the pavement. Legs hang from the hip, so the hip has to
   // stand at leg length or the waist is what meets the ground.
   rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
