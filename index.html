@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>九龍城寨 — Kowloon Walled City Simulator</title>
+<title>九龍城寨 — Deliverer in Walled City</title>
 <style>
   :root {
     --ink: #100e0c; --paper: #ffe7df; --teal: #ffc56a;
@@ -368,8 +368,20 @@
     width: min(280px, calc(100vw - 2 * (max(var(--frame), env(safe-area-inset-right)) + 108px)));
     pointer-events: none;
   }
+  #run-corner {
+    position: fixed;
+    right: max(var(--frame), env(safe-area-inset-right));
+    bottom: max(var(--frame), env(safe-area-inset-bottom));
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+  }
   #roof-go {
     position: static;
+    pointer-events: auto;
     z-index: 8;
     display: none;
     box-sizing: border-box;
@@ -424,9 +436,8 @@
   #run-gear button { font-size: 11px; }
   #run-gear button:disabled { opacity: 0.45; }
   #run-use {
-    position: fixed;
-    right: max(var(--frame), env(safe-area-inset-right));
-    bottom: max(var(--frame), env(safe-area-inset-bottom));
+    position: static;
+    pointer-events: auto;
     z-index: 8; display: none;
     min-height: 36px; padding: 6px 16px; letter-spacing: 0.12em;
     color: #f4e7cf; background: #1a1411; border: 1px solid #ffc56a;
@@ -802,9 +813,16 @@
     overflow: hidden;
     isolation: isolate;
     transform: translateZ(0);
-    transition: opacity 0.55s ease;
+    transition: opacity 0.55s ease, background 0.55s ease;
     background: #000;
   }
+  /* After the picture is up, the veil and the progress line go. The title stays. */
+  #boot.rest {
+    background: transparent;
+    pointer-events: none;
+  }
+  #boot .boot-status { transition: opacity 0.4s ease; }
+  #boot.rest .boot-status { opacity: 0; }
   #boot.leave { opacity: 0; pointer-events: none; }
   #boot .boot-card {
     position: relative; z-index: 1;
@@ -938,7 +956,7 @@
 <div id="boot" role="status" aria-live="polite" aria-busy="true">
   <div class="boot-card">
     <h1 id="boot-title">九龍城寨</h1>
-    <p class="boot-sub">Kowloon Walled City Simulator</p>
+    <p class="boot-sub">Deliverer in Walled City</p>
   </div>
   <div class="boot-status">
     <p class="boot-line" id="boot-line">正在載入畫面</p>
@@ -985,7 +1003,7 @@ function applyBoot() {
   var titleLang = bootLang === "ja" ? "ja" : "zh";
   var placeTitle = (BOOT[titleLang] && BOOT[titleLang].title) || BOOT.zh.title;
   if (title) title.textContent = placeTitle;
-  document.title = placeTitle + " — Kowloon Walled City Simulator";
+  document.title = placeTitle + " — Deliverer in Walled City";
   if (line) line.textContent = bootText("load");
   document.documentElement.lang = bootLang === "zh" ? "zh-Hant" : bootLang;
 }
@@ -1102,10 +1120,12 @@ applyBoot();
   <div id="walk-pad" aria-hidden="true">
     <div id="walk-stick" role="application" aria-label="Move"><i aria-hidden="true"></i></div>
   </div>
-<button type="button" id="run-use" hidden></button>
+<div id="run-corner">
+  <button type="button" id="roof-go" hidden>進入</button>
+  <button type="button" id="run-use" hidden></button>
+</div>
 <div id="run-arrows" hidden></div>
 <div id="run-center">
-  <button type="button" id="roof-go" hidden>進入</button>
   <div id="run-order" hidden>
     <b id="run-order-title"></b>
     <span id="run-order-item"></span>
@@ -15647,8 +15667,8 @@ function stepViewGlide(dt) {
     viewGlide = null;
   }
 }
-controls.addEventListener("start", () => { viewGlide = null; airHeld = false; });
-renderer.domElement.addEventListener("wheel", () => { viewGlide = null; airHeld = false; }, { passive: true });
+controls.addEventListener("start", () => { viewGlide = null; airHeld = false; dismissTitles(); });
+renderer.domElement.addEventListener("wheel", () => { viewGlide = null; airHeld = false; dismissTitles(); }, { passive: true });
 function setCardKicker(chapterId, fallback) {
   const el = document.getElementById("card-kicker");
   if (chapterId) el.textContent = chapterName(chapterId);
@@ -15985,6 +16005,7 @@ addEventListener("orientationchange", fit);
 if (window.visualViewport) visualViewport.addEventListener("resize", fit);
 fit();
 document.getElementById("toggle-legend").onclick = () => {
+  dismissTitles();
   setLegend(document.getElementById("legend-layer").hidden);
 };
 document.getElementById("legend-scrim").onclick = () => setLegend(false);
@@ -16001,6 +16022,7 @@ function setSettings(open) {
   }
 }
 document.getElementById("toggle-settings").onclick = () => {
+  dismissTitles();
   setSettings(document.getElementById("settings-layer").hidden);
 };
 document.getElementById("settings-scrim").onclick = () => setSettings(false);
@@ -29354,7 +29376,10 @@ function runCamPos(x, z, yaw, pitch) {
   return { pos: pos, look: look, dist: dist };
 }
 function runLookQuat(pos, look) {
-  const o = runLookQuat.obj || (runLookQuat.obj = new THREE.Object3D());
+  // A camera looks down its local −Z. An ordinary object's lookAt aims +Z, so
+  // the opening glide was turning to face away from the street and then
+  // snapping forward when the glide ended.
+  const o = runLookQuat.cam || (runLookQuat.cam = new THREE.Camera());
   o.position.copy(pos);
   o.up.set(0, 1, 0);
   o.lookAt(look);
@@ -31232,6 +31257,7 @@ document.getElementById("roof-go").onclick = (e) => {
   e.currentTarget.blur();
 };
 document.getElementById("start").onclick = (e) => {
+  dismissTitles();
   beginDelivery();
   e.currentTarget.blur();
 };
@@ -35211,15 +35237,28 @@ function dismissBoot() {
   if (!boot || boot.classList.contains("fail")) return;
   boot.classList.add("done");
   boot.setAttribute("aria-busy", "false");
+  boot.removeAttribute("aria-live");
+  boot.removeAttribute("role");
+  var status = boot.querySelector(".boot-status");
+  if (status) status.setAttribute("aria-hidden", "true");
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var go = function () {
-    boot.classList.add("leave");
-    if (reduce) { boot.remove(); return; }
-    boot.addEventListener("transitionend", function () { boot.remove(); }, { once: true });
-    setTimeout(function () { if (boot.isConnected) boot.remove(); }, 900);
-  };
+  var go = function () { boot.classList.add("rest"); };
   if (reduce) go();
   else requestAnimationFrame(go);
+}
+// The title stays on the aerial start screen until the first camera move,
+// zoom, settings click, or Start.
+function dismissTitles() {
+  var boot = document.getElementById("boot");
+  if (!boot || !boot.classList.contains("rest") || boot.classList.contains("leave")) return;
+  boot.classList.add("leave");
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var drop = function () { if (boot.isConnected) boot.remove(); };
+  if (reduce) { drop(); return; }
+  boot.addEventListener("transitionend", function (e) {
+    if (e.target === boot && e.propertyName === "opacity") drop();
+  });
+  setTimeout(drop, 900);
 }
 
 requestAnimationFrame(function () {
