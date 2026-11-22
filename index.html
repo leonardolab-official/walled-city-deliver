@@ -65,9 +65,23 @@
   }
   #tools { position: static; width: min(100%, max-content); max-width: 100%; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; transform: translateZ(0); }
   #minimap {
-    display: block; width: 168px; height: 105px; pointer-events: none;
+    position: fixed;
+    top: calc(max(var(--frame), env(safe-area-inset-top)) + 50px);
+    right: max(var(--frame), env(safe-area-inset-right));
+    z-index: 3;
+    display: block;
+    width: 168px;
+    height: 168px;
+    aspect-ratio: 1;
+    pointer-events: none;
     background: #090807; border: 1px solid rgba(61, 255, 136, 0.72);
     box-shadow: 0 0 10px rgba(61, 255, 136, 0.28);
+  }
+  @media (aspect-ratio <= 1), (max-width: 720px), (max-height: 540px) {
+    #minimap { width: 112px; height: 112px; }
+    #ui.walk-bare #run-board {
+      width: min(280px, calc(100vw - 112px - 2 * max(var(--frame), env(safe-area-inset-left)) - 16px));
+    }
   }
   #minimap[hidden] { display: none !important; }
   #tool-row { display: flex; flex-direction: row; align-items: center; gap: 6px; }
@@ -341,11 +355,21 @@
   #start[hidden] { display: none !important; }
   #ui.walk-bare header.panel { order: -1; align-self: flex-start; }
   #ui.walk-bare #run-board { order: 1; }
-  #roof-go {
+  #run-center {
     position: fixed;
     left: 50%;
     bottom: max(var(--frame), env(safe-area-inset-bottom));
     transform: translateX(-50%);
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: min(280px, calc(100vw - 2 * (max(var(--frame), env(safe-area-inset-right)) + 108px)));
+    pointer-events: none;
+  }
+  #roof-go {
+    position: static;
     z-index: 8;
     display: none;
     box-sizing: border-box;
@@ -379,8 +403,11 @@
   .run-slip i.late em { background: #ff3a2a; }
   #run-near { white-space: pre-wrap; color: #ffe7df; font-size: 12px; margin-top: 8px; line-height: 1.45; }
   #run-order {
-    margin-top: 8px; padding: 8px 8px 10px;
+    width: 100%;
+    margin: 0;
+    padding: 8px 8px 10px;
     display: flex; flex-direction: column; gap: 3px;
+    pointer-events: auto;
     background: #1a1411; border: 1px solid #ffc56a;
     box-shadow: 0 0 12px rgba(255, 190, 70, 0.28);
   }
@@ -397,28 +424,41 @@
   #run-gear button { font-size: 11px; }
   #run-gear button:disabled { opacity: 0.45; }
   #run-use {
-    position: fixed; left: 50%;
-    bottom: calc(max(var(--frame), env(safe-area-inset-bottom)) + 48px);
-    transform: translateX(-50%); z-index: 8; display: none;
+    position: fixed;
+    right: max(var(--frame), env(safe-area-inset-right));
+    bottom: max(var(--frame), env(safe-area-inset-bottom));
+    z-index: 8; display: none;
     min-height: 36px; padding: 6px 16px; letter-spacing: 0.12em;
     color: #f4e7cf; background: #1a1411; border: 1px solid #ffc56a;
     box-shadow: 0 0 12px rgba(255, 190, 70, 0.35);
   }
   #run-use:not([hidden]) { display: inline-flex; }
   #run-lip {
-    position: fixed; left: 50%;
-    bottom: calc(max(var(--frame), env(safe-area-inset-bottom)) + 92px);
-    transform: translateX(-50%); display: flex; gap: 6px; z-index: 6; pointer-events: none;
+    display: flex; gap: 6px; margin-top: 8px; pointer-events: none;
   }
   #run-lip[hidden] { display: none !important; }
   #run-lip i { width: 22px; height: 8px; background: #2a100e; border: 1px solid #8d6d38; }
   #run-lip i.on { background: #ffc56a; border-color: #ffe7a4; }
   #run-arrows {
-    position: fixed; left: 50%;
-    bottom: calc(max(var(--frame), env(safe-area-inset-bottom)) + 118px);
-    transform: translateX(-50%); display: flex; gap: 16px; z-index: 6; pointer-events: none;
+    position: fixed;
+    left: 50%;
+    /* The arrow icons sit on the slot-mark line under the money. */
+    top: 87px;
+    transform: translateX(-50%);
+    z-index: 6;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 16px;
+    width: max-content;
+    max-width: calc(100vw - 2 * max(var(--frame), env(safe-area-inset-left)) - 16px);
+    pointer-events: none;
   }
   #run-arrows[hidden] { display: none !important; }
+  @media (aspect-ratio <= 1), (max-width: 720px) {
+    #run-arrows { top: 84px; }
+  }
   .run-arrow { width: 64px; text-align: center; color: #ffc56a; }
   .run-arrow svg { width: 34px; height: 34px; display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
   .run-arrow b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; }
@@ -594,9 +634,6 @@
       width: auto;
       max-width: none;
     }
-    #minimap { width: 132px; height: 82px; }
-    /* The map hangs under the gear. Keep the job list in the space to its left. */
-    #ui.walk-bare #run-board { width: min(280px, calc(100% - 156px)); }
     /* Title, tools, pad, and dock keep their height. Open sheets are the
        pieces that shrink, so the sliders stay on screen. */
     header.panel, #tools, #walk-pad, #dock-wrap, #controls { flex: 0 0 auto; }
@@ -974,20 +1011,14 @@ applyBoot();
   </header>
   <div id="run-board" class="panel" hidden>
     <div id="run-purse"></div>
-    <div id="run-slips"></div>
-    <div id="run-order" hidden>
-      <b id="run-order-title"></b>
-      <span id="run-order-item"></span>
-      <span id="run-order-where"></span>
-      <span id="run-order-note"></span>
-      <button type="button" id="run-order-take"></button>
-    </div>
+    <div id="run-lip" hidden><i></i><i></i><i></i></div>
     <div id="run-near"></div>
     <div id="run-gear">
       <button type="button" id="run-cloth"></button>
       <button type="button" id="run-strap"></button>
       <button type="button" id="run-bell"></button>
     </div>
+    <div id="run-slips"></div>
   </div>
 
   </div>
@@ -1031,7 +1062,6 @@ applyBoot();
       </svg>
     </button>
   </div>
-  <canvas id="minimap" width="336" height="210" hidden aria-label="地圖"></canvas>
   </div>
   <aside class="panel" id="card">
     <button type="button" class="close" id="close-card" aria-label="Close">×</button>
@@ -1072,10 +1102,18 @@ applyBoot();
   <div id="walk-pad" aria-hidden="true">
     <div id="walk-stick" role="application" aria-label="Move"><i aria-hidden="true"></i></div>
   </div>
-<button type="button" id="roof-go" hidden>進入</button>
 <button type="button" id="run-use" hidden></button>
-<div id="run-lip" hidden><i></i><i></i><i></i></div>
 <div id="run-arrows" hidden></div>
+<div id="run-center">
+  <button type="button" id="roof-go" hidden>進入</button>
+  <div id="run-order" hidden>
+    <b id="run-order-title"></b>
+    <span id="run-order-item"></span>
+    <span id="run-order-where"></span>
+    <span id="run-order-note"></span>
+    <button type="button" id="run-order-take"></button>
+  </div>
+</div>
 <div id="run-sheet" hidden>
   <h2 id="run-sheet-title"></h2>
   <div id="run-sheet-body"></div>
@@ -1083,6 +1121,7 @@ applyBoot();
 </div>
 
 <button type="button" id="start" data-i18n="startBtn">開始</button>
+<canvas id="minimap" width="336" height="336" hidden aria-label="地圖"></canvas>
 </div>
 <div id="settings-layer" hidden>
   <div id="settings-scrim"></div>
@@ -15198,6 +15237,9 @@ const traffic = [];
       root.position.x = ride.x;
       const weave = Math.sin(now * ride.weave + ride.phase) * ride.amp;
       root.position.z = ride.z0 + weave;
+      const showPerson = !walkMode || !npcAway(root.position.x, root.position.z);
+      if (ride.rider) ride.rider.visible = showPerson;
+      for (let h = 0; h < ride.riders.length; h++) ride.riders[h].visible = showPerson;
       const shell = ride.shell;
       shell.position.y = ride.axle + Math.sin(now * (7.4 + ride.speed * 0.4) + ride.phase) * (0.006 + Math.min(0.012, ride.speed * 0.0009));
       shell.rotation.z = Math.max(-0.02, Math.min(0.014, ride.accel * 0.0034));
@@ -15349,7 +15391,7 @@ let activeZone = null;
 let activePick = null;
 let walkMode = false;
 let deliveryOn = false;
-// The lens orbits on walkYaw. The runner turns toward the step.
+// The lens orbits on walkYaw. Standing still, the runner keeps their facing.
 let walkYaw = 0, walkPitch = 0, walkX = 36, walkZ = 96;
 const walkHeld = new Set();
 let lookDrag = null;
@@ -21373,17 +21415,17 @@ function getProceduralTorsoTexture(spec) {
 // 4. VOXEL PROP BUILDER (CHARACTER-SPECIFIC VOXEL HAND ITEMS & VOXEL STOOLS)
 // ============================================================================
 const SharedMaterials = {
-    steel: new THREE.MeshStandardMaterial({ color: 0xd4d4d8, metalness: 0.75, roughness: 0.3, flatShading: true }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.65, roughness: 0.35, flatShading: true }),
-    wood: new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85, flatShading: true }),
-    bamboo: new THREE.MeshStandardMaterial({ color: 0xd6b370, roughness: 0.8, flatShading: true }),
-    redPlastic: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4, flatShading: true }),
-    greenGlass: new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.2, metalness: 0.15, flatShading: true }),
-    darkIron: new THREE.MeshStandardMaterial({ color: 0x27272a, metalness: 0.6, roughness: 0.5, flatShading: true }),
-    gold: new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.8, roughness: 0.25, flatShading: true }),
-    jade: new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.25, metalness: 0.1, flatShading: true }),
-    whiteCloth: new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9, flatShading: true }),
-    roastMeat: new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.3, flatShading: true }),
+    steel: new THREE.MeshStandardMaterial({ color: 0xb8b8bc, metalness: 0.42, roughness: 0.58, flatShading: true }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xc4843a, metalness: 0.38, roughness: 0.52, flatShading: true }),
+    wood: new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.94, flatShading: true }),
+    bamboo: new THREE.MeshStandardMaterial({ color: 0xd6b370, roughness: 0.92, flatShading: true }),
+    redPlastic: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.78, flatShading: true }),
+    greenGlass: new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.22, metalness: 0.12, flatShading: true }),
+    darkIron: new THREE.MeshStandardMaterial({ color: 0x3a3a3e, metalness: 0.32, roughness: 0.72, flatShading: true }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xd4a24a, metalness: 0.46, roughness: 0.42, flatShading: true }),
+    jade: new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.48, metalness: 0.06, flatShading: true }),
+    whiteCloth: new THREE.MeshStandardMaterial({ color: 0xe7e2d8, roughness: 0.94, flatShading: true }),
+    roastMeat: new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.78, flatShading: true }),
     emberGlow: new THREE.MeshBasicMaterial({ color: 0xff4500 })
 };
 
@@ -22000,12 +22042,12 @@ function createKowloonVoxelUmbrella(spec) {
     const primaryColor = canopyColors[spec.index % canopyColors.length];
     const canopyMat = new THREE.MeshStandardMaterial({
         color: primaryColor,
-        roughness: 0.35,
+        roughness: 0.82,
         flatShading: true
     });
     const stripeMat = new THREE.MeshStandardMaterial({
         color: 0xfef08a,
-        roughness: 0.4,
+        roughness: 0.86,
         flatShading: true
     });
 
@@ -22274,13 +22316,13 @@ function createHeavyCarryCargoProp(cargoType, tierIndex = 0) {
             const h = 0.23;
             const casing = new THREE.Mesh(
                 new THREE.BoxGeometry(0.34, h, 0.24),
-                new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.45, flatShading: true })
+                new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.88, flatShading: true })
             );
             casing.position.y = h / 2;
             casing.castShadow = true;
             const screen = new THREE.Mesh(
                 new THREE.BoxGeometry(0.22, 0.16, 0.022),
-                new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.15, metalness: 0.5, flatShading: true })
+                new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.46, metalness: 0.28, flatShading: true })
             );
             screen.position.set(-0.03, h / 2, 0.118);
             const dial1 = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.024), SharedMaterials.steel);
@@ -22393,14 +22435,14 @@ function createKowloonCharacter(spec) {
     root.name = `Character_${spec.id}`;
 
     const b = spec.build;
-    const skinMat = new THREE.MeshStandardMaterial({ color: spec.skinTone, roughness: 0.7, flatShading: true });
-    const faceMat = new THREE.MeshStandardMaterial({ map: getProceduralFaceTexture(spec), roughness: 0.65, flatShading: true });
-    const torsoMat = new THREE.MeshStandardMaterial({ map: getProceduralTorsoTexture(spec), roughness: 0.75, flatShading: true });
-    const shirtSolidMat = new THREE.MeshStandardMaterial({ color: spec.shirtColor, roughness: 0.75, flatShading: true });
-    const underShirtMat = new THREE.MeshStandardMaterial({ color: spec.underShirtColor, roughness: 0.75, flatShading: true });
-    const pantsMat = new THREE.MeshStandardMaterial({ color: spec.pantsColor, roughness: 0.8, flatShading: true });
-    const shoeMat = new THREE.MeshStandardMaterial({ color: spec.shoeColor, roughness: 0.5, flatShading: true });
-    const hairMat = new THREE.MeshStandardMaterial({ color: spec.hairColor, roughness: 0.85, flatShading: true });
+    const skinMat = new THREE.MeshStandardMaterial({ color: spec.skinTone, roughness: 0.86, flatShading: true });
+    const faceMat = new THREE.MeshStandardMaterial({ map: getProceduralFaceTexture(spec), roughness: 0.84, flatShading: true });
+    const torsoMat = new THREE.MeshStandardMaterial({ map: getProceduralTorsoTexture(spec), roughness: 0.93, flatShading: true });
+    const shirtSolidMat = new THREE.MeshStandardMaterial({ color: spec.shirtColor, roughness: 0.93, flatShading: true });
+    const underShirtMat = new THREE.MeshStandardMaterial({ color: spec.underShirtColor, roughness: 0.93, flatShading: true });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: spec.pantsColor, roughness: 0.95, flatShading: true });
+    const shoeMat = new THREE.MeshStandardMaterial({ color: spec.shoeColor, roughness: 0.9, flatShading: true });
+    const hairMat = new THREE.MeshStandardMaterial({ color: spec.hairColor, roughness: 0.96, flatShading: true });
 
     const joints = {};
 
@@ -22737,8 +22779,8 @@ function createKowloonCharacter(spec) {
     } else if (spec.glasses === 'aviator' || spec.glasses === 'gold_tint') {
         // Voxel 80s Dark Aviator or Amber-Tinted Gangster Sunglasses with Gold Brow Bar
         const lensMat = spec.glasses === 'gold_tint'
-            ? new THREE.MeshStandardMaterial({ color: 0x78350f, metalness: 0.7, roughness: 0.15, flatShading: true })
-            : new THREE.MeshStandardMaterial({ color: 0x09090b, metalness: 0.9, roughness: 0.1, flatShading: true });
+            ? new THREE.MeshStandardMaterial({ color: 0x78350f, metalness: 0.42, roughness: 0.48, flatShading: true })
+            : new THREE.MeshStandardMaterial({ color: 0x09090b, metalness: 0.38, roughness: 0.52, flatShading: true });
         const aviatorCluster = buildVoxelCluster([
             [2.4, 5.1, 5.6, 2.8, 2.0, 0.6, lensMat],
             [-2.4, 5.1, 5.6, 2.8, 2.0, 0.6, lensMat],
@@ -23000,6 +23042,11 @@ function createKowloonCharacter(spec) {
         blinkTimer: Math.random() * 3
     };
 
+    // A soft patch under the feet. The street shadow is drawn for the
+    // buildings and is too coarse to catch a person, so this sits them down.
+    const contact = figContactMesh(b.height);
+    root.add(contact);
+
     return root;
 }
 
@@ -23209,6 +23256,9 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
     const spec = pack.spec;
     const phaseOffset = pack.phaseOffset || 0;
     const t = elapsed + phaseOffset;
+    // Locomotion passes the sine argument here, advanced by ground covered.
+    // Breath, wind and tremor stay on the clock.
+    const gait = typeof pack.gaitPhase === "number" ? pack.gaitPhase : null;
     const showProps = pack.showProps !== false;
     const carryItemCount = pack.carryCount || 1;
     const carrySubMode = pack.carrySubMode || "walk";
@@ -23293,7 +23343,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
         }
 
         case 'walk': {
-            const w = t * 4.8;
+            const w = gait != null ? gait : t * 4.8;
             const sinW = Math.sin(w);
             const cosW = Math.cos(w);
 
@@ -23319,7 +23369,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
         }
 
         case 'run': {
-            const r = t * 8.6;
+            const r = gait != null ? gait : t * 8.6;
             const sinR = Math.sin(r);
             const cosR = Math.cos(r);
 
@@ -23345,7 +23395,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
             // =========================================================================
             // CARRYING UMBRELLA IN KOWLOON DOWNPOUR (PUDDLE-STEPPING GAIT + WIND GUSTS)
             // =========================================================================
-            const uWalk = t * 4.3;
+            const uWalk = gait != null ? gait : t * 4.3;
             const sinU = Math.sin(uWalk);
             const cosU = Math.cos(uWalk);
 
@@ -23448,7 +23498,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
 
             // Gait frequency slows down as stack count increases from 1 (brisk) to 5 (labored trudge)
             const stepSpeed = 4.6 - strain * 1.95;
-            const cFreq = t * stepSpeed;
+            const cFreq = gait != null ? gait : t * stepSpeed;
             const sinC = Math.sin(cFreq);
             const cosC = Math.cos(cFreq);
             const heave = Math.sin(t * (2.4 + strain * 2.2));
@@ -23668,7 +23718,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
         }
 
         case 'chasing': {
-            const c = t * 9.2;
+            const c = gait != null ? gait : t * 9.2;
             const sinC = Math.sin(c);
             const cosC = Math.cos(c);
 
@@ -23691,7 +23741,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
         }
 
         case 'being_chased': {
-            const f = t * 9.6;
+            const f = gait != null ? gait : t * 9.6;
             const sinF = Math.sin(f);
             const cosF = Math.cos(f);
 
@@ -23745,6 +23795,40 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
             j.rightForeArm.rotation.z = Math.sin(t * 7.0) * 0.32;
             j.leftUpperArm.rotation.set(-0.45, 0.2, 0.1);
             j.leftForeArm.rotation.x = -0.85;
+            break;
+        }
+
+        case 'idle_stand': {
+            // A plain stand. No job in the hands: a breath, a small weight shift.
+            const breath = Math.sin(t * 1.6);
+            const shift = Math.sin(t * 0.55);
+            j.pelvis.position.y = basePelvisY + breath * 0.012;
+            j.pelvis.rotation.z = shift * 0.018;
+            j.chest.rotation.x = 0.02 + breath * 0.018;
+            j.leftThigh.rotation.z = 0.04;
+            j.rightThigh.rotation.z = -0.04;
+            j.leftUpperArm.rotation.set(0.06, 0.04, 0.14);
+            j.rightUpperArm.rotation.set(0.06, -0.04, -0.14);
+            j.leftForeArm.rotation.x = -0.16;
+            j.rightForeArm.rotation.x = -0.16;
+            j.head.rotation.set(0.04, shift * 0.08, 0);
+            break;
+        }
+
+        case 'idle_sit': {
+            // Seated, hands on the knees, no wave and no work.
+            const breath = Math.sin(t * 1.4);
+            j.pelvis.position.set(0, 0.47 * bHeight, -0.02);
+            j.leftThigh.rotation.set(-1.48, 0, 0.12);
+            j.rightThigh.rotation.set(-1.48, 0, -0.12);
+            j.leftShin.rotation.x = 1.48;
+            j.rightShin.rotation.x = 1.48;
+            j.chest.rotation.x = 0.05 + breath * 0.02;
+            j.leftUpperArm.rotation.set(-0.42, 0.16, 0.06);
+            j.rightUpperArm.rotation.set(-0.42, -0.16, -0.06);
+            j.leftForeArm.rotation.x = -0.72;
+            j.rightForeArm.rotation.x = -0.72;
+            j.head.rotation.set(0.1 + breath * 0.03, Math.sin(t * 0.4) * 0.1, 0);
             break;
         }
 
@@ -23824,16 +23908,65 @@ function studioSpecOf(wear) {
   if (id && STUDIO_BY_ID[id]) return STUDIO_BY_ID[id];
   return STUDIO_BY_ID.store_boss_cheung || CHARACTER_SPECS[0];
 }
+function figContactMesh(height) {
+  if (!figContactMesh.geo) {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const g = c.getContext("2d");
+    const grd = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+    grd.addColorStop(0, "rgba(24,18,14,0.4)");
+    grd.addColorStop(0.45, "rgba(24,18,14,0.14)");
+    grd.addColorStop(1, "rgba(24,18,14,0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+    });
+    figContactMesh.geo = new THREE.CircleGeometry(0.5, 18);
+    figContactMesh.mat = mat;
+  }
+  const mesh = new THREE.Mesh(figContactMesh.geo, figContactMesh.mat);
+  mesh.name = "figContact";
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = 0.025;
+  const h = height || 1;
+  mesh.scale.set(1.05 * h, 0.72 * h, 1);
+  mesh.renderOrder = 2;
+  return mesh;
+}
+// Cloth and skin take the alley grade: the same sun tint, the cool shade,
+// and the lamp wrap the walls already use. A polished voxel reads as plastic.
+function gradeFigureMat(mat) {
+  if (!mat || !mat.isMeshStandardMaterial || mat.userData.figLit) return;
+  const grade = mat.userData.streetGrade;
+  if (grade === "ride" || grade === "glass") return;
+  mat.userData.figLit = 1;
+  const metal = mat.metalness || 0;
+  const glassy = !!(mat.transparent && mat.opacity < 0.92) || mat.roughness < 0.4;
+  if (!glassy && metal < 0.22 && mat.roughness < 0.86) mat.roughness = 0.86;
+  else if (!glassy && metal >= 0.22 && mat.roughness < 0.48) mat.roughness = 0.48;
+  if (!grade) mat.userData.streetGrade = "figure";
+  quietBodyLight(mat);
+}
 function clipStudio(fig) {
   fig.traverse(function (obj) {
     if (!obj.isMesh) return;
+    const contact = obj.name === "figContact";
     obj.castShadow = false;
-    obj.receiveShadow = false;
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    let glassy = contact;
     for (let i = 0; i < mats.length; i++) {
       if (!mats[i]) continue;
+      if (mats[i].transparent && mats[i].opacity < 0.92) glassy = true;
       mats[i].clippingPlanes = clips;
+      gradeFigureMat(mats[i]);
     }
+    // The street shadow is the buildings'. People receive it so an alley
+    // shades them, and they do not write a stale blot into that map.
+    obj.receiveShadow = !glassy;
   });
 }
 function legacyJoint() {
@@ -23881,7 +24014,10 @@ function studioClipFor(fig) {
     const t = performance.now() * 0.001;
     const waving = post && (post.playerWave || t < (post.greetUntil || 0));
     const sit = ud.stance === "sit";
-    return waving ? (sit ? "wave_sit" : "wave_stand") : (sit ? "work_sit" : "work_stand");
+    if (waving) return sit ? "wave_sit" : "wave_stand";
+    if (sit) return "work_sit";
+    if (ud.stance === "idle") return "idle_stand";
+    return "work_stand";
   }
   if (ud.gang || ud.act === "guard") return "fight";
   if (ud.role === "run") return (heat.phase === "chase" && (ud.speed || 0) > 0.3) ? "being_chased" : "fight";
@@ -23896,18 +24032,83 @@ function studioClipFor(fig) {
     if (moving > 0.4) return "walk";
     if (ud.play === "wave") return "wave_stand";
     if (ud.play === "fight") return "fight";
-    if (ud.play === "sit") return "wave_sit";
+    if (ud.play === "sit") return "idle_sit";
     return "work_stand";
   }
   if (s.wave > 0.35) return "wave_stand";
-  if (ud.errand) return "work_stand";
+  if (ud.errand) return "idle_stand";
   const moving = ud.ease || 0;
   if (ud.act === "greet") return "wave_stand";
   if (ud.role === "drunk") return "drunk_sway";
   if (wxNow.rain > 0.08) return "umbrella_rain";
   if (moving > 0.7 && (ud.speed || 0) > 1.35) return "run";
   if (moving > 0.18) return "walk";
-  return "work_stand";
+  return "idle_stand";
+}
+// Metres the body should travel in one full step cycle so the planted foot
+// stays with the ground. The reach is the ankle's front-to-back travel in
+// that clip; the other foot covers the same reach on the opposite half.
+function gaitStride(clip, pack, scale) {
+  const build = pack.spec && pack.spec.build;
+  const h = (build && build.height) || 1;
+  const L1 = 0.39 * h;
+  const L2 = 0.39 * h;
+  const sc = scale || FIG_SCALE;
+  let pose = null;
+  if (clip === "walk") {
+    pose = (p) => ({
+      hip: Math.sin(p) * 0.56,
+      knee: Math.max(0, -Math.cos(p) * 0.65),
+      pitch: 0
+    });
+  } else if (clip === "run") {
+    pose = (p) => ({
+      hip: Math.sin(p) * 0.95,
+      knee: Math.max(0.1, -Math.cos(p) * 1.15),
+      pitch: 0.22
+    });
+  } else if (clip === "chasing") {
+    pose = (p) => ({
+      hip: Math.sin(p) * 1.0,
+      knee: Math.max(0.1, -Math.cos(p) * 1.2),
+      pitch: 0.28
+    });
+  } else if (clip === "being_chased") {
+    pose = (p) => ({
+      hip: Math.sin(p) * 0.98,
+      knee: Math.max(0.1, -Math.cos(p) * 1.2),
+      pitch: 0.16
+    });
+  } else if (clip === "umbrella_rain") {
+    pose = (p) => ({
+      hip: Math.sin(p) * 0.52,
+      knee: 0.12 + Math.max(0, -Math.cos(p) * 0.72),
+      pitch: 0
+    });
+  } else if (clip === "carry_object" && (pack.carrySubMode || "walk") === "walk") {
+    const count = Math.max(1, Math.min(5, pack.carryCount || 1));
+    const strain = (count - 1) / 4;
+    const baseKnee = 0.14 + strain * 0.42;
+    const amp = 0.48 - strain * 0.20;
+    const center = -baseKnee * 0.55;
+    const kneeAmp = 0.52 - strain * 0.14;
+    pose = (p) => ({
+      hip: center + Math.sin(p) * amp,
+      knee: baseKnee + Math.max(0, -Math.cos(p) * kneeAmp),
+      pitch: 0
+    });
+  }
+  if (!pose) return 0;
+  let zMin = Infinity;
+  let zMax = -Infinity;
+  for (let i = 0; i < 24; i++) {
+    const q = pose((i / 24) * Math.PI * 2);
+    const a = q.pitch + q.hip;
+    const z = -(L1 * Math.sin(a) + L2 * Math.sin(a + q.knee));
+    if (z < zMin) zMin = z;
+    if (z > zMax) zMax = z;
+  }
+  return Math.max(0.25, (zMax - zMin) * 2 * sc);
 }
 function poseStudioCast(now, dt) {
   const step = dt > 0 ? Math.min(0.05, dt) : 0.016;
@@ -23917,13 +24118,28 @@ function poseStudioCast(now, dt) {
     if (fig.userData && fig.userData.doze) return;
     if (seen.has(fig)) return;
     seen.add(fig);
+    const pack = fig.studio;
     const clip = studioClipFor(fig);
-    fig.studio.clip = clip;
-    const anchor = fig.studio.cargoAnchor;
+    pack.clip = clip;
+    const anchor = pack.cargoAnchor;
     if (anchor) {
       anchor.position.set(0, -0.04, 0.24);
       anchor.rotation.set(-0.2, 0, 0);
     }
+    const stride = gaitStride(clip, pack, fig.scale.x || FIG_SCALE);
+    const p = fig.position;
+    if (stride > 0) {
+      let dist = 0;
+      if (pack.stepX != null) {
+        dist = Math.hypot(p.x - pack.stepX, p.z - pack.stepZ);
+        // A spawn or a lane snap is not a step.
+        if (dist > 1.5) dist = 0;
+      }
+      pack.gaitCycle = ((pack.gaitCycle || 0) + dist / stride) % 1;
+      pack.gaitPhase = pack.gaitCycle * Math.PI * 2 + (pack.phaseOffset || 0);
+    } else pack.gaitPhase = null;
+    pack.stepX = p.x;
+    pack.stepZ = p.z;
     updateCharacterAnimation(fig, clip, now, step);
   }
   for (let i = 0; i < walkers.length; i++) take(walkers[i]);
@@ -25429,10 +25645,7 @@ const keeperView = {
   mat: new THREE.Matrix4(),
   sphere: new THREE.Sphere(new THREE.Vector3(), 1)
 };
-// A figure still reads at this distance. Past it the far plane would pull in
-// every shop on a long street, so the stream stops where the person fades.
-const KEEPER_REACH = 46;
-const KEEPER_REACH_OUT = 54;
+// Shopkeepers stream in with the other NPCs, at NPC_AWAY from the player.
 function prepareKeeperPosts() {
   for (let i = 0; i < shopPosts.length; i++) {
     const post = shopPosts[i];
@@ -25576,16 +25789,15 @@ const FIGURE_LIMB = 1.9;
 function figurePlaying(x, y, z) {
   return figureViewGap(x, y, z, FIGURE_LIMB) >= 0;
 }
-function figureNearCam(x, y, z, reach) {
-  const dx = x - camera.position.x;
-  const dy = y - camera.position.y;
-  const dz = z - camera.position.z;
-  return dx * dx + dy * dy + dz * dz <= reach * reach;
+// Every NPC body is in the scene only while the player is this close.
+// Past it the mesh is dropped or hidden, and a resident comes back on return.
+const NPC_AWAY = 16;
+function npcAway(x, z) {
+  return Math.hypot((x || 0) - walkX, (z || 0) - walkZ) > NPC_AWAY;
 }
-// A body is built only once it is fully off the lens, and it is thrown away
-// only once it is fully off the lens. Closing time, the late crowd, and
-// leaving the street all wait for that. Two builds a frame, the ones closest
-// to the frame first, so a turn does not hitch and does not pop a person in.
+// Bodies stream in two a frame, nearest first. Distance, not the lens, decides
+// who is loaded. Closing time still lets a bout that is in the picture finish
+// until the frame has left it.
 const FIGURE_CLEAR = -0.08;
 function emptyFigureOffer() {
   return { a: -1, b: -1, ag: -Infinity, bg: -Infinity, ad: Infinity, bd: Infinity };
@@ -25641,21 +25853,18 @@ function syncKeepers(now) {
   for (let i = 0; i < keeperPosts.length; i++) {
     const post = keeperPosts[i];
     const py = post.y + 0.85;
-    const gap = figureViewGap(post.x, py, post.z, 0.95);
-    const seen = gap >= 0;
     const want = walkMode && shopOpenNow(post.kind);
+    const away = npcAway(post.x, post.z);
     if (post.fig) {
-      const near = figureNearCam(post.x, py, post.z, KEEPER_REACH_OUT);
-      if (!seen && (!want || !near)) dropKeeper(post);
+      if (!want || away) dropKeeper(post);
       else if (figurePlaying(post.x, py, post.z)) wakeFigure(post.fig);
       else dozeFigure(post.fig);
       continue;
     }
-    if (!want || gap >= FIGURE_CLEAR) continue;
-    if (!figureNearCam(post.x, py, post.z, KEEPER_REACH)) continue;
-    const dx = post.x - camera.position.x;
-    const dz = post.z - camera.position.z;
-    offerFigure(offer, gap, dx * dx + dz * dz, i);
+    if (!want || away) continue;
+    const dx = post.x - walkX;
+    const dz = post.z - walkZ;
+    offerFigure(offer, -Math.hypot(dx, dz), dx * dx + dz * dz, i);
   }
   if (offer.a >= 0) spawnKeeper(keeperPosts[offer.a], now);
   if (budget > 1 && offer.b >= 0) spawnKeeper(keeperPosts[offer.b], now);
@@ -25695,21 +25904,18 @@ function syncCityFolk(now) {
   for (let i = 0; i < cityFolk.length; i++) {
     const ud = cityFolk[i];
     const py = (ud.y || 0) + 0.85;
-    const gap = figureViewGap(ud.x, py, ud.z, 0.95);
-    const seen = gap >= 0;
     const want = walkMode && !folkOut(ud);
+    const away = npcAway(ud.x, ud.z);
     if (ud.fig) {
-      const near = figureNearCam(ud.x, py, ud.z, KEEPER_REACH_OUT);
-      if (!seen && (!want || !near)) dropFolk(ud);
+      if (!want || away) dropFolk(ud);
       else if (figurePlaying(ud.x, py, ud.z)) wakeFigure(ud.fig);
       else dozeFigure(ud.fig);
       continue;
     }
-    if (!want || gap >= FIGURE_CLEAR) continue;
-    if (!figureNearCam(ud.x, py, ud.z, KEEPER_REACH)) continue;
-    const dx = ud.x - camera.position.x;
-    const dz = ud.z - camera.position.z;
-    offerFigure(offer, gap, dx * dx + dz * dz, i);
+    if (!want || away) continue;
+    const dx = ud.x - walkX;
+    const dz = ud.z - walkZ;
+    offerFigure(offer, -Math.hypot(dx, dz), dx * dx + dz * dz, i);
   }
   if (offer.a >= 0) spawnFolk(cityFolk[offer.a]);
   if (budget > 1 && offer.b >= 0) spawnFolk(cityFolk[offer.b]);
@@ -25729,7 +25935,12 @@ function syncPavement(now) {
     const py = (ud.y == null ? fig.position.y : ud.y) + 0.85;
     const px = ud.x == null ? fig.position.x : ud.x;
     const pz = ud.z == null ? fig.position.z : ud.z;
-    const gap = figureViewGap(px, py, pz, 0.95);
+    if (!walkMode || npcAway(px, pz)) {
+      if (fig.visible) fig.visible = false;
+      dozeFigure(fig);
+      if (!home) advanceWalker(ud, now, null);
+      continue;
+    }
     if (home) {
       // Still in the picture: keep walking. Hide only once the body is out.
       if (figurePlaying(px, py, pz) && fig.visible) {
@@ -25741,10 +25952,7 @@ function syncPavement(now) {
       dozeFigure(fig);
       continue;
     }
-    if (!fig.visible) {
-      if (gap >= FIGURE_CLEAR) continue;
-      fig.visible = true;
-    }
+    fig.visible = true;
     wakeFigure(fig);
     stepWalker(fig, now);
   }
@@ -25816,6 +26024,14 @@ function dropHeatOne(rec) {
   }
   const at = alleyHeat.indexOf(rec);
   if (at >= 0) alleyHeat.splice(at, 1);
+}
+function unloadHeatFig(rec) {
+  if (!rec.fig) return;
+  const fig = rec.fig;
+  rec.fig = null;
+  rec.rig = null;
+  disposeOwned(fig);
+  renderWetReflection.figs = null;
 }
 function heatRefreshView() {
   refreshFigureView();
@@ -26227,8 +26443,12 @@ function stepAlleyHeat(now, dt) {
   heatRefreshView();
   for (let i = 0; i < alleyHeat.length; i++) {
     const rec = alleyHeat[i];
+    if (rec.fig && npcAway(rec.x, rec.z)) unloadHeatFig(rec);
+  }
+  for (let i = 0; i < alleyHeat.length; i++) {
+    const rec = alleyHeat[i];
     if (rec.fig || rec.leaving || heat.leaving) continue;
-    if (heatSeen(rec)) continue;
+    if (npcAway(rec.x, rec.z)) continue;
     attachHeat(rec);
     break;
   }
@@ -26521,9 +26741,9 @@ function stepGangFight(now, dt) {
     const py = (rec.y || GROUND_Y) + 0.9;
     const gap = figureViewGap(rec.x, py, rec.z, 0.95);
     const seen = gap >= 0;
+    const away = npcAway(rec.x, rec.z);
     if (rec.fig) {
-      const hold = figureNearCam(rec.x, py, rec.z, KEEPER_REACH_OUT);
-      if (!seen && (!want || !hold)) {
+      if (away || (!want && !seen)) {
         dropGangOne(rec);
         continue;
       }
@@ -26575,11 +26795,10 @@ function stepGangFight(now, dt) {
       } else dozeFigure(rec.fig);
       continue;
     }
-    if (!want || gap >= FIGURE_CLEAR) continue;
-    if (!figureNearCam(rec.x, py, rec.z, KEEPER_REACH)) continue;
-    const dx = rec.x - camera.position.x;
-    const dz = rec.z - camera.position.z;
-    offerFigure(offer, gap, dx * dx + dz * dz, i);
+    if (!want || away) continue;
+    const dx = rec.x - walkX;
+    const dz = rec.z - walkZ;
+    offerFigure(offer, -Math.hypot(dx, dz), dx * dx + dz * dz, i);
   }
   if (want) {
     if (offer.a >= 0) attachGang(gangFight[offer.a]);
@@ -26615,9 +26834,8 @@ function stepGangFight(now, dt) {
   if (want || bout) gang.t += Math.min(0.05, Math.max(0, dt || 0));
   if (gang.leaving && !gangFight.length) gang.leaving = false;
 }
-// Passed out against an alley wall after midnight. The same places each
-// night, off the walking line. The body only exists on the street, the way
-// a keeper does, and it is gone again by morning.
+// Passed out across an alley before morning. The body lies from wall to wall,
+// and the path is closed until eight. The same places each night.
 function sleepWear(n) {
   return wearCopy((n & 1) ? STUDIO.leung : STUDIO.choi, { gait: "walk", role: null });
 }
@@ -26760,47 +26978,44 @@ function sleepWall(path, along, sign) {
   }
   return null;
 }
-function sleepFrame(path, along, wall, wallD) {
-  const span = path.b - path.a;
-  const at = Math.max(1.5, Math.min(span - 1.5, along));
-  // The back of a curled body needs this much, plus a hand of air at the wall.
-  const lat = wall * Math.max(0.25, wallD - 0.1 - 0.36);
-  if (Math.abs(lat) < 0.2) return null;
-  const head = 0.62;
-  const foot = 0.55;
-  let x, z, hx, hz, fx, fz, yaw;
+function sleepFrame(path, along, span) {
+  const length = path.b - path.a;
+  const at = Math.max(1.5, Math.min(length - 1.5, along));
+  // Midway between the two faces, so the body crosses the walking line.
+  const mid = (span.right - span.left) * 0.5;
+  let x, z, yaw;
   if (path.axis === "z") {
-    x = path.c + lat;
+    x = path.c + mid;
     z = path.a + at;
-    hx = x;
-    hz = z + head;
-    fx = x;
-    fz = z - foot;
-    yaw = 0;
-  } else {
-    z = path.c + lat;
-    x = path.a + at;
-    hx = x + head;
-    hz = z;
-    fx = x - foot;
-    fz = z;
     yaw = Math.PI / 2;
+  } else {
+    z = path.c + mid;
+    x = path.a + at;
+    yaw = 0;
   }
   if (!path.world) {
     const az = streetAz(x, z);
     const use = az == null ? anchorNear(x, z) : az;
-    if (use != null) {
-      const shift = SHEAR_K * use;
-      x += shift;
-      hx += shift;
-      fx += shift;
-    }
+    if (use != null) x += SHEAR_K * use;
   }
   return {
-    path: path, along: at, wall: wall, wallD: wallD, axis: path.axis, thick: path.thick, c: path.c,
-    x: x, z: z, hx: hx, hz: hz, fx: fx, fz: fz, yaw: yaw,
-    halfAlong: 0.62, halfCross: 0.28, fig: null, rig: null
+    path: path, along: at, axis: path.axis, thick: path.thick, c: path.c,
+    x: x, z: z, yaw: yaw, mid: mid,
+    wallLeft: span.left, wallRight: span.right,
+    blockCross: Math.max(0.45, (span.left + span.right) * 0.5 - 0.05),
+    halfAlong: 0.42, halfCross: Math.max(0.45, (span.left + span.right) * 0.5 - 0.05),
+    wall: mid >= 0 ? 1 : -1,
+    fig: null, rig: null
   };
+}
+function sleepSpan(path, along) {
+  const left = sleepWall(path, along, -1);
+  const right = sleepWall(path, along, 1);
+  if (left == null || right == null) return null;
+  const width = left + right;
+  // A lane a body can lie across. A wide street stays open.
+  if (width < 0.95 || width > 2.2) return null;
+  return { left: left, right: right, width: width };
 }
 function gatherSleepSpots() {
   const spots = [];
@@ -26813,37 +27028,22 @@ function gatherSleepSpots() {
   for (let i = 0; i < paths.length && spots.length < 7; i++) {
     const path = paths[i];
     const span = path.b - path.a;
-    const prefer = i % 2 ? 1 : -1;
     let placed = false;
     for (let along = span * 0.22; along < span * 0.82 && !placed; along += 4.2) {
-      const near = [];
-      for (let s = 0; s < 2; s++) {
-        const sign = s === 0 ? prefer : -prefer;
-        const dist = sleepWall(path, along, sign);
-        if (dist == null) continue;
-        near.push({ sign: sign, dist: dist });
+      const gap = sleepSpan(path, along);
+      if (!gap) continue;
+      const spot = sleepFrame(path, along, gap);
+      if (!spot) continue;
+      if (walkBlocked(spot.x, spot.z, { pad: 0.02, bodies: false })) continue;
+      let clash = false;
+      for (let s = 0; s < spots.length; s++) {
+        if (Math.hypot(spots[s].x - spot.x, spots[s].z - spot.z) < 8) clash = true;
       }
-      near.sort(function (a, b) { return a.dist - b.dist; });
-      for (let w = 0; w < near.length && !placed; w++) {
-        const wall = near[w].sign;
-        const spot = sleepFrame(path, along, wall, near[w].dist);
-        if (!spot) continue;
-        // The shoulders sit just inside the plaster. If that point is already
-        // inside a solid, the visible wall and the collision disagree.
-        const shoulder = Math.max(0.2, spot.wallD - 0.42);
-        const sx = spot.axis === "z" ? spot.c + spot.wall * shoulder : spot.x;
-        const sz = spot.axis === "z" ? spot.z : spot.c + spot.wall * shoulder;
-        if (walkBlocked(sx, sz, { pad: 0.02, bodies: false })) continue;
-        let clash = false;
-        for (let s = 0; s < spots.length; s++) {
-          if (Math.hypot(spots[s].x - spot.x, spots[s].z - spot.z) < 8) clash = true;
-        }
-        if (clash) continue;
-        spot.wear = sleepWear(spots.length);
-        spot.phase = spots.length * 1.7;
-        spots.push(spot);
-        placed = true;
-      }
+      if (clash) continue;
+      spot.wear = sleepWear(spots.length);
+      spot.phase = spots.length * 1.7;
+      spots.push(spot);
+      placed = true;
     }
   }
   return spots;
@@ -26903,37 +27103,15 @@ function seatSleep(fig, rec) {
   fig.position.z += rec.z - cz;
   fig.position.y += (GROUND_Y + 0.01) - box.min.y;
   fig.updateMatrixWorld(true);
-  // The guessed spot is still short of the plaster. Slide the back to it.
   let fit = new THREE.Box3().setFromObject(fig);
-  const sign = rec.wall;
-  const plane = rec.c + sign * rec.wallD;
-  const gap = 0.08;
   if (rec.axis === "z") {
-    const face = sign > 0 ? fit.max.x : fit.min.x;
-    fig.position.x += (plane - sign * gap) - face;
-  } else {
-    const face = sign > 0 ? fit.max.z : fit.min.z;
-    fig.position.z += (plane - sign * gap) - face;
-  }
-  for (let n = 0; n < 6; n++) {
-    fig.updateMatrixWorld(true);
-    fit = new THREE.Box3().setFromObject(fig);
-    const mx = (fit.min.x + fit.max.x) * 0.5;
-    const mz = (fit.min.z + fit.max.z) * 0.5;
-    if (!walkBlocked(mx, mz, { pad: 0.04, bodies: false })) break;
-    if (rec.axis === "z") fig.position.x -= sign * 0.05;
-    else fig.position.z -= sign * 0.05;
-  }
-  fig.updateMatrixWorld(true);
-  fit = new THREE.Box3().setFromObject(fig);
-  if (rec.axis === "z") {
-    rec.halfAlong = Math.max(0.45, (fit.max.z - fit.min.z) * 0.5 + 0.04);
-    rec.halfCross = Math.max(0.2, (fit.max.x - fit.min.x) * 0.5 + 0.04);
+    rec.halfAlong = Math.max(0.38, (fit.max.z - fit.min.z) * 0.5 + 0.06);
+    rec.halfCross = Math.max(rec.blockCross || 0.45, (fit.max.x - fit.min.x) * 0.5 + 0.04);
     rec.x = (fit.min.x + fit.max.x) * 0.5 + SHEAR_K * rec.z;
     rec.z = (fit.min.z + fit.max.z) * 0.5;
   } else {
-    rec.halfAlong = Math.max(0.45, (fit.max.x - fit.min.x) * 0.5 + 0.04);
-    rec.halfCross = Math.max(0.2, (fit.max.z - fit.min.z) * 0.5 + 0.04);
+    rec.halfAlong = Math.max(0.38, (fit.max.x - fit.min.x) * 0.5 + 0.06);
+    rec.halfCross = Math.max(rec.blockCross || 0.45, (fit.max.z - fit.min.z) * 0.5 + 0.04);
     rec.x = (fit.min.x + fit.max.x) * 0.5 + SHEAR_K * rec.z;
     rec.z = (fit.min.z + fit.max.z) * 0.5;
   }
@@ -26978,22 +27156,16 @@ function stepAlleySleep(now) {
   const budget = pace.tier === 0 ? 1 : 2;
   for (let i = 0; i < alleySleep.length; i++) {
     const rec = alleySleep[i];
-    const py = GROUND_Y + 0.32;
-    const gap = figureViewGap(rec.x, py, rec.z, 0.95);
-    const seen = gap >= 0;
+    const wantBody = want && !npcAway(rec.x, rec.z);
     if (rec.fig) {
-      const near = figureNearCam(rec.x, py, rec.z, KEEPER_REACH_OUT);
-      // Morning, or leaving the street: a sleeper still in the picture stays
-      // until the lens has moved off them.
-      if (!seen && (!want || !near)) dropSleep(rec);
+      if (!wantBody) dropSleep(rec);
       else poseSleep(rec.fig, rec, now);
       continue;
     }
-    if (!want || gap >= FIGURE_CLEAR) continue;
-    if (!figureNearCam(rec.x, py, rec.z, KEEPER_REACH)) continue;
-    const dx = rec.x - camera.position.x;
-    const dz = rec.z - camera.position.z;
-    offerFigure(offer, gap, dx * dx + dz * dz, i);
+    if (!wantBody) continue;
+    const dx = rec.x - walkX;
+    const dz = rec.z - walkZ;
+    offerFigure(offer, -Math.hypot(dx, dz), dx * dx + dz * dz, i);
   }
   if (offer.a >= 0) attachSleep(alleySleep[offer.a]);
   if (budget > 1 && offer.b >= 0) attachSleep(alleySleep[offer.b]);
@@ -29425,6 +29597,80 @@ function runPoseCargo(rig, pose, phase, moving) {
   }
   rig.torso.rotation.x += pose.kind === "buckets" ? 0.02 : 0.06;
 }
+// One studio load for each order in hand. The carrying pose is built for
+// one to five of these, so the stack and the arms change together.
+const RUN_CARGO = {
+  grocery: "market_crate", rice: "market_crate", plastic: "market_crate", hardware: "market_crate",
+  bottle: "dimsum_stack", hot: "dimsum_stack", candy: "dimsum_stack", bbq: "dimsum_stack",
+  dogmeat: "dimsum_stack", fishball: "dimsum_stack", noodle: "dimsum_stack", tofu: "dimsum_stack",
+  herbal: "herb_carton", pharmacy: "herb_carton", bonesetter: "herb_carton", dentist: "herb_carton",
+  doctor: "herb_carton", barber: "herb_carton", joss: "herb_carton",
+  textile: "fabric_bales", electrical: "crt_tv", water: "kerosene_tins"
+};
+function runCargoKey(item) {
+  return RUN_CARGO[item] || "market_crate";
+}
+function disposeCarryStack(holder) {
+  if (!holder) return;
+  const shared = new Set();
+  for (const name in SharedMaterials) shared.add(SharedMaterials[name]);
+  const geos = new Set();
+  holder.traverse(function (obj) {
+    if (!obj.isMesh) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      if (mats[i] && !shared.has(mats[i])) mats[i].dispose();
+    }
+    if (obj.geometry && !geos.has(obj.geometry)) {
+      geos.add(obj.geometry);
+      obj.geometry.dispose();
+    }
+  });
+}
+function dressCarryStack(holder) {
+  holder.traverse(function (obj) {
+    if (!obj.isMesh) return;
+    obj.castShadow = false;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    let glassy = false;
+    for (let i = 0; i < mats.length; i++) {
+      if (!mats[i]) continue;
+      if (mats[i].transparent && mats[i].opacity < 0.92) glassy = true;
+      if (!mats[i].clippingPlanes) mats[i].clippingPlanes = clips;
+      gradeFigureMat(mats[i]);
+    }
+    obj.receiveShadow = !glassy;
+  });
+}
+function syncPlayerLoad(fig, stepping) {
+  const pack = fig.studio;
+  if (!pack || !pack.stackManager) return 0;
+  const jobs = runCarriedJobs();
+  const types = [];
+  let sig = "";
+  for (let i = 0; i < jobs.length; i++) {
+    const key = runCargoKey(jobs[i].item);
+    types.push(key);
+    sig += jobs[i].id + ":" + key + ",";
+  }
+  if (!jobs.length) {
+    pack.showCargo = false;
+    pack.carryCount = 1;
+    pack.carrySubMode = "idle";
+    return 0;
+  }
+  const count = Math.max(1, Math.min(5, jobs.length));
+  pack.showCargo = true;
+  pack.carryCount = count;
+  pack.carrySubMode = stepping ? "walk" : "idle";
+  if (pack.cargoSig !== sig) {
+    pack.cargoSig = sig;
+    disposeCarryStack(pack.joints.cargoHolder);
+    pack.stackManager.rebuildStack(count, types, "mixed");
+    dressCarryStack(pack.joints.cargoHolder);
+  }
+  return count;
+}
 function runPlaceRider(dt, moving, travel, ux, uz) {
   if (!run.rider) {
     const fig = makeCitizen(playerWear());
@@ -29440,13 +29686,14 @@ function runPlaceRider(dt, moving, travel, ux, uz) {
   fig.visible = true;
   const foot = roofStay ? roofStay.y : GROUND_Y;
   fig.position.set(walkX, foot, walkZ);
-  // Face the way they are stepping. Standing still, ease toward the view.
-  let want = walkYaw + Math.PI;
-  if (moving && Math.hypot(ux || 0, uz || 0) > 0.2) want = Math.atan2(ux, uz);
-  if (run.riderFace == null || !(dt > 0)) run.riderFace = want;
-  else {
+  // Standing still, the body keeps its facing so the camera can look around it.
+  // A step turns the body smoothly onto the direction it is moving.
+  if (run.riderFace == null) run.riderFace = walkYaw + Math.PI;
+  if (moving && (ux || uz)) {
+    const want = Math.atan2(ux, uz);
     const turn = Math.atan2(Math.sin(want - run.riderFace), Math.cos(want - run.riderFace));
-    run.riderFace += turn * Math.min(1, dt * 6);
+    const step = dt > 0 ? Math.min(1, dt * 6) : 1;
+    run.riderFace += turn * step;
   }
   fig.rotation.y = run.riderFace;
   const rig = fig.userData.rig;
@@ -29518,25 +29765,20 @@ function runPlaceRider(dt, moving, travel, ux, uz) {
   stepArm(rig.armR, armS * armAmp);
   stepArm(rig.armL, -armS * armAmp);
   if (m < 0.12) poseIdle(rig, fig.userData, performance.now() * 0.001, 1 - m, wxNow.rain > 0.4);
-  const cargo = runSyncCargo(rig);
-  if (cargo) runPoseCargo(rig, cargo, phase, m);
+  if (!fig.studio) {
+    const cargo = runSyncCargo(rig);
+    if (cargo) runPoseCargo(rig, cargo, phase, m);
+  }
   if (fig.studio) {
-    const slots = runSlots();
-    const rain = wxNow.rain > 0.4 && !runUnderAwning();
+    const carried = syncPlayerLoad(fig, stepping);
     const pack = fig.studio;
-    pack.showCargo = false;
-    if (slots > 0) {
-      pack.clip = "carry_object";
-      pack.carryCount = Math.max(1, Math.min(5, slots));
-      pack.carrySubMode = stepping ? "walk" : "idle";
-    } else if (rain) {
-      pack.clip = "umbrella_rain";
-    } else if (stepping && g > 0.55) {
+    if (carried > 0) pack.clip = "carry_object";
+    else if (stepping && g > 0.55) {
       pack.clip = "run";
     } else if (stepping) {
       pack.clip = "walk";
     } else {
-      pack.clip = "work_stand";
+      pack.clip = "idle_stand";
     }
   }
   wakeFigure(fig);
@@ -30035,7 +30277,7 @@ function runDeliver(job, now) {
   const fee = runFee(job);
   job.fee = job.late ? Math.max(1, Math.floor(fee / 2)) : fee;
   if (job.box) { city.remove(job.box); job.box = null; }
-  if (job.fig) runDepartStart(job);
+  if (job.fig && job.fig.studio) job.fig.studio.wave = 0;
   if (job.first && run.intro === 1) run.intro = 2;
   if (job.second) run.intro = 3;
 }
@@ -30062,289 +30304,22 @@ function runForgetJobs() {
   for (let i = 0; i < jobs.length; i++) runRemoveBody(jobs[i]);
   run.jobs = [];
 }
-// Alleys from the street graph, plus the three outer pavements those alleys
-// open onto. A person who has their parcel walks one of these, not through a wall.
-function runLanes() {
-  if (runLanes.list) return runLanes.list;
-  const list = streetPaths.slice();
-  list.push(
-    { axis: "x", c: -2.16, a: 6, b: 204, keep: 0.24, thick: 2.4, world: true },
-    { axis: "x", c: 121.55, a: 4, b: 200, keep: 0.4, thick: 2.4, world: true },
-    { axis: "z", c: 211.5, a: 8, b: 110, y: 0.32, keep: 0.26, thick: 2.2, world: true }
-  );
-  runLanes.list = list;
-  return list;
-}
-function runNearestLane(x, z) {
-  const lanes = runLanes();
-  let best = null, bestD = 3.2;
-  for (let i = 0; i < lanes.length; i++) {
-    const p = lanes[i];
-    const span = p.b - p.a;
-    let along, lateral;
-    if (p.axis === "z") {
-      along = z - p.a;
-      lateral = x - p.c;
-    } else {
-      along = x - p.a;
-      lateral = z - p.c;
-    }
-    if (along < -1.2 || along > span + 1.2) continue;
-    const ad = Math.abs(lateral);
-    if (ad < bestD) {
-      bestD = ad;
-      best = { path: p, along: Math.max(0.6, Math.min(Math.max(0.6, span - 0.6), along)) };
-    }
-  }
-  return best;
-}
-function runJoinLane(job) {
+// After the handoff the receiver stays at the door on the standing idle.
+// They leave the scene once the player is NPC_AWAY from that spot, like every other NPC.
+function runHoldReceiver(job) {
   const fig = job.fig;
   if (!fig) return;
-  const x = fig.position.x + SHEAR_K * fig.position.z;
-  const z = fig.position.z;
-  const hit = runNearestLane(x, z);
-  if (!hit) {
-    job.depart = { phase: "free", yaw: Math.atan2(x - walkX, z - walkZ), age: job.depart ? job.depart.age : 0 };
-    return;
-  }
-  const span = Math.max(0.5, hit.path.b - hit.path.a);
-  const fore = Math.min(span, hit.along + 1.6);
-  const aft = Math.max(0, hit.along - 1.6);
-  const ahead = walkerFrame(hit.path, fore, 1);
-  const behind = walkerFrame(hit.path, aft, -1);
-  const dA = Math.hypot(ahead.worldX - walkX, ahead.worldZ - walkZ);
-  const dB = Math.hypot(behind.worldX - walkX, behind.worldZ - walkZ);
-  const ud = fig.userData;
-  ud.path = hit.path;
-  ud.along = hit.along;
-  ud.dir = dA >= dB ? 1 : -1;
-  ud.speed = 0.92;
-  ud.wait = 0;
-  ud.heat = 1;
-  ud.corner = null;
-  ud.meetCool = 1e9;
-  ud.lookCool = 1e9;
-  ud.nextAct = 1e12;
-  ud.ease = 0.4;
-  job.depart = { phase: "lane", blend: 0, age: job.depart ? job.depart.age : 0, stuck: 0 };
-}
-function runDeckOpen(deck, x, z) {
-  if (!deck) return false;
-  if (x < deck.x + 0.45 || x > deck.x + deck.w - 0.45) return false;
-  if (z < deck.z + 0.45 || z > deck.z + deck.d - 0.45) return false;
-  const blocks = deck.blocks || [];
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i];
-    if (x > b.x - 0.22 && x < b.x2 + 0.22 && z > b.z - 0.22 && z < b.z2 + 0.22) return false;
-  }
-  return true;
-}
-function runDepartStart(job) {
-  const fig = job.fig;
-  if (!fig) return;
-  const ud = fig.userData;
-  ud.leaving = 1;
-  ud.act = null;
-  ud.speed = 0.92;
-  ud.scale = ud.scale || 1;
-  ud.wait = 0;
-  ud.offset = ud.offset || (job.id || 1) * 0.37;
-  if (job.roof && job.door >= 0 && roofDoors[job.door] && roofDoors[job.door].deck) {
-    job.depart = { phase: "roof", age: 0, stuck: 0 };
-  } else {
-    job.depart = { phase: "seek", age: 0 };
-    runJoinLane(job);
-  }
-}
-// Legs only. The caller keeps the feet where the departure put them.
-function runDepartPose(fig, now) {
-  const ud = fig.userData;
-  if (!ud.posePath) {
-    ud.posePath = { axis: "x", c: 0, a: 0, b: 400, keep: 0, world: true, y: fig.position.y };
-  }
-  const px = fig.position.x, py = fig.position.y, pz = fig.position.z, yaw = fig.rotation.y;
-  ud.path = ud.posePath;
-  ud.along = 200;
-  ud.dir = 1;
-  ud.speed = 0.92;
-  ud.wait = 0;
-  ud.heat = 0;
-  ud.corner = null;
-  ud.meetCool = 1e9;
-  ud.lookCool = 1e9;
-  ud.nextAct = 1e12;
-  ud.act = null;
-  advanceWalker(ud, now, fig);
-  fig.position.set(px, py, pz);
-  fig.rotation.y = yaw;
-}
-function runPickCorner(ud) {
-  const map = heatBuildGraph();
-  const ends = map.get(ud.path);
-  if (!ends) return null;
-  const options = ends[ud.dir > 0 ? 1 : 0];
-  if (!options || !options.length) return null;
-  let best = null, bestScore = -1e9;
-  for (let i = 0; i < options.length; i++) {
-    const opt = options[i];
-    const frame = walkerFrame(opt.path, Math.max(0, opt.at + opt.dir * 2), opt.dir);
-    const away = Math.hypot(frame.worldX - walkX, frame.worldZ - walkZ);
-    const turn = opt.path.axis !== ud.path.axis ? 6 : 0;
-    const score = away + turn;
-    if (score > bestScore) { bestScore = score; best = opt; }
-  }
-  return best;
-}
-function runStepRoof(job, now, dt) {
-  const door = roofDoors[job.door];
-  const deck = door && door.deck;
-  const fig = job.fig;
-  if (!door || !deck) {
-    fig.position.y = GROUND_Y;
-    runJoinLane(job);
-    return;
-  }
-  const x = fig.position.x, z = fig.position.z;
-  const dx = door.upX - x, dz = door.upZ - z;
-  const dist = Math.hypot(dx, dz);
-  if (dist < 0.55) {
-    fig.position.set(door.x - SHEAR_K * door.z, GROUND_Y, door.z);
-    fig.rotation.y = door.outYaw || fig.rotation.y;
-    runJoinLane(job);
-    return;
-  }
-  const step = Math.min(dist, 0.95 * Math.max(0, dt));
-  let nx = x + dx / dist * step;
-  let nz = z + dz / dist * step;
-  if (!runDeckOpen(deck, nx, nz)) {
-    const sx = -dz / dist, sz = dx / dist;
-    if (runDeckOpen(deck, x + sx * step, z + sz * step)) { nx = x + sx * step; nz = z + sz * step; }
-    else if (runDeckOpen(deck, x - sx * step, z - sz * step)) { nx = x - sx * step; nz = z - sz * step; }
-    else { nx = x; nz = z; }
-  }
-  const moved = Math.hypot(nx - x, nz - z);
-  job.depart.stuck = moved < 0.004 ? (job.depart.stuck || 0) + dt : 0;
-  if (job.depart.stuck > 1.2) {
-    fig.position.set(door.x - SHEAR_K * door.z, GROUND_Y, door.z);
-    runJoinLane(job);
-    return;
-  }
-  fig.position.set(nx, deck.y, nz);
-  if (moved > 0.001) {
-    const want = Math.atan2(nx - x, nz - z);
-    let turn = Math.atan2(Math.sin(want - fig.rotation.y), Math.cos(want - fig.rotation.y));
-    fig.rotation.y += turn * Math.min(1, dt * 8);
-  }
-  runDepartPose(fig, now);
-}
-function runStepFree(job, now, dt) {
-  const fig = job.fig;
-  const depart = job.depart;
-  let yaw = depart.yaw;
-  if (yaw == null) yaw = Math.atan2(fig.position.x - walkX, fig.position.z - walkZ);
-  const step = 0.95 * Math.max(0, dt);
-  function openAt(ang) {
-    const nx = fig.position.x + Math.sin(ang) * step;
-    const nz = fig.position.z + Math.cos(ang) * step;
-    if (!walkInside(nx, nz) || walkBlocked(nx, nz, { pad: 0.06, bodies: false })) return null;
-    return { x: nx, z: nz };
-  }
-  let spot = openAt(yaw);
-  if (!spot) {
-    for (let k = 1; k <= 5 && !spot; k++) {
-      const swing = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.7;
-      spot = openAt(yaw + swing);
-      if (spot) yaw += swing;
-    }
-  }
-  depart.yaw = yaw;
-  if (spot) {
-    fig.position.set(spot.x, GROUND_Y, spot.z);
-    fig.rotation.y = yaw;
-    const hit = runNearestLane(spot.x + SHEAR_K * spot.z, spot.z);
-    if (hit) { runJoinLane(job); return; }
-  }
-  runDepartPose(fig, now);
-}
-function runStepLane(job, now, dt) {
-  const fig = job.fig;
-  const ud = fig.userData;
-  const depart = job.depart;
-  ud.speed = 0.92;
-  ud.wait = 0;
-  ud.act = null;
-  ud.meetCool = 1e9;
-  ud.lookCool = 1e9;
-  ud.nextAct = 1e12;
-  const span = Math.max(0.5, ud.path.b - ud.path.a);
-  const remain = ud.dir > 0 ? span - ud.along : ud.along;
-  if (!ud.corner && remain < 1.7) {
-    const link = runPickCorner(ud);
-    if (link) ud.corner = link;
-    else ud.dir = -ud.dir;
-  }
-  if (ud.corner) {
-    const step = Math.min(0.16, ud.speed * Math.max(0, dt));
-    const dx = ud.corner.x - (ud.x != null ? ud.x : fig.position.x);
-    const dz = ud.corner.z - (ud.z != null ? ud.z : fig.position.z);
-    const dist = Math.hypot(dx, dz);
-    if (dist <= step + 0.08) {
-      ud.path = ud.corner.path;
-      ud.along = ud.corner.at;
-      ud.dir = ud.corner.dir;
-      ud.corner = null;
-    } else if (dist > 0.001) {
-      const nx = (ud.x != null ? ud.x : fig.position.x) + dx / dist * step;
-      const nz = (ud.z != null ? ud.z : fig.position.z) + dz / dist * step;
-      ud.x = nx;
-      ud.z = nz;
-      ud.y = GROUND_Y;
-      fig.position.set(nx - SHEAR_K * nz, GROUND_Y, nz);
-      const want = Math.atan2(dx, dz);
-      let turn = Math.atan2(Math.sin(want - fig.rotation.y), Math.cos(want - fig.rotation.y));
-      fig.rotation.y += turn * Math.min(1, dt * 8);
-      ud.yaw = fig.rotation.y;
-    }
-  }
-  const before = ud.along;
-  const ox = fig.position.x, oy = fig.position.y, oz = fig.position.z;
-  const cornering = !!ud.corner;
-  // Heat keeps advanceWalker from pulling them back onto the rail mid-corner.
-  ud.heat = cornering ? 1 : 0;
-  advanceWalker(ud, now, fig);
-  if (!cornering && (depart.blend || 0) < 1) {
-    depart.blend = Math.min(1, (depart.blend || 0) + dt * 3);
-    const k = depart.blend;
-    fig.position.x = ox + (fig.position.x - ox) * k;
-    fig.position.y = oy + (fig.position.y - oy) * k;
-    fig.position.z = oz + (fig.position.z - oz) * k;
-  }
-  if (!cornering && Math.abs((ud.along || 0) - before) < 0.002) {
-    depart.stuck = (depart.stuck || 0) + dt;
-    if (depart.stuck > 0.7) {
-      ud.dir = -ud.dir;
-      depart.stuck = 0;
-    }
-  } else depart.stuck = 0;
-}
-function runOffCamera(fig) {
-  refreshFigureView();
-  const p = fig.position;
-  return figureViewGap(p.x, p.y + 0.85, p.z, 1.15) < 0;
-}
-function runStepDepart(job, now, dt) {
-  const fig = job.fig;
-  if (!fig || !job.depart) { runRemoveBody(job); return; }
   if (!walkMode) { runRemoveBody(job); return; }
-  job.depart.age = (job.depart.age || 0) + Math.max(0, dt || 0);
-  const phase = job.depart.phase;
-  if (phase === "roof") runStepRoof(job, now, dt);
-  else if (phase === "lane") runStepLane(job, now, dt);
-  else runStepFree(job, now, dt);
-  if (!job.fig) return;
-  wakeFigure(job.fig);
-  if (job.depart && job.depart.age > 0.25 && runOffCamera(job.fig)) runRemoveBody(job);
+  const here = Math.hypot(walkX - job.x, walkZ - job.z);
+  if (here > NPC_AWAY) { runRemoveBody(job); return; }
+  fig.visible = true;
+  const ud = fig.userData;
+  ud.act = "gaze";
+  ud.ease = 0;
+  ud.speed = 0;
+  ud.wait = 1;
+  if (fig.studio) fig.studio.wave = 0;
+  wakeFigure(fig);
 }
 function runFreeze() {
   if (!run.openRun) return;
@@ -30393,7 +30368,7 @@ function runPerson(job) {
   if (job.fig || job.state !== "carried" && job.state !== "dropped") return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
   const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
-  if (!walkMode || (here > 18 && !onDeck)) return;
+  if (!walkMode || (here > NPC_AWAY && !onDeck)) return;
   const wear = wearCopy(studioPick(STUDIO_STREET, job.id), { gait: "walk", role: null, prop: null });
   const fig = makeCitizen(wear);
   const rig = fig.userData.rig;
@@ -30411,7 +30386,7 @@ function runPosePeople(now, dt) {
   for (let i = 0; i < run.jobs.length; i++) {
     const job = run.jobs[i];
     if (job.state === "done" && job.fig) {
-      runStepDepart(job, now, dt);
+      runHoldReceiver(job);
       continue;
     }
     if (job.state !== "carried" && job.state !== "dropped") {
@@ -30427,7 +30402,7 @@ function runPosePeople(now, dt) {
     if (!job.fig) continue;
     const here = Math.hypot(walkX - job.x, walkZ - job.z);
     const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
-    job.fig.visible = here < 22 || onDeck;
+    job.fig.visible = here <= NPC_AWAY || onDeck;
     if (!job.fig.visible) continue;
     const ud = job.fig.userData;
     if (job.pointUntil && now < job.pointUntil) ud.act = "point";
@@ -30945,8 +30920,9 @@ document.getElementById("run-cloth").addEventListener("click", function () { run
 document.getElementById("run-strap").addEventListener("click", function () { runBuy("strap"); });
 document.getElementById("run-bell").addEventListener("click", function () { runBuy("bell"); });
 
-// The map is the streets around the runner, north up. A cell stays dark until
-// the runner has stood within sight of it, and that stays for the session.
+// The map sits at the top right, under the settings gear. Streets turn under a player mark that
+// stays pointing up. A cell stays dark until the runner has stood within
+// sight of it, and that stays for the session. Parcel marks draw over the fog.
 const miniMap = {
   x0: -10,
   z0: -14,
@@ -30970,7 +30946,7 @@ function miniMapEls() {
   const view = document.getElementById("minimap");
   if (!view) return null;
   view.width = 336;
-  view.height = 210;
+  view.height = 336;
   miniMap.view = view;
   miniMap.ctx = view.getContext("2d");
   const bw = Math.ceil((miniMap.x1 - miniMap.x0) * miniMap.ppm);
@@ -33725,7 +33701,13 @@ function stepRoofKids(now) {
     const home = fig.userData.roof;
     const gap = figureViewGap(home.x, home.y + 0.8, home.z, 0.95);
     const want = show && !walkMode;
-    if (want) {
+    if (walkMode && (!show || npcAway(home.x, home.z))) {
+      if (fig.visible) fig.visible = false;
+      dozeFigure(fig);
+      continue;
+    }
+    if (walkMode) fig.visible = true;
+    else if (want) {
       if (!fig.visible && gap >= FIGURE_CLEAR) { dozeFigure(fig); continue; }
       fig.visible = true;
     } else if (fig.visible && gap >= 0) {
@@ -34458,17 +34440,17 @@ function streetGradeParts(kind) {
   const ride = kind === "ride";
   const glass = kind === "glass";
   const prop = kind === "prop";
-  const sunLo = ride ? 0.62 : glass ? 0.78 : prop ? 0.84 : 0.64;
-  const sunHi = ride ? 1.42 : glass ? 1.06 : prop ? 1.08 : 1.2;
+  const sunLo = ride ? 0.62 : glass ? 0.78 : prop ? 0.84 : 0.8;
+  const sunHi = ride ? 1.42 : glass ? 1.06 : prop ? 1.08 : 1.06;
   const nightK = ride ? 0.3 : glass ? 0.26 : prop ? 0.58 : 0.52;
   const wetK = ride ? 0.62 : glass ? 0.7 : prop ? 0.86 : 0.84;
   // Wet paint stays satin. 0.16 was a mirror on the bonnet; glass only
   // eases a little because the pane is already smooth.
   const wetRough = ride ? 0.42 : glass ? 0.18 : prop ? 0.58 : 0.62;
-  const sheenF = ride ? 0.18 : glass ? 0.28 : prop ? 0.06 : 0.07;
-  const sheenUp = ride ? 0.08 : glass ? 0.06 : prop ? 0.03 : 0.04;
-  const glint = ride ? 0.1 : glass ? 0.04 : prop ? 0.02 : 0.03;
-  const specPow = ride ? "10.0" : glass ? "18.0" : prop ? "28.0" : "32.0";
+  const sheenF = ride ? 0.18 : glass ? 0.28 : prop ? 0.06 : 0.035;
+  const sheenUp = ride ? 0.08 : glass ? 0.06 : prop ? 0.03 : 0.025;
+  const glint = ride ? 0.1 : glass ? 0.04 : prop ? 0.02 : 0.01;
+  const specPow = ride ? "10.0" : glass ? "18.0" : prop ? "28.0" : "48.0";
   const nightBlue = (ride || glass) ? "0.75" : prop ? "0.28" : "0.32";
   const flow = (ride || glass) ? bodyFlowChunk() : "";
   const form = (ride || glass) ? "" : prop ? [
@@ -34476,9 +34458,9 @@ function streetGradeParts(kind) {
     "diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.76, 0.7), sgDown * 0.45);"
   ].join("\n") : [
     "float sgDown = clamp(-sgN.y, 0.0, 1.0);",
-    "diffuseColor.rgb *= mix(vec3(1.0), vec3(0.74, 0.68, 0.6), sgDown * 0.65);",
-    "float sgSole = smoothstep(0.62, 0.28, vBodyWorld.y);",
-    "diffuseColor.rgb *= mix(1.0, 0.8, sgSole * smoothstep(0.15, -0.35, sgN.y));",
+    "diffuseColor.rgb *= mix(vec3(1.0), vec3(0.7, 0.64, 0.56), sgDown * 0.82);",
+    "float sgSole = smoothstep(0.72, 0.22, vBodyWorld.y);",
+    "diffuseColor.rgb *= mix(1.0, 0.72, sgSole * smoothstep(0.2, -0.45, sgN.y));",
     "diffuseColor.rgb *= mix(1.0, 1.05, sgUp * sgDay);"
   ].join("\n");
   const albedo = [
