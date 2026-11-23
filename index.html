@@ -24165,20 +24165,22 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
         }
 
         case 'drunk_sway': {
-            // Stumbling drunk sway with hiccup & bottle swig
+            // Stumbling drunk walk. The sway stays when they stop to greet.
+            const drunkAmp = (charGroup.userData && charGroup.userData.ease != null)
+              ? Math.min(1, Math.max(0, charGroup.userData.ease)) : 1;
             const swayX = Math.sin(t * 1.9) * 0.14;
             const swayZ = Math.cos(t * 1.4) * 0.12;
-            j.pelvis.position.set(swayX, basePelvisY - 0.05 + Math.abs(Math.sin(t * 3.8)) * 0.03, swayZ * 0.5);
+            j.pelvis.position.set(swayX, basePelvisY - 0.05 + Math.abs(Math.sin(t * 3.8)) * 0.03 * drunkAmp, swayZ * 0.5);
             j.pelvis.rotation.z = swayX * 0.6;
             j.chest.rotation.z = -swayX * 1.2;
             j.chest.rotation.x = 0.18 + Math.sin(t * 2.3) * 0.16;
             j.head.rotation.set(0.25 + Math.sin(t * 3.1) * 0.2, Math.cos(t * 1.7) * 0.3, -0.18);
 
-            // Staggering knees
-            j.leftThigh.rotation.x = Math.sin(t * 3.8) * 0.35 - 0.2;
-            j.rightThigh.rotation.x = -Math.sin(t * 3.8) * 0.35 - 0.2;
-            j.leftShin.rotation.x = 0.45;
-            j.rightShin.rotation.x = 0.45;
+            // Staggering knees, planted once they stop
+            j.leftThigh.rotation.x = (Math.sin(t * 3.8) * 0.42 - 0.12) * drunkAmp;
+            j.rightThigh.rotation.x = (-Math.sin(t * 3.8) * 0.42 - 0.12) * drunkAmp;
+            j.leftShin.rotation.x = (0.28 + Math.max(0, -Math.cos(t * 3.8)) * 0.45) * drunkAmp;
+            j.rightShin.rotation.x = (0.28 + Math.max(0, Math.cos(t * 3.8)) * 0.45) * drunkAmp;
 
             // Raising drink / stumbling balance arm
             const swig = Math.max(0, Math.sin(t * 1.5));
@@ -24332,6 +24334,7 @@ function studioClipFor(fig) {
     if (ud.stance === "idle") return "idle_stand";
     return "work_stand";
   }
+  if (ud.flee) return "run";
   if (ud.gang || ud.act === "guard") return "fight";
   if (ud.role === "run") return (heat.phase === "chase" && (ud.speed || 0) > 0.3) ? "being_chased" : "fight";
   if (ud.role === "shove" || ud.role === "follow") return (heat.phase === "chase" && (ud.speed || 0) > 0.3) ? "chasing" : "fight";
@@ -25186,6 +25189,15 @@ function tryGreet(ud, now) {
     considerPerson(ud, ou, best);
   }
   for (let i = 0; i < cityFolk.length; i++) considerPerson(ud, cityFolk[i], best);
+  const pdx = walkX - ud.x, pdz = walkZ - ud.z;
+  const pd2 = pdx * pdx + pdz * pdz;
+  if (pd2 > 0.16 && pd2 < best.d2) {
+    ud.meetCool = now + 6.5;
+    if (Math.random() >= GREET_CHANCE) return false;
+    beginAct(ud, now, "greet", 1.55);
+    ud.bias = turnToward(ud, walkX, walkZ);
+    return true;
+  }
   if (best.who) {
     const other = best.who;
     ud.meetCool = other.meetCool = now + 6.5;
@@ -25250,15 +25262,16 @@ function advanceWalker(ud, now, fig) {
   now = ud.clock;
   // A bout stays on its marks. The walk cycle was turning them down the
   // lane and waving the arms after the first pause ran out.
-  if (ud.gang) {
+  if (ud.gang && !ud.flee) {
     ud.wait = 2;
     ud.speed = 0;
     ud.ease = 0;
     if (fig && ud.rig) poseGangFight(ud.rig, ud, now, 1);
     return;
   }
+  if (ud.flow && ud.corner) stepHeatCorner(ud, dt);
   if (ud.nextAct == null) ud.nextAct = now + 1.2 + Math.abs(ud.offset * 5) % 4;
-  const offLane = !!(ud.heat && ud.corner);
+  const offLane = !!((ud.heat || ud.flow) && ud.corner);
   if (offLane) {
     ud.wait = 0;
     ud.held = false;
@@ -25307,18 +25320,21 @@ function advanceWalker(ud, now, fig) {
       let face = ud.dir;
       let step = speed * dt;
       if (ud.heat && step > 0.18) step = 0.18;
+      if (ud.flow && ud.wait <= 0) flowConsiderTurn(ud);
       let landed = ud.along + step * face;
       if (landed >= span) {
         landed = span;
-        if (!ud.heat) face = -1;
+        if (!ud.heat && !ud.flow) face = -1;
       } else if (landed <= 0) {
         landed = 0;
-        if (!ud.heat) face = 1;
+        if (!ud.heat && !ud.flow) face = 1;
       }
-      if (!walkerBlocked(path, landed, face)) {
+      if (ud.flow && ud.corner) {
+        // The corner step already has them. Do not walk through the wall.
+      } else if (!walkerBlocked(path, landed, face)) {
         ud.along = landed;
-        if (face !== ud.dir && !ud.heat) ud.dir = face;
-      } else if (!ud.heat) {
+        if (face !== ud.dir && !ud.heat && !ud.flow) ud.dir = face;
+      } else if (!ud.heat && !ud.flow) {
         const back = -ud.dir;
         const held = Math.max(0, Math.min(span, ud.along));
         if (!walkerBlocked(path, held, back)) ud.dir = back;
@@ -25351,13 +25367,19 @@ function advanceWalker(ud, now, fig) {
     ud.yaw = yawNow + dy * Math.min(1, dt * yawFollow);
     if (fig) fig.rotation.y = ud.yaw;
   }
+  if (ud.flow && !ud.corner) {
+    const chestY = (ud.y == null ? GROUND_Y : ud.y) + 0.85;
+    const seen = figurePlaying(ud.x, chestY, ud.z);
+    if (seen && ud.rounded >= 1) ud.watched = 1;
+    if (!seen && (ud.rounded >= 1 || ud.retire)) ud.depart = 1;
+  }
   // A lane resident with no figure still advances. The pose needs a body.
   if (!fig) return;
   const endProx = Math.min(along, span - along);
   const turning = Math.min(1, Math.abs(dy) / 1.15);
   // Heat does not shorten its step at the kerb. That read as a group arriving
   // and locking. A flee has already left this rail by then.
-  const stride = ud.wait > 0 ? 0 : ud.held ? 0.25 : (ud.heat ? (1 - turning * 0.35) : Math.min(1, endProx / 0.55) * (1 - turning));
+  const stride = ud.wait > 0 ? 0 : ud.held ? 0.25 : ((ud.heat || ud.corner) ? (1 - turning * 0.35) : Math.min(1, endProx / 0.55) * (1 - turning));
   if (ud.ease == null) ud.ease = ud.act ? 0 : 1;
   ud.ease += (stride - ud.ease) * Math.min(1, dt * (ud.heat ? 4.2 : 5));
   const rig = ud.rig;
@@ -25785,6 +25807,7 @@ function addWalker(path, spec, i, place) {
   ud.scale = wear.scale || 1;
   ud.wear = wear;
   ud.role = (place && place.role) || wear.role || null;
+  ud.flow = place && place.flow ? 1 : 0;
   const dir = place ? place.dir : (i % 2 ? -1 : 1);
   const along = place ? place.along : (i * 5.1 + path.a) % span;
   ud.dir = dir;
@@ -25840,69 +25863,8 @@ function addWalker(path, spec, i, place) {
   } else cityFolk.push(ud);
   return fig;
 }
-const roster = [];
-// One resident on each of the longer lanes. The list is already longest-first.
-streetPaths.forEach(p => {
-  if (p.b - p.a >= 11 && roster.length < 34) roster.push({ path: p, slot: 0 });
-});
-// Someone coming the other way, so a lane is not a single figure.
-streetPaths.forEach(p => {
-  if (p.b - p.a >= 18) roster.push({ path: p, slot: 1 });
-});
-streetPaths.forEach(p => {
-  if (p.b - p.a >= 28) roster.push({ path: p, slot: 2 });
-});
-// Extra residents from eight until ten. A short lane gains one, a long lane
-// two, in the gaps the standing roster leaves. They are records until the
-// lens is clear, the same as the people already on these paths.
-streetPaths.forEach(p => {
-  const span = p.b - p.a;
-  if (span < 12) return;
-  const frac = span < 18 ? 0.72 : span < 28 ? 0.44 : 0.88;
-  roster.push({ path: p, frac, day: 1 });
-  if (span >= 26) roster.push({ path: p, frac: 0.08, day: 1 });
-});
-roster.forEach((entry, i) => {
-  const span = entry.path.b - entry.path.a;
-  let along;
-  if (entry.day) {
-    along = span * entry.frac + ((i % 5) - 2) * 0.28;
-    if (along < 1) along = 1;
-    if (along > span - 1) along = span - 1;
-  } else {
-    const frac = entry.slot === 0 ? 0.2 : entry.slot === 1 ? 0.68 : 0.44;
-    along = (span * frac + (i % 6) * 0.6) % span;
-  }
-  const slot = entry.slot || 0;
-  addWalker(entry.path, outfits[(i + slot * 4) % outfits.length], i, {
-    dir: slot % 2 ? -1 : 1,
-    along,
-    inside: true,
-    day: entry.day ? 1 : 0
-  });
-});
-// One of each lane job, on a long alley. The lookout scans, the runner
-// carries, the elder shuffles, the punk swaggers. The same clothes walk
-// in the crowd; these four keep the job when they pause.
-const LANE_ROLES = [
-  { role: "lookout", speed: 0.28, wear: STUDIO.lung },
-  { role: "courier", speed: 1.15, wear: STUDIO.kwok },
-  { role: "elder", speed: 0.42, wear: STUDIO.leung },
-  { role: "punk", speed: 0.95, wear: STUDIO.wai }
-];
-let laneRoleN = 0;
-streetPaths.forEach(p => {
-  if (laneRoleN >= LANE_ROLES.length || p.b - p.a < 16) return;
-  const role = LANE_ROLES[laneRoleN];
-  addWalker(p, role.wear, 80 + laneRoleN, {
-    dir: 1,
-    along: (p.b - p.a) * (0.3 + laneRoleN * 0.12),
-    inside: true,
-    speed: role.speed,
-    role: role.role
-  });
-  laneRoleN++;
-});
+// The lane crowd is not a fixed roster. People are born off camera, walk a
+// street, turn onto the next one, and leave once that turn is out of view.
 // What the person behind the counter is wearing, and what their hands do
 // when nobody is at the door.
 const KEEPER_LOOK = {
@@ -26140,7 +26102,139 @@ function folkOut(ud) {
   return walkerHome(ud) || !!(ud && ud.day && !dayCrowdNow());
 }
 function walkerHome(ud) {
+  if (ud && ud.flow) return false;
   return !!(ud && ud.who && !streetBusyNow() && (ud.who % 3) !== 0);
+}
+// Daytime is the full pavement. After eight the crowd is half. After eleven
+// it is half of that. Shopkeepers are not in this count.
+function streetCrowdScale() {
+  const hour = clockHour();
+  if (hour >= 23 || hour < 8) return 0.25;
+  if (hour >= 20) return 0.5;
+  return 1;
+}
+function streetCrowdBase() {
+  if (streetCrowdBase.n) return streetCrowdBase.n;
+  let n = 0;
+  for (let i = 0; i < streetPaths.length; i++) {
+    const path = streetPaths[i];
+    const span = path.b - path.a;
+    if (path.world || span < 11) continue;
+    n++;
+    if (span >= 18) n++;
+    if (span >= 28) n++;
+  }
+  streetCrowdBase.n = Math.max(8, Math.min(28, n));
+  return streetCrowdBase.n;
+}
+function streetCrowdCap() {
+  return Math.max(3, Math.round(streetCrowdBase() * streetCrowdScale()));
+}
+function drunkHour() {
+  return hourInSpan(clockHour(), [23, 3]);
+}
+function flowChooseLink(ud) {
+  const map = heatBuildGraph();
+  const ends = map.get(ud.path);
+  if (!ends) return null;
+  const end = ud.dir > 0 ? 1 : 0;
+  const options = ends[end];
+  if (!options || !options.length) return null;
+  const turns = [];
+  for (let i = 0; i < options.length; i++) {
+    if (options[i].path !== ud.path) turns.push(options[i]);
+  }
+  if (!turns.length) return null;
+  const corners = [];
+  for (let i = 0; i < turns.length; i++) {
+    if (turns[i].path.axis !== ud.path.axis) corners.push(turns[i]);
+  }
+  const pool = corners.length ? corners : turns;
+  return pool[(Math.random() * pool.length) | 0];
+}
+function flowConsiderTurn(ud) {
+  if (!ud.flow || ud.corner || !ud.path || ud.wait > 0) return;
+  const span = ud.path.b - ud.path.a;
+  const remain = ud.dir > 0 ? span - ud.along : ud.along;
+  const chestY = (ud.y == null ? GROUND_Y : ud.y) + 0.85;
+  if (remain < 2.4 && figurePlaying(ud.x, chestY, ud.z)) ud.watched = 1;
+  if (remain > 1.55) return;
+  const link = flowChooseLink(ud);
+  if (!link) {
+    if (remain < 0.4 && !figurePlaying(ud.x, chestY, ud.z)) ud.depart = 1;
+    else if (remain < 0.35) ud.dir = -ud.dir;
+    return;
+  }
+  ud.corner = link;
+}
+function crowdSpawnHidden() {
+  const drunks = drunkHour();
+  for (let n = 0; n < 10; n++) {
+    const path = streetPaths[(Math.random() * streetPaths.length) | 0];
+    if (!path || path.world || path.b - path.a < 9) continue;
+    const span = path.b - path.a;
+    const mid = walkerFrame(path, span * 0.5, 1);
+    if (Math.hypot(mid.worldX - walkX, mid.worldZ - walkZ) > 18) continue;
+    const ends = [0.7, span - 0.7];
+    for (let e = 0; e < 2; e++) {
+      const along = ends[e];
+      const dir = e === 0 ? 1 : -1;
+      if (walkerBlocked(path, along, dir)) continue;
+      const frame = walkerFrame(path, along, dir);
+      const dist = Math.hypot(frame.worldX - walkX, frame.worldZ - walkZ);
+      if (dist < 7 || dist > 15) continue;
+      if (figurePlaying(frame.worldX, GROUND_Y + 0.85, frame.worldZ)) continue;
+      return { path: path, along: along, dir: dir, drunk: drunks && Math.random() < 0.4, wide: path.thick >= 2.8 };
+    }
+  }
+  return null;
+}
+function stepStreetCrowd(now) {
+  if (!walkMode) return;
+  refreshFigureView();
+  const cap = streetCrowdCap();
+  const night = drunkHour();
+  let live = 0;
+  for (let i = cityFolk.length - 1; i >= 0; i--) {
+    const ud = cityFolk[i];
+    if (!ud.flow) continue;
+    if (ud.role === "drunk" && !night) ud.retire = 1;
+    const chestY = (ud.y == null ? GROUND_Y : ud.y) + 0.85;
+    const seen = figurePlaying(ud.x, chestY, ud.z);
+    if (ud.depart && !ud.corner && !seen) {
+      dropFolk(ud);
+      cityFolk.splice(i, 1);
+      continue;
+    }
+    if (!ud.depart) live++;
+  }
+  if (live > cap) {
+    let extra = live - cap;
+    for (let i = 0; i < cityFolk.length && extra > 0; i++) {
+      const ud = cityFolk[i];
+      if (!ud.flow || ud.depart || ud.retire) continue;
+      const chestY = (ud.y == null ? GROUND_Y : ud.y) + 0.85;
+      if (figurePlaying(ud.x, chestY, ud.z)) continue;
+      ud.retire = 1;
+      extra--;
+    }
+  }
+  if (live < cap) {
+    const spot = crowdSpawnHidden();
+    if (spot) {
+      const wear = spot.drunk
+        ? wearCopy(Math.random() < 0.5 ? STUDIO.choi : STUDIO.leung, { gait: "slow", role: "drunk" })
+        : outfits[(stepStreetCrowd.seq = (stepStreetCrowd.seq || 0) + 1) % outfits.length];
+      addWalker(spot.path, wear, stepStreetCrowd.seq || 1, {
+        dir: spot.dir,
+        along: spot.along,
+        inside: true,
+        flow: 1,
+        speed: spot.drunk ? 0.46 : (spot.wide ? 1.5 : 0.86),
+        role: spot.drunk ? "drunk" : null
+      });
+    }
+  }
 }
 let shopsHourFlip = false;
 let shopHourStamp = "";
@@ -26211,6 +26305,7 @@ function dropFolk(ud) {
 // lens and dropped off the lens. After eleven, one who is still in the
 // picture keeps walking until the frame has let them go.
 function syncCityFolk(now) {
+  stepStreetCrowd(now);
   refreshFigureView();
   const offer = emptyFigureOffer();
   const budget = pace.tier === 0 ? 1 : 2;
@@ -26218,7 +26313,7 @@ function syncCityFolk(now) {
     const ud = cityFolk[i];
     const py = (ud.y || 0) + 0.85;
     const want = walkMode && !folkOut(ud);
-    const away = npcAway(ud.x, ud.z);
+    const away = npcAway(ud.x, ud.z) && !figurePlaying(ud.x, py, ud.z);
     if (ud.fig) {
       if (!want || away) dropFolk(ud);
       else if (figurePlaying(ud.x, py, ud.z)) wakeFigure(ud.fig);
@@ -26359,9 +26454,10 @@ function heatSeen(rec) {
 function cullHeatUnseen() {
   if (!heat.leaving && !alleyHeat.some(function (rec) { return rec.leaving; })) return;
   heatRefreshView();
-  for (let i = 0; i < alleyHeat.length; i++) if (heatSeen(alleyHeat[i])) return;
   for (let i = alleyHeat.length - 1; i >= 0; i--) {
-    if (alleyHeat[i].leaving) dropHeatOne(alleyHeat[i]);
+    const rec = alleyHeat[i];
+    if (!rec.leaving || heatSeen(rec)) continue;
+    dropHeatOne(rec);
   }
   if (!alleyHeat.length) {
     heat.phase = "quiet";
@@ -26604,8 +26700,12 @@ function stepHeatCorner(rec, dt) {
       rec.fig.rotation.y = rec.yaw;
     }
     // Once around a corner and out of sight, mark for unload.
-    if (rec.rounded >= 1 && !figureInView(rec.x, rec.y + 0.85, rec.z, 0.9)) {
+    // A turn the camera is watching keeps going until the body itself is gone.
+    const turnedSeen = figureInView(rec.x, rec.y + 0.85, rec.z, 0.9);
+    if (turnedSeen) rec.watched = 1;
+    if (rec.rounded >= 1 && !turnedSeen) {
       rec.leaving = true;
+      if (rec.flow) rec.depart = 1;
     }
     return;
   }
@@ -26714,7 +26814,7 @@ function stepAlleyHeat(now, dt) {
   }
   heat.prev = clock;
   const hour = clock * 24;
-  const open = hour >= 0 && hour < 4;
+  const open = hour >= 23 || hour < 3;
   if (!open && !alleyHeat.length) {
     if (heat.phase !== "quiet") {
       heat.phase = "quiet";
@@ -26727,8 +26827,11 @@ function stepAlleyHeat(now, dt) {
   if (!open && alleyHeat.length) heatMarkLeaving();
   if (!heat.rolled && !alleyHeat.length) {
     heat.phase = "armed";
-    const startHour = heatUnit(heat.nights) * 4;
-    if (hour + 1e-4 < startHour || !walkMode) return;
+    const startHour = 23 + heatUnit(heat.nights) * 4;
+    const start = startHour >= 24 ? startHour - 24 : startHour;
+    const hourAbs = hour < 3 ? hour + 24 : hour;
+    const startAbs = start < 3 ? start + 24 : start;
+    if (hourAbs + 1e-4 < startAbs || !walkMode) return;
     if (!heat.decided) {
       heat.decided = true;
       heat.want = heatUnit(heat.nights * 2 + 1) >= 0.5;
@@ -26883,7 +26986,40 @@ const gangFight = [];
 const gang = { nights: 0, prev: null, rolled: false, count: 0, leaving: false, t: 0 };
 function gangHour() {
   const hour = clockHour();
-  return hour >= 1 && hour < 3;
+  return hour >= 1 && hour < 4;
+}
+function startGangFlee(rec) {
+  if (rec.flee) return;
+  const choices = [];
+  for (let i = 0; i < streetPaths.length; i++) {
+    const p = streetPaths[i];
+    if (p.world || p.b - p.a < 8) continue;
+    const span = p.b - p.a;
+    const a = walkerFrame(p, 0.8, 1);
+    const b = walkerFrame(p, span - 0.8, -1);
+    const da = Math.hypot(a.worldX - rec.x, a.worldZ - rec.z);
+    const db = Math.hypot(b.worldX - rec.x, b.worldZ - rec.z);
+    if (Math.min(da, db) < 26) choices.push({ p: p, da: da, db: db, span: span });
+  }
+  if (!choices.length) { rec.depart = 1; return; }
+  const pick = choices[(Math.random() * choices.length) | 0];
+  const nearA = pick.da <= pick.db;
+  const along = nearA ? 0.8 : pick.span - 0.8;
+  const dir = nearA ? 1 : -1;
+  const entry = walkerFrame(pick.p, along, dir);
+  rec.flee = 1;
+  rec.flow = 1;
+  rec.heat = 0;
+  rec.path = pick.p;
+  rec.along = along;
+  rec.dir = dir;
+  rec.speed = 2.6;
+  rec.wait = 0;
+  rec.act = null;
+  rec.bias = 0;
+  if (Math.hypot(entry.worldX - rec.x, entry.worldZ - rec.z) > 0.85) {
+    rec.corner = { path: pick.p, at: along, dir: dir, x: entry.worldX, z: entry.worldZ, run: 8 };
+  }
 }
 function gangSeatPath(seat) {
   return {
@@ -27056,6 +27192,12 @@ function stepGangFight(now, dt) {
     const seen = gap >= 0;
     const away = npcAway(rec.x, rec.z);
     if (rec.fig) {
+      if ((gang.leaving || !hourOpen) && !rec.flee) startGangFlee(rec);
+      if (rec.flee) {
+        advanceWalker(rec, now, rec.fig);
+        if (rec.depart && !figurePlaying(rec.x, py, rec.z)) dropGangOne(rec);
+        continue;
+      }
       if (away || (!want && !seen)) {
         dropGangOne(rec);
         continue;
@@ -27459,6 +27601,8 @@ function dropSleepMeshes() {
   for (let i = 0; i < alleySleep.length; i++) dropSleep(alleySleep[i]);
 }
 function stepAlleySleep(now) {
+  // The before-eight sleepers are gone. The night crowd is the drunk walk and the chase.
+  return;
   const want = walkMode && sleepNight();
   if (!alleySleep) {
     if (!want) return;
@@ -30132,9 +30276,11 @@ function enterRoof(door) {
   const need = door.deck.y + 4.5;
   if (floorPlane.constant < need) floorPlane.constant = need;
   placeWalkEye();
+  spawnRoofVisit();
 }
 function leaveRoof(keepEye) {
   if (!roofStay) return;
+  clearRoofVisit();
   const door = roofStay.door;
   roofStay = null;
   walkX = door.x;
@@ -30391,6 +30537,31 @@ function runDestLine(dest) {
   if (lang === "en") return street + (mark ? " · the " + mark + " door" : "");
   return street + " · " + tail;
 }
+function runShopClear(x, z, min) {
+  const lim = (min || 6.2) * (min || 6.2);
+  const shops = runShops();
+  for (let i = 0; i < shops.length; i++) {
+    const dx = shops[i].x - x, dz = shops[i].z - z;
+    if (dx * dx + dz * dz < lim) return false;
+  }
+  return !walkBlocked(x, z, { pad: 0.1, bodies: false });
+}
+// The receiver waits out in the street, not in the shop mouth.
+function runStandOffShop(shop) {
+  const yaw = shop.yaw || 0;
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  for (let out = 0; out < 3; out++) {
+    const reach = 7.2 + out * 1.3;
+    for (let side = -2; side <= 2; side++) {
+      const x = shop.x + fx * reach + rx * side * 1.5;
+      const z = shop.z + fz * reach + rz * side * 1.5;
+      if (!runShopClear(x, z, 6.4)) continue;
+      return { x: x, z: z, yaw: Math.atan2(-fx, -fz) };
+    }
+  }
+  return null;
+}
 function runPickDest(shop, mode, maxDist) {
   const wantRoof = mode === "roof";
   const cap = maxDist || (wantRoof ? 110 : 90);
@@ -30404,11 +30575,13 @@ function runPickDest(shop, mode, maxDist) {
       const d = Math.hypot(s.x - shop.x, s.z - shop.z);
       if (d < minD || d > cap) continue;
       if (mode === "near" && s.street !== shop.street) continue;
+      const stand = runStandOffShop(s);
+      if (!stand) continue;
       if (d < bestD) {
         bestD = d;
         best = {
-          roof: false, x: s.x, z: s.z, y: GROUND_Y, yaw: s.yaw,
-          street: s.street, mark: runMark(s.x, s.z, s.kind), dist: d, door: -1
+          roof: false, x: stand.x, z: stand.z, y: GROUND_Y, yaw: stand.yaw,
+          street: s.street, mark: runMark(stand.x, stand.z, s.kind), dist: d, door: -1
         };
       }
     }
@@ -30664,8 +30837,9 @@ function runHoldReceiver(job) {
   const fig = job.fig;
   if (!fig) return;
   if (!walkMode) { runRemoveBody(job); return; }
-  const here = Math.hypot(walkX - job.x, walkZ - job.z);
-  if (here > NPC_AWAY) { runRemoveBody(job); return; }
+  refreshFigureView();
+  const foot = job.roof ? job.y : GROUND_Y;
+  if (!figurePlaying(job.x, foot + 0.85, job.z)) { runRemoveBody(job); return; }
   fig.visible = true;
   const ud = fig.userData;
   ud.act = "gaze";
@@ -30722,7 +30896,9 @@ function runPerson(job) {
   if (job.fig || job.state !== "carried" && job.state !== "dropped") return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
   const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
-  if (!walkMode || (here > NPC_AWAY && !onDeck)) return;
+  const foot = job.roof ? job.y : GROUND_Y;
+  const viewed = figurePlaying(job.x, foot + 0.85, job.z);
+  if (!walkMode || (here > NPC_AWAY && !onDeck && !viewed)) return;
   const wear = wearCopy(studioPick(STUDIO_STREET, job.id), { gait: "walk", role: null, prop: null });
   const fig = makeCitizen(wear);
   const rig = fig.userData.rig;
@@ -30737,6 +30913,7 @@ function runPerson(job) {
   job.fig = fig;
 }
 function runPosePeople(now, dt) {
+  refreshFigureView();
   for (let i = 0; i < run.jobs.length; i++) {
     const job = run.jobs[i];
     if (job.state === "done" && job.fig) {
@@ -30756,12 +30933,13 @@ function runPosePeople(now, dt) {
     if (!job.fig) continue;
     const here = Math.hypot(walkX - job.x, walkZ - job.z);
     const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
-    job.fig.visible = here <= NPC_AWAY || onDeck;
+    job.fig.visible = here <= NPC_AWAY || onDeck || figurePlaying(job.x, (job.roof ? job.y : GROUND_Y) + 0.85, job.z);
     if (!job.fig.visible) continue;
     const ud = job.fig.userData;
     if (job.pointUntil && now < job.pointUntil) ud.act = "point";
     else ud.act = "gaze";
-    const wantWave = (job.roof ? onDeck : true) && here < 4.2;
+    const foot = job.roof ? job.y : GROUND_Y;
+    const wantWave = figurePlaying(job.x, foot + 0.85, job.z);
     job.waveMix = (job.waveMix || 0) + ((wantWave ? 1 : 0) - (job.waveMix || 0)) * Math.min(1, (dt || 0.016) * 5);
     if (job.fig.studio) job.fig.studio.wave = job.waveMix || 0;
     if (ud.rig) {
@@ -34186,7 +34364,131 @@ function poseRoofBody(rig, ud, now, moving, lookX, lookY) {
     rig.armR.elbow.rotation.x = -0.45;
   }
 }
+const roofVisit = [];
+function clearRoofVisit() {
+  for (let i = roofVisit.length - 1; i >= 0; i--) {
+    const fig = roofVisit[i];
+    const at = roofKids.indexOf(fig);
+    if (at >= 0) roofKids.splice(at, 1);
+    if (fig.parent) fig.parent.remove(fig);
+    disposeOwned(fig);
+  }
+  roofVisit.length = 0;
+}
+function spawnRoofVisit() {
+  clearRoofVisit();
+  if (!roofStay) return;
+  const n = 2 + ((Math.random() * 3) | 0);
+  const x0 = roofStay.x0, x1 = roofStay.x1, z0 = roofStay.z0, z1 = roofStay.z1;
+  if (!(x1 - x0 > 1.2) || !(z1 - z0 > 1.2)) return;
+  const blocks = roofStay.blocks || [];
+  const obstacles = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.x == null || b.z == null) continue;
+    const cx = b.x2 != null ? (b.x + b.x2) * 0.5 : b.x;
+    const cz = b.z2 != null ? (b.z + b.z2) * 0.5 : b.z;
+    obstacles.push({ x: cx, z: cz, r: 0.7 });
+  }
+  const group = {
+    minX: x0, maxX: x1, minZ: z0, maxZ: z1,
+    obstacles: obstacles, kids: [], mode: "play", until: 0, it: 0, tagAt: 0,
+    rand: mulberry32((x0 * 13 + z0 * 17 + roofStay.y) | 0)
+  };
+  const door = roofStay.door;
+  for (let i = 0; i < n; i++) {
+    const key = STUDIO_KIDS[(Math.random() * STUDIO_KIDS.length) | 0];
+    const spec = wearCopy(STUDIO[key], { gait: "walk" });
+    const fig = makeCitizen(spec);
+    let x = x0 + Math.random() * (x1 - x0);
+    let z = z0 + Math.random() * (z1 - z0);
+    if (door && Math.hypot(x - door.upX, z - door.upZ) < 1.4) {
+      x = Math.min(x1, Math.max(x0, door.upX + 1.8));
+      z = Math.min(z1, Math.max(z0, door.upZ + 1.2));
+    }
+    fig.userData.roof = { x: x, z: z, y: roofStay.y, group: group, goalX: x, goalZ: z };
+    fig.userData.offset = i * 0.85;
+    fig.userData.play = i % 2 ? "wave" : "work";
+    fig.position.set(x, roofStay.y, z);
+    vfx.add(fig);
+    roofKids.push(fig);
+    roofVisit.push(fig);
+    group.kids.push(fig);
+  }
+}
+function stepRoofVisit(now) {
+  if (!roofVisit.length || !roofStay) return;
+  if (stepRoofVisit.prev == null) stepRoofVisit.prev = now;
+  const dt = Math.min(0.05, Math.max(0, now - stepRoofVisit.prev));
+  stepRoofVisit.prev = now;
+  const group = roofVisit[0].userData.roof.group;
+  if (now >= group.until) {
+    const roll = group.rand();
+    group.mode = roll < 0.55 ? "chase" : "play";
+    group.until = now + 7 + group.rand() * 6;
+    if (group.mode === "chase") group.it = (group.rand() * group.kids.length) | 0;
+    if (group.mode === "play") {
+      for (let k = 0; k < group.kids.length; k++) {
+        const goal = roofPick(group);
+        const home = group.kids[k].userData.roof;
+        home.goalX = goal.x;
+        home.goalZ = goal.z;
+      }
+    }
+  }
+  for (let i = 0; i < roofVisit.length; i++) {
+    const fig = roofVisit[i];
+    const home = fig.userData.roof;
+    const ud = fig.userData;
+    let yaw = fig.rotation.y;
+    let moving = 0.7;
+    if (group.mode === "chase" && group.kids.length > 1) {
+      const it = group.kids[group.it] || fig;
+      const quarry = it.userData.roof;
+      if (fig === it) {
+        let best = null, bestD = 1e9, bestI = 0;
+        for (let k = 0; k < group.kids.length; k++) {
+          if (group.kids[k] === fig) continue;
+          const other = group.kids[k].userData.roof;
+          const d = Math.hypot(other.x - home.x, other.z - home.z);
+          if (d < bestD) { bestD = d; best = other; bestI = k; }
+        }
+        if (best && bestD < 0.5 && now > group.tagAt) {
+          group.it = bestI;
+          group.tagAt = now + 1.4;
+        }
+        yaw = roofSteer(group, home, best ? best.x : group.minX, best ? best.z : group.minZ, 1.2, dt);
+        moving = 1;
+      } else {
+        const awayX = home.x - quarry.x, awayZ = home.z - quarry.z;
+        const ad = Math.hypot(awayX, awayZ) || 1;
+        yaw = roofSteer(group, home, home.x + awayX / ad * 1.5, home.z + awayZ / ad * 1.5, 1.15, dt);
+        moving = 1;
+      }
+    } else {
+      if (Math.hypot(home.goalX - home.x, home.goalZ - home.z) < 0.4) {
+        const goal = roofPick(group);
+        home.goalX = goal.x;
+        home.goalZ = goal.z;
+      }
+      yaw = roofSteer(group, home, home.goalX, home.goalZ, 0.7, dt);
+      moving = 0.7;
+    }
+    roofClamp(group, home);
+    fig.position.set(home.x, home.y, home.z);
+    const dy = Math.atan2(Math.sin(yaw - fig.rotation.y), Math.cos(yaw - fig.rotation.y));
+    fig.rotation.y += dy * Math.min(1, dt * 7);
+    ud.roofMoving = moving;
+    wakeFigure(fig);
+  }
+}
 function stepRoofKids(now) {
+  if (!roofStay) {
+    if (roofVisit.length) clearRoofVisit();
+    return;
+  }
+  stepRoofVisit(now);
+  return;
   if (stepRoofKids.prev == null) stepRoofKids.prev = now;
   const dt = Math.min(0.05, Math.max(0, now - stepRoofKids.prev));
   stepRoofKids.prev = now;
@@ -34303,7 +34605,7 @@ function stepRoofKids(now) {
     flushFigure(fig);
   }
 }
-raiseRoofChildren();
+// Roof children are born when the player steps onto a deck, and leave with them.
 
 // Planar mirror of the street, the same idea as the night-rain reference:
 // the city is drawn once from under the pavement, then the wet floor samples it.
