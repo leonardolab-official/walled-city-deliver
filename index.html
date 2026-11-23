@@ -22132,8 +22132,10 @@ function resetRigPose(rig) {
     rig.head.rotation.set(0, 0, 0);
     rig.lShoulder.rotation.set(0, 0, 0.08);
     rig.lElbow.rotation.set(-0.15, 0, 0);
+    rig.lHand.rotation.set(0, 0, 0);
     rig.rShoulder.rotation.set(0, 0, -0.08);
     rig.rElbow.rotation.set(-0.15, 0, 0);
+    rig.rHand.rotation.set(0, 0, 0);
     rig.lHip.rotation.set(0, 0, 0);
     rig.lKnee.rotation.set(0, 0, 0);
     rig.rHip.rotation.set(0, 0, 0);
@@ -22236,22 +22238,31 @@ function studioPoseCharacter(rig, animId, t) {
         rig.rElbow.rotation.x = -1.3;
         rig.lBrow.rotation.z = 0.22; rig.rBrow.rotation.z = -0.22;
     } else if (animId === 'wave_stand') {
+        const wave = Math.sin(t * 7.2);
+        rig.rightProp.visible = false;
         rig.pelvis.position.y = rig.basePelvisY + Math.sin(t * 2.2) * 0.012;
-        rig.spine.rotation.z = -0.05;
-        rig.head.rotation.z = Math.sin(t * 2.2) * 0.08;
-        rig.rShoulder.rotation.set(-0.35, 0, -2.55);
-        rig.rElbow.rotation.set(-0.3, 0, Math.sin(t * 7.5) * 0.42);
-        rig.lShoulder.rotation.set(0.08, 0, 0.14);
+        rig.spine.rotation.set(0, -0.08, 0.03);
+        rig.head.rotation.set(Math.sin(t * 2.6) * 0.05, 0.08, 0.04 + Math.sin(t * 2.2) * 0.05);
+        // Right arm held out beside the shoulder, clear of the head. Positive Z
+        // on this shoulder lifts the arm outward; the wrist flaps on the same axis.
+        rig.rShoulder.rotation.set(0, -0.38, 1.35 + wave * 0.08);
+        rig.rElbow.rotation.set(0, 0, 1.38 + wave * 0.32);
+        rig.rHand.rotation.set(0, 0, wave * 0.22);
+        rig.lShoulder.rotation.set(0.06, 0, -0.14);
         rig.lElbow.rotation.x = -0.22;
     } else if (animId === 'wave_sit') {
+        const wave = Math.sin(t * 6.8);
         rig.stool.visible = true;
+        rig.rightProp.visible = false;
         rig.pelvis.position.set(0, 0.48 * h, -0.02);
         rig.lHip.rotation.set(-1.45, 0.12, 0.1); rig.lKnee.rotation.x = 1.45;
         rig.rHip.rotation.set(-1.45, -0.12, -0.1); rig.rKnee.rotation.x = 1.45;
-        rig.spine.rotation.x = -0.04;
-        rig.rShoulder.rotation.set(-0.4, 0, -2.45);
-        rig.rElbow.rotation.set(-0.25, 0, Math.sin(t * 7.2) * 0.4);
-        rig.lShoulder.rotation.set(-0.45, 0, 0.15);
+        rig.spine.rotation.set(0.04, -0.06, 0.02);
+        rig.head.rotation.set(Math.sin(t * 2.4) * 0.05, 0.06, 0.03 + Math.sin(t * 2.0) * 0.04);
+        rig.rShoulder.rotation.set(0, -0.45, 1.28 + wave * 0.07);
+        rig.rElbow.rotation.set(0, 0, 1.42 + wave * 0.30);
+        rig.rHand.rotation.set(0, 0, wave * 0.20);
+        rig.lShoulder.rotation.set(-0.45, 0.12, -0.10);
         rig.lElbow.rotation.x = -0.55;
     } else if (animId === 'work_stand') {
         const c = cyc(5.0);
@@ -22546,22 +22557,32 @@ function settleStop(pack, dt) {
   pack.lElbow.rotation.x += (-0.15 - pack.lElbow.rotation.x) * w;
   pack.rElbow.rotation.x += (-0.15 - pack.rElbow.rotation.x) * w;
 }
-// The wave sits on top of the walk or the working pose. Weight eases both ways,
-// so the hand comes down into whatever the legs are already doing.
+// The wave sits on top of the walk or the working pose. The arm is the studio
+// wave: held out beside the shoulder, wrist flapping, clear of the head.
+// Weight eases both ways, so the hand comes down into whatever the legs are already doing.
 function applyWaveOverlay(pack, t, w, sit) {
   if (!pack || w <= 0.01) return;
-  const flap = Math.sin(t * (sit ? 7.2 : 7.5));
+  if (pack.rightProp) pack.rightProp.visible = false;
   if (sit) {
-    pack.head.rotation.z += (Math.sin(t * 2.2) * 0.06 - pack.head.rotation.z) * w;
-    easeJoint(pack.rShoulder.rotation, -0.4, 0, -2.45, w);
-    easeJoint(pack.rElbow.rotation, -0.25, 0, flap * 0.4, w);
+    const wave = Math.sin(t * 6.8);
+    easeJoint(pack.head.rotation, Math.sin(t * 2.4) * 0.05, 0.06, 0.03 + Math.sin(t * 2.0) * 0.04, w);
+    pack.spine.rotation.y += (-0.06 - pack.spine.rotation.y) * w;
+    pack.spine.rotation.z += (0.02 - pack.spine.rotation.z) * w;
+    easeJoint(pack.rShoulder.rotation, 0, -0.45, 1.28 + wave * 0.07, w);
+    easeJoint(pack.rElbow.rotation, 0, 0, 1.42 + wave * 0.30, w);
+    easeJoint(pack.rHand.rotation, 0, 0, wave * 0.20, w);
+    easeJoint(pack.lShoulder.rotation, -0.45, 0.12, -0.10, w);
+    pack.lElbow.rotation.x += (-0.55 - pack.lElbow.rotation.x) * w;
     return;
   }
-  pack.spine.rotation.z += (-0.05 - pack.spine.rotation.z) * w;
-  pack.head.rotation.z += (Math.sin(t * 2.2) * 0.08 - pack.head.rotation.z) * w;
-  easeJoint(pack.rShoulder.rotation, -0.35, 0, -2.55, w);
-  easeJoint(pack.rElbow.rotation, -0.3, 0, flap * 0.42, w);
-  easeJoint(pack.lShoulder.rotation, 0.08, 0, 0.14, w);
+  const wave = Math.sin(t * 7.2);
+  pack.spine.rotation.y += (-0.08 - pack.spine.rotation.y) * w;
+  pack.spine.rotation.z += (0.03 - pack.spine.rotation.z) * w;
+  easeJoint(pack.head.rotation, Math.sin(t * 2.6) * 0.05, 0.08, 0.04 + Math.sin(t * 2.2) * 0.05, w);
+  easeJoint(pack.rShoulder.rotation, 0, -0.38, 1.35 + wave * 0.08, w);
+  easeJoint(pack.rElbow.rotation, 0, 0, 1.38 + wave * 0.32, w);
+  easeJoint(pack.rHand.rotation, 0, 0, wave * 0.22, w);
+  easeJoint(pack.lShoulder.rotation, 0.06, 0, -0.14, w);
   pack.lElbow.rotation.x += (-0.22 - pack.lElbow.rotation.x) * w;
 }
 function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
@@ -22753,7 +22774,7 @@ function studioClipFor(fig) {
     if (ud.play === "sit") return "idle_sit";
     return "work_stand";
   }
-  if (ud.errand) return "idle_stand";
+  if (ud.errand) return ud.stance === "sit" ? "idle_sit" : "idle_stand";
   const moving = ud.ease || 0;
   if (ud.role === "drunk") return "drunk_sway";
   if (wxNow.rain > 0.08) return "umbrella_rain";
@@ -22780,8 +22801,7 @@ function studioGesture(fig) {
     if ((ud.roofMoving || 0) > 0.4) return "";
     return ud.play === "wave" ? "wave_stand" : "";
   }
-  if ((s.wave || 0) > 0.02) return "wave_stand";
-  if (ud.act === "greet") return "wave_stand";
+  if ((s.wave || 0) > 0.02 || ud.act === "greet") return ud.stance === "sit" ? "wave_sit" : "wave_stand";
   return "";
 }
 // Metres the body should travel in one full step cycle so the planted foot
@@ -24894,7 +24914,7 @@ function syncKeepers(now) {
   for (let i = 0; i < keeperPosts.length; i++) {
     const post = keeperPosts[i];
     const py = post.y + 0.85;
-    const want = walkMode && shopOpenNow(post.kind);
+    const want = walkMode && (shopOpenNow(post.kind) || runKeeperWanted(post));
     const held = figureRemember(post, post.x, py, post.z);
     const away = npcAway(post.x, post.z) && !held;
     if (post.fig) {
@@ -28988,7 +29008,7 @@ const RUN_COPY = {
     bonus: "一併送達", net: "實收", close: "收下",
     cloth: "油布", strap: "綁帶", bell: "車鈴",
     first: "第一單", ground: "在地上", roof: "天台", door: "門",
-    stair: "旁的梯", beside: "旁的門", from: "取"
+    stair: "旁的梯", beside: "旁的門", from: "取", keeper: "舖主"
   },
   en: {
     hint: "The shopkeeper or the person waves when you are near · the arrow points to them · F takes and hands over · a roof uses Enter",
@@ -28998,7 +29018,7 @@ const RUN_COPY = {
     bonus: "Together", net: "Net", close: "Close",
     cloth: "Oilcloth", strap: "Strap", bell: "Bell",
     first: "First job", ground: "On the ground", roof: "Roof", door: "door",
-    stair: " stair", beside: " door", from: " from"
+    stair: " stair", beside: " door", from: " from", keeper: " shopkeeper"
   },
   ja: {
     hint: "店の人や届け先が近くで手を振る · 矢印が届け先 · F で受け取りと手渡し · 屋上は進入",
@@ -29008,7 +29028,7 @@ const RUN_COPY = {
     bonus: "まとめて", net: "差引", close: "閉じる",
     cloth: "油布", strap: "紐", bell: "ベル",
     first: "最初の一件", ground: "地面", roof: "屋上", door: "扉",
-    stair: "脇の階段", beside: "脇の扉", from: "で受け取る"
+    stair: "脇の階段", beside: "脇の扉", from: "で受け取る", keeper: "の店主"
   }
 };
 const run = {
@@ -29123,27 +29143,77 @@ function runSameLot(shop, door) {
   return shop.lotX < d.x + d.w && shop.lotX + shop.lotW > d.x &&
     shop.lotZ < d.z + d.d && shop.lotZ + shop.lotD > d.z;
 }
+function runSitRoll(x, z) {
+  const n = Math.abs(Math.floor(x * 12.3 + z * 7.1));
+  return (n % 5) < 2;
+}
+// The carriageway is the ring outside the walls. The pavement there is for
+// vehicles. A receiver stays inside the lanes, or up on a deck.
+function runOnCarriage(x, z) {
+  return z < -0.05 || z > SITE_D + 0.05 || x < -0.05 || x > SITE_W + 0.05;
+}
+function runLanePlace(x, z) {
+  for (let i = 0; i < VOIDS.length; i++) {
+    const v = VOIDS[i];
+    if (!v || v.court || v.notch) continue;
+    if (x <= v.x + 0.2 || x >= v.x2 - 0.2 || z <= v.z + 0.2 || z >= v.z2 - 0.2) continue;
+    const inset = Math.min(x - v.x, v.x2 - x, z - v.z, v.z2 - z);
+    const thick = Math.min(v.x2 - v.x, v.z2 - v.z);
+    if (thick < 1.2 || inset <= Math.min(1.35, thick * 0.46)) return "side";
+    return "middle";
+  }
+  return "none";
+}
+function runSpotTaken(x, z) {
+  const lim = 2.4 * 2.4;
+  const shops = run.shops || [];
+  for (let i = 0; i < shops.length; i++) {
+    const dest = shops[i].slip && shops[i].slip.dest;
+    if (!dest) continue;
+    const dx = dest.x - x, dz = dest.z - z;
+    if (dx * dx + dz * dz < lim) return true;
+  }
+  const jobs = run.jobs || [];
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (j.state !== "carried" && j.state !== "dropped") continue;
+    const dx = j.x - x, dz = j.z - z;
+    if (dx * dx + dz * dz < lim) return true;
+  }
+  return false;
+}
 function runRoofSpot(door) {
   const deck = door.deck;
   if (!deck || !door.live) return null;
   const blocks = deck.blocks || [];
-  for (let i = 0; i < 16; i++) {
-    const ang = i / 16 * Math.PI * 2;
-    const x = door.upX + Math.cos(ang) * 2.4;
-    const z = door.upZ + Math.sin(ang) * 2.4;
-    if (x < deck.x + 0.7 || x > deck.x + deck.w - 0.7) continue;
-    if (z < deck.z + 0.7 || z > deck.z + deck.d - 0.7) continue;
-    if (Math.hypot(x - door.upX, z - door.upZ) < 1.5) continue;
-    let hit = false;
-    for (let b = 0; b < blocks.length; b++) {
-      const box = blocks[b];
-      if (x > box.x - 0.35 && x < box.x2 + 0.35 && z > box.z - 0.35 && z < box.z2 + 0.35) { hit = true; break; }
+  function scan(minStair) {
+    let best = null, bestScore = -1e9;
+    for (let ix = 0; ix < 5; ix++) {
+      for (let iz = 0; iz < 5; iz++) {
+        const x = deck.x + 0.8 + Math.max(0.4, deck.w - 1.6) * (ix / 4);
+        const z = deck.z + 0.8 + Math.max(0.4, deck.d - 1.6) * (iz / 4);
+        if (x < deck.x + 0.65 || x > deck.x + deck.w - 0.65) continue;
+        if (z < deck.z + 0.65 || z > deck.z + deck.d - 0.65) continue;
+        const stair = Math.hypot(x - door.upX, z - door.upZ);
+        if (stair < minStair) continue;
+        let hit = false;
+        for (let b = 0; b < blocks.length; b++) {
+          const box = blocks[b];
+          if (x > box.x - 0.4 && x < box.x2 + 0.4 && z > box.z - 0.4 && z < box.z2 + 0.4) { hit = true; break; }
+        }
+        if (hit) continue;
+        if (roofStay && roofStay.door === door && roofBlocked(x, z)) continue;
+        const edge = Math.min(x - deck.x, deck.x + deck.w - x, z - deck.z, deck.z + deck.d - z);
+        const score = stair * 0.35 - edge;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { x: x, z: z, y: deck.y, sit: runSitRoll(x, z) };
+        }
+      }
     }
-    if (hit) continue;
-    if (roofStay && roofStay.door === door && roofBlocked(x, z)) continue;
-    return { x: x, z: z, y: deck.y };
+    return best;
   }
-  return null;
+  return scan(1.65) || scan(1.15);
 }
 function runMark(x, z, selfKind) {
   let best = null, bestD = 14;
@@ -29165,36 +29235,124 @@ function runDestLine(dest) {
     if (lang === "en") return runText("roof") + " · " + street + (tail ? " · beside the " + mark : "");
     return runText("roof") + " · " + street + (tail ? " · " + tail : "");
   }
+  if (dest.keeper) {
+    const who = mark || "";
+    if (lang === "en") return street + (who ? " · the " + who + runText("keeper") : " · a shopkeeper");
+    return street + " · " + who + runText("keeper");
+  }
   const tail = mark ? mark + runText("beside") : runText("door");
   if (lang === "en") return street + (mark ? " · the " + mark + " door" : "");
   return street + " · " + tail;
 }
-function runShopClear(x, z, min) {
-  const lim = (min || 6.2) * (min || 6.2);
+function runMouthFar(x, z, shop) {
   const shops = runShops();
   for (let i = 0; i < shops.length; i++) {
-    const dx = shops[i].x - x, dz = shops[i].z - z;
-    if (dx * dx + dz * dz < lim) return false;
+    const s = shops[i];
+    if (s === shop) continue;
+    const dx = s.x - x, dz = s.z - z;
+    if (dx * dx + dz * dz < 1.45 * 1.45) return false;
   }
-  return !walkBlocked(x, z, { pad: 0.1, bodies: false });
+  return true;
 }
-// The receiver waits out in the street, not in the shop mouth.
+function runStandClear(x, z, shop, loose) {
+  if (runOnCarriage(x, z) || !walkInside(x, z)) return false;
+  if (walkBlocked(x, z, { pad: 0.12, bodies: false })) return false;
+  if (!runMouthFar(x, z, shop)) return false;
+  const dx = x - shop.x, dz = z - shop.z;
+  if (dx * dx + dz * dz < 1.35 * 1.35) return false;
+  if (runSpotTaken(x, z)) return false;
+  const place = runLanePlace(x, z);
+  if (place === "middle") return false;
+  if (!loose && place !== "side") return false;
+  return true;
+}
+// How far the body can look before a wall, the deck edge, or the carriageway.
+function runClearAhead(x, z, yaw, roofDoor) {
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  const deck = roofDoor && roofDoor.deck;
+  const blocks = deck && (deck.blocks || []);
+  let reach = 0;
+  for (let s = 0.4; s <= 3.6; s += 0.4) {
+    const px = x + fx * s, pz = z + fz * s;
+    if (deck) {
+      if (px < deck.x + 0.3 || px > deck.x + deck.w - 0.3) break;
+      if (pz < deck.z + 0.3 || pz > deck.z + deck.d - 0.3) break;
+      let hit = false;
+      for (let b = 0; b < blocks.length; b++) {
+        const box = blocks[b];
+        if (px > box.x - 0.25 && px < box.x2 + 0.25 && pz > box.z - 0.25 && pz < box.z2 + 0.25) { hit = true; break; }
+      }
+      if (hit) break;
+    } else if (runOnCarriage(px, pz) || !walkInside(px, pz) || walkBlocked(px, pz, { pad: 0.1, bodies: false })) break;
+    reach = s;
+  }
+  return reach;
+}
+// Face the open lane. The shop's outward heading is only a hint: a wall in
+// that direction loses to the alley that actually stays clear.
+function runFaceOpen(x, z, hint, roofDoor) {
+  let bestYaw = hint || 0;
+  let best = -1;
+  for (let i = 0; i < 16; i++) {
+    const yaw = (hint || 0) + i * Math.PI / 8;
+    const reach = runClearAhead(x, z, yaw, roofDoor);
+    const align = Math.cos(yaw - (hint || 0));
+    const score = reach + (align > 0.7 ? 0.45 : 0);
+    if (score > best + 1e-6) { best = score; bestYaw = yaw; }
+  }
+  return bestYaw;
+}
+// Beside the door, on the alley side, not in the mouth and not out on the road.
+// About two in five sit. The stool is theirs. They look down the open lane.
 function runStandOffShop(shop) {
   const yaw = shop.yaw || 0;
   const fx = Math.sin(yaw), fz = Math.cos(yaw);
   const rx = Math.cos(yaw), rz = -Math.sin(yaw);
-  for (let out = 0; out < 3; out++) {
-    const reach = 7.2 + out * 1.3;
-    for (let side = -2; side <= 2; side++) {
-      const x = shop.x + fx * reach + rx * side * 1.5;
-      const z = shop.z + fz * reach + rz * side * 1.5;
-      if (!runShopClear(x, z, 6.4)) continue;
-      return { x: x, z: z, yaw: Math.atan2(-fx, -fz) };
+  const sit = runSitRoll(shop.x + 4, shop.z + 2);
+  const sides = [1.55, -1.55, 2.15, -2.15, 2.75, -2.75];
+  const outs = [0.55, 0.95, 1.35];
+  function seek(loose) {
+    for (let s = 0; s < sides.length; s++) {
+      for (let o = 0; o < outs.length; o++) {
+        const x = shop.x + fx * outs[o] + rx * sides[s];
+        const z = shop.z + fz * outs[o] + rz * sides[s];
+        if (!runStandClear(x, z, shop, loose)) continue;
+        return { x: x, z: z, yaw: runFaceOpen(x, z, yaw), sit: sit };
+      }
+    }
+    return null;
+  }
+  return seek(false) || seek(true);
+}
+function runPickKeeper(shop, maxDist) {
+  const cap = maxDist || 90;
+  const minD = 12;
+  const shops = runShops();
+  let best = null, bestD = cap;
+  for (let i = 0; i < shops.length; i++) {
+    const s = shops[i];
+    if (s === shop || s.slip) continue;
+    if (!shopOpenNow(s.kind) || runSecondsLeft(s.kind) < 70) continue;
+    const d = Math.hypot(s.x - shop.x, s.z - shop.z);
+    if (d < minD || d > cap) continue;
+    if (runOnCarriage(s.x, s.z) || !walkInside(s.x, s.z)) continue;
+    if (walkBlocked(s.x, s.z, { pad: 0.06, bodies: false })) continue;
+    if (runSpotTaken(s.x, s.z)) continue;
+    const post = runKeeperPost(s);
+    if (!post) continue;
+    if (d < bestD) {
+      bestD = d;
+      best = {
+        roof: false, keeper: true, post: post.i, sit: post.stance === "sit",
+        x: s.x, z: s.z, y: GROUND_Y, yaw: post.rot,
+        street: s.street, mark: runWord(s.kind), dist: d, door: -1
+      };
     }
   }
-  return null;
+  return best;
 }
 function runPickDest(shop, mode, maxDist) {
+  if (mode === "keeper") return runPickKeeper(shop, maxDist);
   const wantRoof = mode === "roof";
   const cap = maxDist || (wantRoof ? 110 : 90);
   const minD = mode === "near" ? 8 : 18;
@@ -29212,7 +29370,8 @@ function runPickDest(shop, mode, maxDist) {
       if (d < bestD) {
         bestD = d;
         best = {
-          roof: false, x: stand.x, z: stand.z, y: GROUND_Y, yaw: stand.yaw,
+          roof: false, keeper: false, sit: !!stand.sit,
+          x: stand.x, z: stand.z, y: GROUND_Y, yaw: stand.yaw,
           street: s.street, mark: runMark(stand.x, stand.z, s.kind), dist: d, door: -1
         };
       }
@@ -29225,13 +29384,14 @@ function runPickDest(shop, mode, maxDist) {
       const d = Math.hypot(door.x - shop.x, door.z - shop.z);
       if (d < minD || d > cap) continue;
       const spot = runRoofSpot(door);
-      if (!spot) continue;
+      if (!spot || runSpotTaken(spot.x, spot.z)) continue;
       if (mode === "roof" ? d < bestD : (mode === "either" && !best && d < bestD)) {
         const zone = zoneAt(door.x, door.z);
         bestD = d;
         best = {
-          roof: true, x: spot.x, z: spot.z, y: spot.y,
-          yaw: Math.atan2(door.upX - spot.x, door.upZ - spot.z),
+          roof: true, keeper: false, sit: !!spot.sit,
+          x: spot.x, z: spot.z, y: spot.y,
+          yaw: runFaceOpen(spot.x, spot.z, Math.atan2(spot.x - door.upX, spot.z - door.upZ), door),
           street: (ZONES[zone] && ZONES[zone].street) || "",
           mark: runMark(door.x, door.z, shop.kind),
           dist: d, door: i
@@ -29317,7 +29477,7 @@ function runTutorial(now) {
       if (d < bestD) { bestD = d; best = s; }
     }
     if (!best) return false;
-    const dest = runPickDest(best, "roof", 140) || runPickDest(best, "ground", 90);
+    const dest = runPickDest(best, "roof", 140) || runPickDest(best, "keeper", 90) || runPickDest(best, "ground", 90);
     if (!dest) { run.intro = 3; return false; }
     runLay(best, runChooseItem(best.kind, 1), dest, now);
     return false;
@@ -29347,7 +29507,9 @@ function runOffer(now) {
   const salt = (run.seq * 17 + Math.floor(best.x + best.z)) | 0;
   const item = runChooseItem(best.kind, salt);
   const roof = (salt % 10) < 3;
+  const asKeeper = !roof && (salt % 3) === 1;
   let dest = roof ? runPickDest(best, "roof", 110) : null;
+  if (!dest && asKeeper) dest = runPickDest(best, "keeper", 90);
   if (!dest) dest = runPickDest(best, "ground", 90);
   if (!dest) return;
   runLay(best, item, dest, now);
@@ -29410,7 +29572,9 @@ function runSeed(now) {
     const salt = (i * 17 + 3) | 0;
     const item = runChooseItem(s.kind, salt);
     const roof = i > 0 && (salt % 10) < 3;
+    const asKeeper = !roof && (salt % 3) === 1;
     let dest = roof ? runPickDest(s, "roof", 110) : null;
+    if (!dest && asKeeper) dest = runPickDest(s, "keeper", 90);
     if (!dest) dest = runPickDest(s, "ground", 90);
     if (!dest) continue;
     runLay(s, item, dest, now);
@@ -29493,8 +29657,8 @@ function runTake(slip, now) {
   runFreeze();
   const job = {
     id: run.seq++, item: slip.item, kind: slip.shop.kind, slots: item.slots,
-    cost: item.cost, drop: item.drop, rain: item.rain, roof: slip.dest.roof,
-    x: slip.dest.x, z: slip.dest.z, y: slip.dest.y, yaw: slip.dest.yaw,
+    cost: item.cost, drop: item.drop, rain: item.rain,     roof: slip.dest.roof, keeper: !!slip.dest.keeper, sit: !!slip.dest.sit,
+    post: slip.dest.post, x: slip.dest.x, z: slip.dest.z, y: slip.dest.y, yaw: slip.dest.yaw,
     street: slip.dest.street, mark: slip.dest.mark, door: slip.dest.door,
     dist: slip.dest.dist, state: "carried", t0: now,
     first: run.intro === 0, second: run.intro === 2,
@@ -29525,6 +29689,7 @@ function runWatchLeave() {
   }
 }
 function runPerson(job) {
+  if (job.keeper) return;
   if (job.fig || job.state !== "carried" && job.state !== "dropped") return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
   const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
@@ -29534,7 +29699,10 @@ function runPerson(job) {
   const wear = wearCopy(studioPick(STUDIO_STREET, job.id), { gait: "walk", role: null, prop: null });
   const fig = makeCitizen(wear);
   const rig = fig.userData.rig;
-  fig.userData = { errand: true, act: "gaze", offset: job.id * 0.37, bias: 1, scale: wear.scale || 1, rig: rig };
+  fig.userData = {
+    errand: true, act: "gaze", stance: job.sit ? "sit" : "idle",
+    offset: job.id * 0.37, bias: 1, scale: wear.scale || 1, rig: rig
+  };
   // The group sits on the pavement. Legs hang from the hip, so the hip has to
   // stand at leg length or the waist is what meets the ground.
   rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
@@ -30099,6 +30267,16 @@ function runPaint() {
     fitRunHub();
   }
 }
+function runKeeperWanted(post) {
+  const jobs = run.jobs || [];
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (!j.keeper || j.post == null) continue;
+    if (j.state !== "carried" && j.state !== "dropped") continue;
+    if (j.post === post.i) return true;
+  }
+  return false;
+}
 function runKeeperPost(shop) {
   if (shop.keeper) return shop.keeper;
   if (shop.keeperMiss) return null;
@@ -30126,6 +30304,18 @@ function runWaves() {
     const post = runKeeperPost(s);
     if (!post) continue;
     if (Math.hypot(walkX - post.x, walkZ - post.z) > 4.2) continue;
+    post.playerWave = true;
+    run.waving.push(post);
+  }
+  const jobs = run.jobs || [];
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (!j.keeper || j.post == null || j.state !== "carried") continue;
+    let post = null;
+    for (let k = 0; k < keeperPosts.length; k++) {
+      if (keeperPosts[k].i === j.post) { post = keeperPosts[k]; break; }
+    }
+    if (!post || Math.hypot(walkX - post.x, walkZ - post.z) > 4.2) continue;
     post.playerWave = true;
     run.waving.push(post);
   }
