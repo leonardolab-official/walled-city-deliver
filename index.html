@@ -24213,8 +24213,9 @@ function addWalker(path, spec, i, place) {
   } else cityFolk.push(ud);
   return fig;
 }
-// The lane crowd is not a fixed roster. People are born off camera, walk a
-// street, turn onto the next one, and leave once that turn is out of view.
+// The lane crowd is a bubble that follows the player. People are born off
+// camera on the under-filled alleys, walk a street, turn onto the next one,
+// and leave once they are past the bubble and out of view.
 // What the person behind the counter is wearing, and what their hands do
 // when nobody is at the door.
 const KEEPER_LOOK = {
@@ -24420,6 +24421,15 @@ const NPC_AWAY = 16;
 function npcAway(x, z) {
   return Math.hypot((x || 0) - walkX, (z || 0) - walkZ) > NPC_AWAY;
 }
+// Flow bodies are skinned through the near bubble, including off camera, so a
+// turn of the head does not build the figure on the frame it walks into view.
+// Farther out they are skinned only as they reach the edge of the lens.
+function flowRecordAway(x, y, z) {
+  const d = Math.hypot((x || 0) - walkX, (z || 0) - walkZ);
+  if (d <= FLOW_MESH) return false;
+  if (d < FLOW_DROP && figureViewGap(x, y, z, FIGURE_LIMB) > -1.15) return false;
+  return true;
+}
 // Bodies stream in two a frame, nearest first. Distance, not the lens, decides
 // who is loaded. Closing time still lets a bout that is in the picture finish
 // until the frame has left it.
@@ -24455,30 +24465,87 @@ function walkerHome(ud) {
   if (ud && ud.flow) return false;
   return !!(ud && ud.who && !streetBusyNow() && (ud.who % 3) !== 0);
 }
-// Daytime is the full pavement. After eight the crowd is half. After eleven
-// it is half of that. Shopkeepers are not in this count.
+// One walker per anchor in the bubble. Anchors sit a short walk apart, so a
+// junction holds more people than a dead end. After eight the bubble thins.
+// After eleven it thins again. Shopkeepers are not in this count.
+const FLOW_ANCHOR = 5.4;
+const FLOW_SIM = 48;
+const FLOW_MESH = 28;
+const FLOW_DROP = 56;
+const FLOW_RING_NEAR = 7;
+const FLOW_RING_FAR = 40;
+const FLOW_GAP = 4.6;
 function streetCrowdScale() {
   const hour = clockHour();
-  if (hour >= 23 || hour < 8) return 0.25;
-  if (hour >= 20) return 0.5;
+  if (hour >= 23 || hour < 8) return 0.5;
+  if (hour >= 20) return 0.75;
   return 1;
 }
-function streetCrowdBase() {
-  if (streetCrowdBase.n) return streetCrowdBase.n;
-  let n = 0;
+let flowAnchors = null;
+function flowCell(x, z) {
+  return ((x / 18) | 0) + ":" + ((z / 18) | 0);
+}
+function ensureFlowAnchors() {
+  if (flowAnchors) return flowAnchors;
+  const list = [];
   for (let i = 0; i < streetPaths.length; i++) {
     const path = streetPaths[i];
+    if (!path || path.world) continue;
     const span = path.b - path.a;
-    if (path.world || span < 11) continue;
-    n++;
-    if (span >= 18) n++;
-    if (span >= 28) n++;
+    if (span < 9) continue;
+    const count = Math.max(1, Math.round(span / FLOW_ANCHOR));
+    for (let k = 0; k < count; k++) {
+      const along = span * ((k + 0.5) / count);
+      if (along < 2.1 || span - along < 2.1) continue;
+      const openPos = !walkerBlocked(path, along, 1);
+      const openNeg = !walkerBlocked(path, along, -1);
+      if (!openPos && !openNeg) continue;
+      const frame = walkerFrame(path, along, openPos ? 1 : -1);
+      list.push({
+        path: path,
+        along: along,
+        x: frame.worldX,
+        z: frame.worldZ,
+        y: path.y == null ? GROUND_Y : path.y,
+        cell: flowCell(frame.worldX, frame.worldZ),
+        either: openPos && openNeg ? 1 : 0,
+        dir: openPos ? 1 : -1
+      });
+    }
   }
-  streetCrowdBase.n = Math.max(8, Math.min(28, n));
-  return streetCrowdBase.n;
+  flowAnchors = list;
+  return list;
 }
 function streetCrowdCap() {
-  return Math.max(3, Math.round(streetCrowdBase() * streetCrowdScale()));
+  const anchors = ensureFlowAnchors();
+  const r2 = FLOW_SIM * FLOW_SIM;
+  let n = 0;
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    const dx = a.x - walkX, dz = a.z - walkZ;
+    if (dx * dx + dz * dz <= r2) n++;
+  }
+  const ceiling = pace.tier === 0 ? 56 : 80;
+  return Math.max(0, Math.min(ceiling, Math.round(n * streetCrowdScale())));
+}
+function flowGapClear(x, z) {
+  const min2 = FLOW_GAP * FLOW_GAP;
+  for (let i = 0; i < cityFolk.length; i++) {
+    const ud = cityFolk[i];
+    if (!ud || ud.depart) continue;
+    const dx = (ud.x || 0) - x, dz = (ud.z || 0) - z;
+    if (dx * dx + dz * dz < min2) return false;
+  }
+  for (let i = 0; i < walkers.length; i++) {
+    const fig = walkers[i];
+    const ud = fig.userData;
+    if (!ud || ud.inside) continue;
+    const px = ud.x == null ? fig.position.x : ud.x;
+    const pz = ud.z == null ? fig.position.z : ud.z;
+    const dx = px - x, dz = pz - z;
+    if (dx * dx + dz * dz < min2) return false;
+  }
+  return true;
 }
 function drunkHour() {
   return hourInSpan(clockHour(), [23, 3]);
@@ -24500,7 +24567,25 @@ function flowChooseLink(ud) {
     if (turns[i].path.axis !== ud.path.axis) corners.push(turns[i]);
   }
   const pool = corners.length ? corners : turns;
-  return pool[(Math.random() * pool.length) | 0];
+  // Step toward the picture, so a side lane feeds the street in view
+  // instead of everyone pacing the alley they were born on.
+  let bestGap = -1e9;
+  const ranked = [];
+  for (let i = 0; i < pool.length; i++) {
+    const link = pool[i];
+    const span = Math.max(0.5, link.path.b - link.path.a);
+    const along = Math.max(0.4, Math.min(span - 0.4, (link.at || 0) + (link.dir || 1) * 1.6));
+    const frame = walkerFrame(link.path, along, link.dir || 1);
+    const y = (link.path.y == null ? GROUND_Y : link.path.y) + 0.85;
+    const gap = figureViewGap(frame.worldX, y, frame.worldZ, 0.5);
+    ranked.push({ link: link, gap: gap });
+    if (gap > bestGap) bestGap = gap;
+  }
+  const top = [];
+  for (let i = 0; i < ranked.length; i++) {
+    if (bestGap - ranked[i].gap < 0.6) top.push(ranked[i].link);
+  }
+  return top[(Math.random() * top.length) | 0];
 }
 function flowConsiderTurn(ud) {
   if (!ud.flow || ud.corner || !ud.path || ud.wait > 0) return;
@@ -24518,23 +24603,77 @@ function flowConsiderTurn(ud) {
   ud.corner = link;
 }
 function crowdSpawnHidden() {
+  const anchors = ensureFlowAnchors();
   const drunks = drunkHour();
-  for (let n = 0; n < 10; n++) {
-    const path = streetPaths[(Math.random() * streetPaths.length) | 0];
-    if (!path || path.world || path.b - path.a < 9) continue;
-    const span = path.b - path.a;
-    const mid = walkerFrame(path, span * 0.5, 1);
-    if (Math.hypot(mid.worldX - walkX, mid.worldZ - walkZ) > 18) continue;
-    const ends = [0.7, span - 0.7];
-    for (let e = 0; e < 2; e++) {
-      const along = ends[e];
-      const dir = e === 0 ? 1 : -1;
-      if (walkerBlocked(path, along, dir)) continue;
-      const frame = walkerFrame(path, along, dir);
+  const occ = {};
+  for (let i = 0; i < cityFolk.length; i++) {
+    const ud = cityFolk[i];
+    if (!ud.flow || ud.depart) continue;
+    const c = flowCell(ud.x || 0, ud.z || 0);
+    occ[c] = (occ[c] || 0) + 1;
+  }
+  let bestN = 1e9;
+  const pool = [];
+  const near2 = FLOW_RING_NEAR * FLOW_RING_NEAR;
+  const far2 = FLOW_RING_FAR * FLOW_RING_FAR;
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    const dx = a.x - walkX, dz = a.z - walkZ;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < near2 || d2 > far2) continue;
+    const foot = a.y == null ? GROUND_Y : a.y;
+    const gap = figureViewGap(a.x, foot + 0.85, a.z, FIGURE_LIMB);
+    if (gap > -0.45) continue;
+    if (d2 < 12 * 12 && gap > -1.05) continue;
+    if (!flowGapClear(a.x, a.z)) continue;
+    const n = occ[a.cell] || 0;
+    if (n > bestN) continue;
+    if (n < bestN) {
+      bestN = n;
+      pool.length = 0;
+    }
+    pool.push(a);
+  }
+  if (!pool.length) return null;
+  for (let t = 0; t < Math.min(8, pool.length); t++) {
+    const a = pool[(Math.random() * pool.length) | 0];
+    const span = a.path.b - a.path.a;
+    const shifts = [(Math.random() - 0.5) * 1.2, 0];
+    for (let s = 0; s < shifts.length; s++) {
+      let along = a.along + shifts[s];
+      if (along < 0.9) along = 0.9;
+      if (along > span - 0.9) along = span - 0.9;
+      let dir = a.dir;
+      if (a.either) {
+        const fore = walkerFrame(a.path, Math.min(span - 0.4, along + 1.4), 1);
+        const aft = walkerFrame(a.path, Math.max(0.4, along - 1.4), -1);
+        const y = (a.path.y == null ? GROUND_Y : a.path.y) + 0.85;
+        const gf = figureViewGap(fore.worldX, y, fore.worldZ, 0.6);
+        const gb = figureViewGap(aft.worldX, y, aft.worldZ, 0.6);
+        dir = gf >= gb ? 1 : -1;
+      }
+      const remain = dir > 0 ? span - along : along;
+      if (remain < 2.6) {
+        const flip = -dir;
+        const back = flip > 0 ? span - along : along;
+        if (back > remain && !walkerBlocked(a.path, along, flip)) dir = flip;
+      }
+      if (walkerBlocked(a.path, along, dir)) continue;
+      const frame = walkerFrame(a.path, along, dir);
       const dist = Math.hypot(frame.worldX - walkX, frame.worldZ - walkZ);
-      if (dist < 7 || dist > 15) continue;
-      if (figurePlaying(frame.worldX, GROUND_Y + 0.85, frame.worldZ)) continue;
-      return { path: path, along: along, dir: dir, drunk: drunks && Math.random() < 0.4, wide: path.thick >= 2.8 };
+      if (dist < FLOW_RING_NEAR - 0.6 || dist > FLOW_RING_FAR + 1) continue;
+      const foot = a.path.y == null ? GROUND_Y : a.path.y;
+      const gap = figureViewGap(frame.worldX, foot + 0.85, frame.worldZ, FIGURE_LIMB);
+      if (gap > -0.45) continue;
+      if (dist < 12 && gap > -1.05) continue;
+      if (!flowGapClear(frame.worldX, frame.worldZ)) continue;
+      return {
+        path: a.path,
+        along: along,
+        dir: dir,
+        drunk: drunks && Math.random() < 0.4,
+        wide: a.path.thick >= 2.8
+      };
     }
   }
   return null;
@@ -24544,6 +24683,7 @@ function stepStreetCrowd(now) {
   refreshFigureView();
   const cap = streetCrowdCap();
   const night = drunkHour();
+  const drop2 = FLOW_DROP * FLOW_DROP;
   let live = 0;
   for (let i = cityFolk.length - 1; i >= 0; i--) {
     const ud = cityFolk[i];
@@ -24556,34 +24696,47 @@ function stepStreetCrowd(now) {
       cityFolk.splice(i, 1);
       continue;
     }
+    if (!ud.depart && !seen) {
+      const dx = (ud.x || 0) - walkX, dz = (ud.z || 0) - walkZ;
+      if (dx * dx + dz * dz > drop2) ud.retire = 1;
+    }
     if (!ud.depart) live++;
   }
   if (live > cap) {
-    let extra = live - cap;
-    for (let i = 0; i < cityFolk.length && extra > 0; i++) {
+    const spare = [];
+    for (let i = 0; i < cityFolk.length; i++) {
       const ud = cityFolk[i];
       if (!ud.flow || ud.depart || ud.retire) continue;
       const chestY = (ud.y == null ? GROUND_Y : ud.y) + 0.85;
       if (figurePlaying(ud.x, chestY, ud.z)) continue;
-      ud.retire = 1;
-      extra--;
+      spare.push(ud);
     }
+    spare.sort(function (a, b) {
+      const da = ((a.x || 0) - walkX) * ((a.x || 0) - walkX) + ((a.z || 0) - walkZ) * ((a.z || 0) - walkZ);
+      const db = ((b.x || 0) - walkX) * ((b.x || 0) - walkX) + ((b.z || 0) - walkZ) * ((b.z || 0) - walkZ);
+      return db - da;
+    });
+    const extra = live - cap;
+    for (let i = 0; i < spare.length && i < extra; i++) spare[i].retire = 1;
   }
-  if (live < cap) {
+  const births = pace.tier === 0 ? 1 : 2;
+  for (let n = 0; n < births && live < cap; n++) {
     const spot = crowdSpawnHidden();
-    if (spot) {
-      const wear = spot.drunk
-        ? wearCopy(Math.random() < 0.5 ? STUDIO.choi : STUDIO.leung, { gait: "slow", role: "drunk" })
-        : outfits[(stepStreetCrowd.seq = (stepStreetCrowd.seq || 0) + 1) % outfits.length];
-      addWalker(spot.path, wear, stepStreetCrowd.seq || 1, {
-        dir: spot.dir,
-        along: spot.along,
-        inside: true,
-        flow: 1,
-        speed: spot.drunk ? 0.46 : (spot.wide ? 1.5 : 0.86),
-        role: spot.drunk ? "drunk" : null
-      });
-    }
+    if (!spot) break;
+    const wear = spot.drunk
+      ? wearCopy(Math.random() < 0.5 ? STUDIO.choi : STUDIO.leung, { gait: "slow", role: "drunk" })
+      : outfits[(stepStreetCrowd.seq = (stepStreetCrowd.seq || 0) + 1) % outfits.length];
+    const before = cityFolk.length;
+    addWalker(spot.path, wear, stepStreetCrowd.seq || 1, {
+      dir: spot.dir,
+      along: spot.along,
+      inside: true,
+      flow: 1,
+      speed: spot.drunk ? 0.46 : (spot.wide ? 1.5 : 0.86),
+      role: spot.drunk ? "drunk" : null
+    });
+    if (cityFolk.length === before) break;
+    live++;
   }
 }
 let shopsHourFlip = false;
@@ -24663,7 +24816,9 @@ function syncCityFolk(now) {
     const ud = cityFolk[i];
     const py = (ud.y || 0) + 0.85;
     const want = walkMode && !folkOut(ud);
-    const away = npcAway(ud.x, ud.z) && !figurePlaying(ud.x, py, ud.z);
+    const away = ud.flow
+      ? flowRecordAway(ud.x, py, ud.z)
+      : (npcAway(ud.x, ud.z) && !figurePlaying(ud.x, py, ud.z));
     if (ud.fig) {
       if (!want || away) dropFolk(ud);
       else if (figurePlaying(ud.x, py, ud.z)) wakeFigure(ud.fig);
