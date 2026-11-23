@@ -12,6 +12,13 @@
     --gap: clamp(8px, 1.4vw, 14px);
     /* Clear of the CRT bezel: 8px frame plus the 16px corner curve. */
     --frame: 24px;
+    --inset-x: max(var(--frame), env(safe-area-inset-left));
+    --inset-r: max(var(--frame), env(safe-area-inset-right));
+    --inset-t: max(var(--frame), env(safe-area-inset-top));
+    --inset-b: max(var(--frame), env(safe-area-inset-bottom));
+    /* How much of each lower corner the stick and the action buttons occupy. */
+    --stick-clear: 0px;
+    --corner-clear: 0px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); }
@@ -53,6 +60,8 @@
   #col-right { grid-area: right; align-self: start; justify-self: end; align-items: flex-end; width: max-content; max-width: min(340px, 100%); }
   #col-right:has(#card.open) { width: min(340px, 100%); scrollbar-width: none; }
   #col-right:has(#card.open)::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  /* The clock stays hidden while the title and subtitle are on screen. */
+  body:has(#boot) header.panel { display: none; }
   header.panel {
     position: static; align-self: flex-start; width: max-content; max-width: 100%; padding: 8px 12px 9px;
     background: #120806; color: #ff4a38;
@@ -357,15 +366,20 @@
   #ui.walk-bare #run-board { order: 1; }
   #run-center {
     position: fixed;
-    left: 50%;
-    bottom: max(var(--frame), env(safe-area-inset-bottom));
-    transform: translateX(-50%);
+    bottom: var(--inset-b);
     z-index: 7;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    width: min(280px, calc(100vw - 2 * (max(var(--frame), env(safe-area-inset-right)) + 108px)));
+    /* Centered, and slid inward when the stick or the corner buttons would cover it. */
+    --run-w: max(88px, min(280px, calc(100vw - var(--inset-x) - var(--inset-r) - var(--stick-clear) - var(--corner-clear))));
+    width: var(--run-w);
+    left: clamp(
+      calc(var(--inset-x) + var(--stick-clear)),
+      calc(50% - var(--run-w) / 2),
+      calc(100vw - var(--inset-r) - var(--corner-clear) - var(--run-w))
+    );
     pointer-events: none;
   }
   #run-corner {
@@ -404,7 +418,14 @@
   #roof-go.on { display: inline-flex; }
   #roof-go[hidden] { display: none !important; }
 
-  #run-board { pointer-events: auto; width: min(280px, 72vw); padding: 8px 10px 10px; max-height: 46vh; overflow: auto; }
+  #run-board {
+    pointer-events: auto;
+    width: min(280px, 72vw);
+    padding: 8px 10px 10px;
+    max-height: min(46dvh, calc(100dvh - var(--inset-t) - var(--inset-b) - 148px));
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
   #run-board[hidden] { display: none !important; }
   #run-purse { color: #ffc56a; font-size: 12px; letter-spacing: 0.08em; }
   .run-slip { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
@@ -413,7 +434,7 @@
   .run-slip i { display: block; height: 4px; margin-top: 4px; background: #2a100e; font-style: normal; }
   .run-slip i em { display: block; height: 100%; width: 0; background: #3dff88; }
   .run-slip i.late em { background: #ff3a2a; }
-  #run-near { white-space: pre-wrap; color: #ffe7df; font-size: 12px; margin-top: 8px; line-height: 1.45; }
+  #run-near { white-space: pre-wrap; overflow-wrap: anywhere; color: #ffe7df; font-size: 12px; margin-top: 8px; line-height: 1.45; }
   #run-order {
     width: 100%;
     margin: 0;
@@ -424,16 +445,58 @@
     box-shadow: 0 0 12px rgba(255, 190, 70, 0.28);
   }
   #run-order[hidden] { display: none !important; }
-  #run-order b { font-weight: 600; font-size: 13px; color: #ffe7df; letter-spacing: 0.04em; }
-  #run-order span { font-size: 12px; color: #d4b56a; line-height: 1.4; }
+  #run-order b { font-weight: 600; font-size: 13px; color: #ffe7df; letter-spacing: 0.04em; overflow-wrap: anywhere; }
+  #run-order span { font-size: 12px; color: #d4b56a; line-height: 1.4; overflow-wrap: anywhere; }
   #run-order-note:empty { display: none; }
-  #run-order-take {
-    margin-top: 6px; letter-spacing: 0.12em; color: #f4e7cf;
-    background: #1a1411; border: 1px solid #ffc56a;
+  #run-order-take { display: none !important; }
+  #run-prompt {
+    position: fixed;
+    z-index: 9;
+    display: none;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    margin: 0;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0;
+    color: #f4e7cf;
+    background: #1a1411;
+    border: 1px solid #ffc56a;
+    box-shadow: 0 0 12px rgba(255, 190, 70, 0.45);
+    pointer-events: auto;
+    transform: translate(-50%, -50%);
   }
-  #run-order-take:disabled { opacity: 0.45; }
-  #run-gear { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-  #run-gear button { font-size: 11px; }
+  #run-prompt.on { display: inline-flex; }
+  #run-prompt[hidden] { display: none !important; }
+  #run-prompt:disabled { opacity: 0.45; }
+  #run-prompt svg { display: none; width: 22px; height: 22px; }
+  #run-prompt.take .ico-take,
+  #run-prompt.give .ico-give,
+  #run-prompt.lift .ico-lift { display: block; }
+  #run-gear {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 3px;
+    margin-top: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+  #run-gear button {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    padding: 6px 3px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .run-slip b, .run-slip span { overflow-wrap: anywhere; }
   #run-gear button:disabled { opacity: 0.45; }
   #run-use {
     position: static;
@@ -453,23 +516,46 @@
   #run-arrows {
     position: fixed;
     left: 50%;
-    /* The arrow icons sit on the slot-mark line under the money. */
+    /* Fallback until the slot line is measured. The icons stay on that line. */
     top: 87px;
     transform: translateX(-50%);
     z-index: 6;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
     align-items: flex-start;
     gap: 16px;
     width: max-content;
-    max-width: calc(100vw - 2 * max(var(--frame), env(safe-area-inset-left)) - 16px);
+    max-width: calc(100vw - var(--inset-x) - var(--inset-r) - 16px);
     pointer-events: none;
   }
   #run-arrows[hidden] { display: none !important; }
   @media (aspect-ratio <= 1), (max-width: 720px) {
     #run-arrows { top: 84px; }
   }
+  /* A narrow screen has no open band for a full row, so the arrows become a
+     short column and the board and map leave a lane for it. */
+  #ui.walk-bare:has(#run-arrows.tight) #minimap {
+    width: clamp(76px, 22vw, 104px);
+    height: clamp(76px, 22vw, 104px);
+  }
+  #ui.walk-bare:has(#run-arrows.tight) #run-board {
+    width: min(280px, calc(100vw - var(--inset-x) - var(--inset-r) - clamp(76px, 22vw, 104px) - 48px - 16px));
+  }
+  #run-arrows.tight {
+    left: auto;
+    right: calc(var(--inset-r) + clamp(76px, 22vw, 104px) + 8px);
+    transform: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+    max-width: 64px;
+  }
+  #run-arrows.tight .run-arrow { width: auto; max-width: 64px; }
+  #run-arrows.tight .run-arrow span { display: none; }
+  #run-arrows.tight .run-arrow svg { width: 22px; height: 22px; }
+  #run-arrows.tight .run-arrow b { font-size: 10px; letter-spacing: 0; }
   .run-arrow { width: 64px; text-align: center; color: #ffc56a; }
   .run-arrow svg { width: 34px; height: 34px; display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
   .run-arrow b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; }
@@ -634,8 +720,8 @@
   @media (aspect-ratio <= 1) {
     #col-left, #col-right { display: contents; }
     #ui { display: flex; flex-direction: column; align-items: stretch; }
-    header.panel { order: 1; align-self: flex-start; width: max-content; max-width: calc(100% - 160px); }
-    header.panel h1 { font-size: 18px; }
+    header.panel { order: 1; align-self: flex-start; width: max-content; max-width: calc(100% - 96px); }
+    header.panel h1 { font-size: clamp(13px, 4.4vw, 18px); }
     /* Same top edge as the clock, on the right. Out of the column so it does not take a row. */
     #tools {
       position: absolute;
@@ -754,6 +840,21 @@
   @media (pointer: coarse) and (max-height: 540px) {
     #walk-stick { width: 84px; height: 84px; }
     #walk-stick i { width: 36px; height: 36px; }
+  }
+  @media (max-width: 420px) {
+    #walk-stick { width: 84px; height: 84px; }
+    #walk-stick i { width: 36px; height: 36px; }
+    #roof-go, #run-use {
+      letter-spacing: 0.02em;
+      padding: 6px 8px;
+      font-size: 11px;
+      max-width: 34vw;
+      white-space: normal;
+      text-align: center;
+    }
+  }
+  @media (pointer: coarse), (aspect-ratio <= 1) {
+    #ui.walk-bare { --stick-clear: 120px; }
   }
   /* The legend is a centered sheet. Type stays at full size; the sheet scrolls. */
   #legend-layer[hidden] { display: none !important; }
@@ -1124,6 +1225,17 @@ applyBoot();
   <button type="button" id="roof-go" hidden>進入</button>
   <button type="button" id="run-use" hidden></button>
 </div>
+<button type="button" id="run-prompt" hidden>
+  <svg class="ico-take" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M11 2h2v6h3.2L12 13.2 7.8 8H11V2zM4 15.2h16v2.2H4zm0 3.4h16V21H4z"/>
+  </svg>
+  <svg class="ico-give" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M3 6.5h8.2v11H3zm9.4 4.2h3.2v2.6h-3.2zm2.2-3.1 5.2 4.4-5.2 4.4V7.6z"/>
+  </svg>
+  <svg class="ico-lift" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="currentColor" d="M11 9.2h2V16h-2zM7.2 9.6 12 4.2l4.8 5.4h-2.8V16H10V9.6H7.2zM4 17.4h16v2.4H4z"/>
+  </svg>
+</button>
 <div id="run-arrows" hidden></div>
 <div id="run-center">
   <div id="run-order" hidden>
@@ -15885,6 +15997,130 @@ const ray = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
 let sheetPortrait = null;
+// Keep the delivery HUD inside the frame. The arrow icons stay on the slot
+// line, and the row moves into the gap beside the map when centering would
+// cover the board. Called on resize and when the buttons or the arrow count change.
+// Oilcloth, Strap, and Bell stay on one line. The type shrinks to the board
+// before a label is cut short.
+function fitGearLine() {
+  const gear = document.getElementById("run-gear");
+  if (!gear || !gear.getClientRects().length) return;
+  const buttons = gear.querySelectorAll("button");
+  if (!buttons.length) return;
+  for (let i = 0; i < buttons.length; i++) {
+    buttons[i].style.fontSize = "";
+    buttons[i].style.flex = "0 0 auto";
+  }
+  const room = gear.clientWidth;
+  if (!(room > 0)) {
+    for (let i = 0; i < buttons.length; i++) buttons[i].style.flex = "";
+    return;
+  }
+  let size = parseFloat(getComputedStyle(buttons[0]).fontSize) || 11;
+  let guard = 0;
+  while (gear.scrollWidth > room + 1 && size > 6 && guard < 6) {
+    size = Math.max(6, size * (room - 1) / gear.scrollWidth);
+    for (let i = 0; i < buttons.length; i++) buttons[i].style.fontSize = size.toFixed(2) + "px";
+    guard++;
+  }
+  for (let i = 0; i < buttons.length; i++) buttons[i].style.flex = "";
+}
+function fitRunHub() {
+  if (fitRunHub.busy) return;
+  fitRunHub.busy = true;
+  try {
+    const ui = document.getElementById("ui");
+    const arrows = document.getElementById("run-arrows");
+    const board = document.getElementById("run-board");
+    const map = document.getElementById("minimap");
+    const lip = document.getElementById("run-lip");
+    const pad = document.getElementById("walk-pad");
+    const stick = document.getElementById("walk-stick");
+    const corner = document.getElementById("run-corner");
+    if (!ui || !arrows) return;
+    const padOn = pad && getComputedStyle(pad).display !== "none";
+    const stickW = padOn && stick ? stick.getBoundingClientRect().width : 0;
+    ui.style.setProperty("--stick-clear", stickW > 0 ? Math.ceil(stickW + 10) + "px" : "0px");
+    let cornerW = 0;
+    if (corner) {
+      const buttons = corner.querySelectorAll("button");
+      for (let i = 0; i < buttons.length; i++) {
+        const b = buttons[i];
+        if (b.hidden || getComputedStyle(b).display === "none") continue;
+        cornerW = Math.max(cornerW, b.getBoundingClientRect().width);
+      }
+    }
+    ui.style.setProperty("--corner-clear", cornerW > 0 ? Math.ceil(cornerW + 10) + "px" : "0px");
+    arrows.classList.remove("tight");
+    arrows.style.left = "";
+    arrows.style.right = "";
+    arrows.style.width = "";
+    arrows.style.maxWidth = "";
+    arrows.style.transform = "";
+    if (arrows.hidden || getComputedStyle(arrows).display === "none") {
+      arrows.style.top = "";
+      return;
+    }
+    const frameL = parseFloat(getComputedStyle(ui).paddingLeft) || 24;
+    const frameR = innerWidth - (parseFloat(getComputedStyle(ui).paddingRight) || 24);
+    const gapOf = function () {
+      const br = board && !board.hidden ? board.getBoundingClientRect() : null;
+      const mr = map && !map.hidden ? map.getBoundingClientRect() : null;
+      return {
+        left: br && br.width > 1 ? br.right + 8 : frameL,
+        right: mr && mr.width > 1 ? mr.left - 8 : frameR
+      };
+    };
+    const placeTop = function () {
+      if (!lip || lip.hidden || getComputedStyle(lip).display === "none") return;
+      const lr = lip.getBoundingClientRect();
+      if (lr.height < 1) return;
+      const icon = arrows.querySelector(".run-arrow:not([hidden]) svg") || arrows.querySelector("svg");
+      const ih = icon ? icon.getBoundingClientRect().height : 34;
+      arrows.style.top = (lr.top + lr.height / 2 - ih / 2) + "px";
+    };
+    arrows.style.left = "0px";
+    arrows.style.transform = "none";
+    arrows.style.width = "max-content";
+    arrows.style.maxWidth = "none";
+    const natural = arrows.offsetWidth;
+    const gap = gapOf();
+    const room = gap.right - gap.left;
+    const centered = (innerWidth - natural) / 2;
+    if (natural <= room + 0.5 && centered >= gap.left - 0.5 && centered + natural <= gap.right + 0.5) {
+      arrows.style.left = "";
+      arrows.style.width = "";
+      arrows.style.maxWidth = "";
+      arrows.style.transform = "";
+      placeTop();
+      return;
+    }
+    if (natural <= room + 0.5) {
+      arrows.style.left = (gap.left + (room - natural) / 2) + "px";
+      arrows.style.width = natural + "px";
+      arrows.style.maxWidth = "";
+      arrows.style.transform = "none";
+      placeTop();
+      return;
+    }
+    arrows.classList.add("tight");
+    arrows.style.left = "0px";
+    arrows.style.right = "auto";
+    arrows.style.width = "max-content";
+    arrows.style.maxWidth = "";
+    arrows.style.transform = "none";
+    const colW = Math.max(36, arrows.offsetWidth);
+    const g2 = gapOf();
+    const lane = Math.max(0, g2.right - g2.left);
+    const w = Math.min(colW, Math.max(36, lane));
+    arrows.style.left = (g2.left + Math.max(0, (lane - w) / 2)) + "px";
+    arrows.style.width = w + "px";
+    placeTop();
+  } finally {
+    fitRunHub.busy = false;
+    fitGearLine();
+  }
+}
 function fit() {
   const r = renderer.domElement.getBoundingClientRect();
   const cssW = Math.max(1, Math.round(r.width));
@@ -15914,6 +16150,7 @@ function fit() {
   fitLegend();
   fitDockText();
   focusViewButton();
+  fitRunHub();
 }
 function trackEm(el) {
   const cs = getComputedStyle(el);
@@ -16003,6 +16240,9 @@ function fitDockText() {
 addEventListener("resize", fit);
 addEventListener("orientationchange", fit);
 if (window.visualViewport) visualViewport.addEventListener("resize", fit);
+document.addEventListener("titles-dismissed", function () {
+  requestAnimationFrame(function () { fitRunHub(); });
+});
 fit();
 document.getElementById("toggle-legend").onclick = () => {
   dismissTitles();
@@ -28079,11 +28319,20 @@ function stepSky(now) {
   if (glide) {
     const u = glide.t1 <= glide.t0 ? 1 : Math.min(1, Math.max(0, (now - glide.t0) / (glide.t1 - glide.t0)));
     const s = u * u * (3 - 2 * u);
-    clock = (glide.from + glide.span * s) % 1;
+    clock = glide.from + glide.span * s;
+    clock = ((clock % 1) + 1) % 1;
     if (u >= 1) {
       stepSky.glide = null;
-      stepSky.hold = glide.to;
-      clock = glide.to;
+      if (glide.play) {
+        stepSky.hold = null;
+        stepSky.origin = glide.to;
+        stepSky.t0 = now;
+        if (glide.day) stepSky.day = glide.day;
+        clock = glide.to;
+      } else {
+        stepSky.hold = glide.to;
+        clock = glide.to;
+      }
     }
   } else if (typeof stepSky.hold === "number") clock = ((stepSky.hold % 1) + 1) % 1;
   else {
@@ -28132,6 +28381,15 @@ function todForward(from, to) {
   let d = to - from;
   d = d - Math.floor(d);
   if (d < 0.0001) d = 0;
+  return d;
+}
+// The shorter turn of the dial, so a start screen just after 8:00 does not
+// replay the whole day on the way back to morning.
+function todShort(from, to) {
+  let d = to - from;
+  d = d - Math.floor(d);
+  if (d > 0.5) d -= 1;
+  if (Math.abs(d) < 0.0001) d = 0;
   return d;
 }
 function setTod(name) {
@@ -29119,6 +29377,7 @@ function syncStreetChrome() {
   if (mapEl) mapEl.hidden = !walkMode;
   const hintEl = document.getElementById("hint");
   if (hintEl) hintEl.textContent = deliveryOn ? t("hintWalk") : t("hint");
+  fitRunHub();
 }
 function setWalk(on, fromPlace) {
   setStreet(on ? "walk" : "view", fromPlace);
@@ -29840,14 +30099,19 @@ function syncRoofButton() {
   if (!show) {
     btn.hidden = true;
     btn.classList.remove("on");
-    return;
+  } else {
+    const key = roofStay ? "exitBtn" : "enterBtn";
+    if (btn.getAttribute("data-i18n") !== key) btn.setAttribute("data-i18n", key);
+    const label = t(key);
+    if (btn.textContent !== label) btn.textContent = label;
+    btn.hidden = false;
+    btn.classList.add("on");
   }
-  const key = roofStay ? "exitBtn" : "enterBtn";
-  if (btn.getAttribute("data-i18n") !== key) btn.setAttribute("data-i18n", key);
-  const label = t(key);
-  if (btn.textContent !== label) btn.textContent = label;
-  btn.hidden = false;
-  btn.classList.add("on");
+  const sig = (btn.hidden ? "0" : "1") + btn.textContent;
+  if (sig !== syncRoofButton.sig) {
+    syncRoofButton.sig = sig;
+    fitRunHub();
+  }
 }
 // Runner. A parcel is taken at a counter and handed to a person who is waiting
 // at a door or on that building's roof. Fees are paid at 22:00. A loss comes
@@ -30249,17 +30513,30 @@ function runOpenDay(now) {
     shops[i].next = 0;
   }
   todLock = null;
-  stepSky.glide = null;
-  stepSky.hold = null;
-  stepSky.day = 1680;
-  stepSky.origin = 8 / 24;
-  stepSky.t0 = now;
-  stepSky.clock = 8 / 24;
+  const from = ((stepSky.clock == null ? OPEN_CLOCK : stepSky.clock) % 1 + 1) % 1;
+  const to = 8 / 24;
+  const span = todShort(from, to);
+  const dayLen = 1680;
+  if (Math.abs(span) < 0.004) {
+    stepSky.glide = null;
+    stepSky.hold = null;
+    stepSky.day = dayLen;
+    stepSky.origin = to;
+    stepSky.t0 = now;
+    stepSky.clock = to;
+  } else {
+    // Ease the sun and the clock across. A short hop stays brief, and a long
+    // one still finishes before the morning has moved on.
+    const dur = Math.min(6.5, Math.max(2.4, Math.abs(span) * 12));
+    stepSky.hold = null;
+    stepSky.glide = { from: from, to: to, span: span, t0: now, t1: now + dur, play: true, day: dayLen };
+  }
   const tod = document.getElementById("tod-seg");
   if (tod) tod.querySelectorAll("button").forEach(b => { b.disabled = true; });
   if (!run.morning) {
     run.morning = true;
     setWeather("clear", true);
+    if (stepSky.glide && wxT1 > now) wxT1 = stepSky.glide.t1;
   }
 }
 function runSeed(now) {
@@ -30649,18 +30926,163 @@ function runBuy(which) {
   run.gear[which] = true;
   runPaint();
 }
+// The one action in reach. Take, give, and lift each keep their range, and
+// the nearest of those wins so two prompts never show at once.
+function runPromptTarget() {
+  if (!walkMode || run.ended || run.sheet) return null;
+  let best = null;
+  function consider(kind, d, x, y, z, job, shop) {
+    if (best && d >= best.d) return;
+    best = { kind: kind, d: d, x: x, y: y, z: z, job: job || null, shop: shop || null };
+  }
+  const jobs = run.jobs || [];
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (j.state !== "dropped") continue;
+    if (j.onRoof) {
+      if (!roofStay || roofStay.door !== j.roofDoor) continue;
+    } else if (roofStay) continue;
+    const d = Math.hypot(walkX - j.dx, walkZ - j.dz);
+    if (d >= 0.8) continue;
+    const foot = j.onRoof && roofStay ? roofStay.y : GROUND_Y;
+    const py = j.box ? j.box.position.y + 0.12 : foot + 0.28;
+    consider("lift", d, j.dx, py, j.dz, j, null);
+  }
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (j.state !== "carried") continue;
+    if (roofStay) {
+      if (!j.roof || j.door < 0 || !roofDoors[j.door] || roofStay.door !== roofDoors[j.door]) continue;
+    } else if (j.roof) continue;
+    const d = Math.hypot(walkX - j.x, walkZ - j.z);
+    if (d >= 1.3) continue;
+    const foot = j.roof ? j.y : GROUND_Y;
+    consider("give", d, j.x, foot + WALK_EYE * 0.62, j.z, j, null);
+  }
+  const shop = runNearOrderShop();
+  if (shop && shop.slip) {
+    const post = runKeeperPost(shop);
+    const kx = post ? post.x : shop.x;
+    const kz = post ? post.z : shop.z;
+    const kd = Math.hypot(walkX - kx, walkZ - kz);
+    const cd = Math.hypot(walkX - shop.x, walkZ - shop.z);
+    const atKeeper = post && kd <= cd + 0.8;
+    const x = atKeeper ? kx : shop.x;
+    const z = atKeeper ? kz : shop.z;
+    const foot = atKeeper ? post.y : GROUND_Y;
+    const sit = atKeeper && post.stance === "sit";
+    consider("take", Math.hypot(walkX - x, walkZ - z), x, foot + (sit ? 0.78 : WALK_EYE * 0.62), z, null, shop);
+  }
+  return best;
+}
+function runPlacePrompt(target) {
+  const btn = document.getElementById("run-prompt");
+  if (!btn) return;
+  if (!target) {
+    btn.hidden = true;
+    btn.classList.remove("on", "take", "give", "lift");
+    return;
+  }
+  camera.updateMatrixWorld();
+  const v = runPlacePrompt.v || (runPlacePrompt.v = new THREE.Vector3());
+  const inv = camera.matrixWorldInverse.elements;
+  const cz = inv[2] * target.x + inv[6] * target.y + inv[10] * target.z + inv[14];
+  v.set(target.x, target.y, target.z);
+  v.project(camera);
+  const facing = cz < 0 && v.x > -1.15 && v.x < 1.15 && v.y > -1.15 && v.y < 1.15;
+  if (!facing) {
+    btn.hidden = true;
+    btn.classList.remove("on", "take", "give", "lift");
+    return;
+  }
+  const right = camera.matrixWorld.elements;
+  const span = target.kind === "lift" ? 0.32 : 0.5;
+  function pin(sign) {
+    v.set(target.x + right[0] * span * sign, target.y, target.z + right[2] * span * sign);
+    v.project(camera);
+    const box = renderer.domElement.getBoundingClientRect();
+    return {
+      x: box.left + (v.x * 0.5 + 0.5) * box.width,
+      y: box.top + (-v.y * 0.5 + 0.5) * box.height
+    };
+  }
+  function overlaps(p, r, size) {
+    return p.x - size / 2 < r.right && p.x + size / 2 > r.left && p.y - size / 2 < r.bottom && p.y + size / 2 > r.top;
+  }
+  function panels() {
+    const list = [];
+    const head = document.querySelector("header.panel");
+    if (head) list.push(head);
+    const ids = ["walk-stick", "run-order", "run-corner", "run-board", "minimap"];
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+      if (el) list.push(el);
+    }
+    return list;
+  }
+  // Beside the body, on the side that misses the HUD. If the person is
+  // behind a panel, the icon sits on that panel's nearest edge.
+  let p = pin(1);
+  const size = 42;
+  const hud = panels();
+  function hits(pt) {
+    for (let i = 0; i < hud.length; i++) {
+      const el = hud[i];
+      if (el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      if (overlaps(pt, r, size)) return r;
+    }
+    return null;
+  }
+  if (hits(p)) {
+    const other = pin(-1);
+    if (!hits(other)) p = other;
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    const hit = hits(p);
+    if (!hit) break;
+    const gap = 8;
+    const options = [
+      { x: hit.left - size / 2 - gap, y: p.y },
+      { x: hit.right + size / 2 + gap, y: p.y },
+      { x: p.x, y: hit.top - size / 2 - gap },
+      { x: p.x, y: hit.bottom + size / 2 + gap }
+    ];
+    let best = options[0], bestC = Infinity;
+    for (let i = 0; i < options.length; i++) {
+      const c = (options[i].x - p.x) * (options[i].x - p.x) + (options[i].y - p.y) * (options[i].y - p.y);
+      if (c < bestC) { bestC = c; best = options[i]; }
+    }
+    p = { x: best.x, y: best.y };
+  }
+  const edge = 24 + 21;
+  const box = renderer.domElement.getBoundingClientRect();
+  p.x = Math.max(box.left + edge, Math.min(box.right - edge, p.x));
+  p.y = Math.max(box.top + edge, Math.min(box.bottom - edge, p.y));
+  btn.hidden = false;
+  btn.classList.add("on");
+  btn.classList.toggle("take", target.kind === "take");
+  btn.classList.toggle("give", target.kind === "give");
+  btn.classList.toggle("lift", target.kind === "lift");
+  btn.style.left = p.x + "px";
+  btn.style.top = p.y + "px";
+  const word = runText(target.kind);
+  if (btn.getAttribute("aria-label") !== word) btn.setAttribute("aria-label", word);
+  const full = target.kind === "take" && target.shop && target.shop.slip &&
+    runSlots() + RUN_ITEM[target.shop.slip.item].slots > 3;
+  btn.disabled = !!full;
+}
 function runUse() {
   const now = performance.now() * 0.001;
   if (run.sheet) { run.sheet = false; runForgetJobs(); run.runs = []; run.openRun = null; runPaint(); return; }
   if (!walkMode || run.ended) return;
-  const dropped = runNearDrop();
-  if (dropped) { runLift(dropped); runPaint(); return; }
-  const job = runNearJob();
-  if (job) { runDeliver(job, now); runPaint(); return; }
-  const shop = runNearOrderShop();
-  if (shop && shop.slip) {
-    if (runSlots() + RUN_ITEM[shop.slip.item].slots > 3) return;
-    runTake(shop.slip, now);
+  const target = runPromptTarget();
+  if (target && target.kind === "lift") { runLift(target.job); runPaint(); return; }
+  if (target && target.kind === "give") { runDeliver(target.job, now); runPaint(); return; }
+  if (target && target.kind === "take" && target.shop && target.shop.slip) {
+    if (runSlots() + RUN_ITEM[target.shop.slip.item].slots > 3) return;
+    runTake(target.shop.slip, now);
     runPaint();
     return;
   }
@@ -30723,7 +31145,8 @@ function runPaint() {
     }
     list.innerHTML = html;
   }
-  const orderShop = show && !run.sheet ? runNearOrderShop() : null;
+  const prompt = show && !run.sheet ? runPromptTarget() : null;
+  const orderShop = prompt && prompt.kind === "take" ? prompt.shop : null;
   if (near) {
     let text = "";
     if (run.ended) text = runText("ended");
@@ -30756,10 +31179,7 @@ function runPaint() {
       if (where) where.textContent = runStreet(orderShop.street) + runText("from") + " · " + runDestLine(orderShop.slip.dest);
       const full = runSlots() + item.slots > 3;
       if (note) note.textContent = full ? runText("full") : "";
-      if (take) {
-        take.textContent = runText("take");
-        take.disabled = full;
-      }
+      if (take) take.disabled = full;
     }
   }
   if (lip) {
@@ -30768,15 +31188,8 @@ function runPaint() {
     const marks = lip.querySelectorAll("i");
     for (let i = 0; i < marks.length; i++) marks[i].classList.toggle("on", i < n);
   }
-  if (use && show && !run.sheet) {
-    const dropped = runNearDrop();
-    const job = runNearJob();
-    let label = "";
-    if (dropped) label = runText("lift");
-    else if (job) label = runText("give");
-    use.hidden = !label;
-    use.textContent = label;
-  } else if (use) use.hidden = true;
+  if (use) use.hidden = true;
+  runPlacePrompt(prompt);
   if (sheet) {
     sheet.hidden = !run.sheet;
     if (run.sheet) {
@@ -30800,16 +31213,29 @@ function runPaint() {
       if (c) c.textContent = runText("close");
     }
   }
+  let gearSig = "";
   ["cloth", "strap", "bell"].forEach(name => {
     const b = document.getElementById("run-" + name);
     if (!b) return;
     const cost = name === "cloth" ? 36 : name === "strap" ? 48 : 20;
-    b.textContent = runText(name) + " $" + cost;
+    const label = runText(name) + " $" + cost;
+    if (b.textContent !== label) b.textContent = label;
+    gearSig += label + "|";
     b.classList.toggle("on", !!run.gear[name]);
     b.disabled = !!run.gear[name] || run.purse < cost || runSlots() > 0 || !runNearCounter() || run.ended;
   });
+  gearSig += board && !board.hidden ? "1" : "0";
+  if (gearSig !== runPaint.gear) {
+    runPaint.gear = gearSig;
+    fitGearLine();
+  }
   const hint = document.getElementById("hint");
   if (hint && run.day && walkMode && !run.sheet) hint.textContent = runText("hint");
+  const hubSig = (lip && !lip.hidden ? "1" : "0");
+  if (hubSig !== runPaint.hub) {
+    runPaint.hub = hubSig;
+    fitRunHub();
+  }
 }
 function runKeeperPost(shop) {
   if (shop.keeper) return shop.keeper;
@@ -30904,11 +31330,18 @@ function runGuides(now) {
     if (time) time.textContent = runLeftLabel(left);
     if (name) name.textContent = j.state === "dropped" ? runText("ground") : runItemName(j.item);
   }
+  let n = 0;
+  for (let i = 0; i < root.children.length; i++) if (!root.children[i].hidden) n++;
+  const sig = (root.hidden ? "0" : "1") + ":" + n;
+  if (sig !== runGuides.hub) {
+    runGuides.hub = sig;
+    fitRunHub();
+  }
 }
 function stepRun(now, dt) {
   if (!run.shops) runShops();
   if (run.day && !run.seeded && !run.sheet && walkMode) runSeed(now);
-  if (run.day && !run.sheet && clockHour() >= 22) runSettle(now);
+  if (run.day && !run.sheet && clockHour() >= 22 && !(stepSky.glide && stepSky.glide.play)) runSettle(now);
   runExpire(now);
   runWindows(now);
   if (run.day) runWeather(dt);
@@ -30931,6 +31364,12 @@ document.getElementById("run-order-take").addEventListener("click", function (e)
   e.preventDefault();
   e.stopPropagation();
   runUse();
+});
+document.getElementById("run-prompt").addEventListener("click", function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+  runUse();
+  e.currentTarget.blur();
 });
 document.getElementById("run-sheet-close").addEventListener("click", function (e) {
   e.preventDefault();
@@ -35253,7 +35692,13 @@ function dismissTitles() {
   if (!boot || !boot.classList.contains("rest") || boot.classList.contains("leave")) return;
   boot.classList.add("leave");
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var drop = function () { if (boot.isConnected) boot.remove(); };
+  var dropped = false;
+  var drop = function () {
+    if (dropped) return;
+    dropped = true;
+    if (boot.isConnected) boot.remove();
+    document.dispatchEvent(new CustomEvent("titles-dismissed"));
+  };
   if (reduce) { drop(); return; }
   boot.addEventListener("transitionend", function (e) {
     if (e.target === boot && e.propertyName === "opacity") drop();
