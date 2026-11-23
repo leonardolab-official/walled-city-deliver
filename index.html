@@ -21399,6 +21399,28 @@ const CHARACTER_SPECS = [
     }
 ];
 
+// Weather 1980s Kowloon Walled City palette across all 32 specs (muted fabrics, sun-faded denim, natural skin)
+(function weatherCharacterSpecs() {
+    const tmp = new THREE.Color();
+    const hsl = {};
+    const muteHex = (hex, satCap, lumMin, lumMax, warmMix) => {
+        if (!hex || typeof hex !== 'string') return hex;
+        tmp.set(hex).getHSL(hsl);
+        const s = Math.min(hsl.s * 0.62, satCap);
+        const l = Math.max(lumMin, Math.min(lumMax, hsl.l * 0.88 + 0.03));
+        tmp.setHSL(hsl.h, s, l);
+        if (warmMix > 0) tmp.lerp(new THREE.Color(0x8c7b66), warmMix);
+        return '#' + tmp.getHexString();
+    };
+    CHARACTER_SPECS.forEach((spec) => {
+        spec.skinTone = muteHex(spec.skinTone, 0.34, 0.42, 0.68, 0.08);
+        spec.shirtColor = muteHex(spec.shirtColor, 0.36, 0.14, 0.72, 0.14);
+        spec.underShirtColor = muteHex(spec.underShirtColor, 0.36, 0.14, 0.74, 0.12);
+        spec.pantsColor = muteHex(spec.pantsColor, 0.30, 0.12, 0.48, 0.14);
+        spec.shoeColor = muteHex(spec.shoeColor, 0.25, 0.10, 0.65, 0.12);
+    });
+})();
+
 const TextureCache = {};
 
 // Helper: Snap canvas texture to crisp NearestFilter voxel/pixel-art aesthetic
@@ -21449,10 +21471,15 @@ function getProceduralFaceTexture(spec) {
     ctx.fillRect(14, 0, 2, 16);
     ctx.fillRect(0, 14, 16, 2);
 
-    // Cheek blush / weathering pixels
-    ctx.fillStyle = spec.build.female ? 'rgba(244, 63, 94, 0.28)' : 'rgba(180, 83, 60, 0.18)';
+    // Weathered cheek shading (grounded 1980s tones)
+    ctx.fillStyle = spec.build.female ? 'rgba(175, 92, 82, 0.20)' : 'rgba(145, 76, 58, 0.15)';
     ctx.fillRect(2, 9, 2, 2);
     ctx.fillRect(12, 9, 2, 2);
+
+    // Subtle under-eye fatigue shadow
+    ctx.fillStyle = 'rgba(65, 42, 30, 0.14)';
+    ctx.fillRect(3, 9, 3, 1);
+    ctx.fillRect(10, 9, 3, 1);
 
     // Diagonal cheek scar for Hatchet Wah
     if (spec.facialHair === 'scar_cheek') {
@@ -21476,27 +21503,27 @@ function getProceduralFaceTexture(spec) {
         ctx.fillRect(11, 4, 2, 1);
     }
 
-    // Voxel Eyes (2x2 Sclera + 1x2 Pupil + Catchlight)
-    ctx.fillStyle = '#ffffff';
+    // Voxel Eyes (Warm off-white sclera + dark pupil + muted catchlight)
+    ctx.fillStyle = '#ede6d8';
     ctx.fillRect(3, 7, 3, 2);
     ctx.fillRect(10, 7, 3, 2);
 
-    ctx.fillStyle = '#18181b';
+    ctx.fillStyle = '#1c1a18';
     ctx.fillRect(4, 7, 2, 2);
     ctx.fillRect(10, 7, 2, 2);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#d4cab8';
     ctx.fillRect(4, 7, 1, 1);
     ctx.fillRect(10, 7, 1, 1);
 
     // Voxel Stubble Beard Shadow
     if (spec.facialHair === 'stubble') {
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.28)';
+        ctx.fillStyle = 'rgba(38, 36, 34, 0.26)';
         ctx.fillRect(3, 11, 10, 4);
     }
 
-    // Voxel Mouth
-    ctx.fillStyle = spec.build.female ? '#e11d48' : '#653726';
+    // Voxel Mouth (muted natural tones)
+    ctx.fillStyle = spec.build.female ? '#a35d58' : '#6e4738';
     ctx.fillRect(6, 12, 4, 1);
 
     const tex = applyVoxelTextureFiltering(new THREE.CanvasTexture(canvas));
@@ -21631,42 +21658,60 @@ function getProceduralTorsoTexture(spec) {
         ctx.fillStyle = '#dc2626';
         ctx.fillRect(7, 4, 1, 2);
     } else if (spec.topStyle === 'windbreaker_80s') {
-        // 1980s neon color-block windbreaker (cyan & pink stripes)
-        ctx.fillStyle = '#22d3ee';
+        // Weathered 1980s color-block windbreaker (sun-faded teal & muted crimson stripes)
+        ctx.fillStyle = '#4a7d84';
         ctx.fillRect(0, 4, 16, 3);
-        ctx.fillStyle = '#f43f5e';
+        ctx.fillStyle = '#9c4b52';
         ctx.fillRect(0, 7, 16, 2);
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#d6cfc2';
         ctx.fillRect(7, 0, 2, 16);
     } else if (spec.topStyle === 'pinstripe_coat') {
-        // Dark pinstripe blazer + black turtleneck + red pocket square
+        // Dark pinstripe blazer + black turtleneck + muted crimson pocket square
         ctx.fillStyle = '#3f3f46';
         for (let x = 1; x < 16; x += 3) {
             ctx.fillRect(x, 0, 1, 16);
         }
-        ctx.fillStyle = '#09090b';
+        ctx.fillStyle = '#141416';
         ctx.fillRect(6, 0, 4, 9);
-        ctx.fillStyle = '#dc2626';
+        ctx.fillStyle = '#8f3430';
         ctx.fillRect(11, 5, 2, 1);
     } else if (spec.topStyle === 'barber_smock') {
-        // Crisp white Shanghai barber smock with button placket & breast pocket comb
-        ctx.fillStyle = '#cbd5e1';
+        // Worn off-white Shanghai barber smock with button placket & breast pocket comb
+        ctx.fillStyle = '#b8b2a6';
         ctx.fillRect(7, 0, 1, 16);
-        ctx.fillStyle = '#475569';
+        ctx.fillStyle = '#474643';
         for (let y = 2; y < 15; y += 3) ctx.fillRect(8, y, 1, 1);
-        ctx.fillStyle = '#dc2626';
+        ctx.fillStyle = '#943a35';
         ctx.fillRect(10, 4, 3, 2);
-        ctx.fillStyle = '#e2e8f0';
+        ctx.fillStyle = '#cfc8ba';
         ctx.fillRect(10, 5, 3, 3);
     } else if (spec.topStyle === 'school_uniform') {
-        // 1980s HK schoolgirl pinafore over white blouse + red bow tie
-        ctx.fillStyle = '#ffffff';
+        // 1980s HK schoolgirl pinafore over off-white blouse + muted red tie
+        ctx.fillStyle = '#dcd6c8';
         ctx.fillRect(4, 0, 8, 6);
-        ctx.fillStyle = '#dc2626';
+        ctx.fillStyle = '#8f3430';
         ctx.fillRect(6, 2, 4, 2);
-        ctx.fillStyle = '#1e40af';
+        ctx.fillStyle = '#2c3d59';
         ctx.fillRect(2, 6, 12, 10);
     }
+
+    // Pixel-level fabric weave dithering + damp hem & collar grime
+    for (let y = 0; y < 16; y++) {
+        for (let x = 0; x < 16; x++) {
+            const hash = ((x * 37 + y * 17 + spec.index * 13) % 11);
+            if (hash === 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+                ctx.fillRect(x, y, 1, 1);
+            } else if (hash === 1) {
+                ctx.fillStyle = 'rgba(255, 245, 225, 0.05)';
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+    ctx.fillStyle = 'rgba(24, 18, 12, 0.18)';
+    ctx.fillRect(0, 14, 16, 2);
+    ctx.fillStyle = 'rgba(24, 18, 12, 0.12)';
+    ctx.fillRect(4, 0, 8, 1);
 
     const tex = applyVoxelTextureFiltering(new THREE.CanvasTexture(canvas));
     TextureCache[key] = tex;
@@ -21677,18 +21722,18 @@ function getProceduralTorsoTexture(spec) {
 // 4. VOXEL PROP BUILDER (CHARACTER-SPECIFIC VOXEL HAND ITEMS & VOXEL STOOLS)
 // ============================================================================
 const SharedMaterials = {
-    steel: new THREE.MeshStandardMaterial({ color: 0xb8b8bc, metalness: 0.42, roughness: 0.58, flatShading: true }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xc4843a, metalness: 0.38, roughness: 0.52, flatShading: true }),
-    wood: new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.94, flatShading: true }),
-    bamboo: new THREE.MeshStandardMaterial({ color: 0xd6b370, roughness: 0.92, flatShading: true }),
-    redPlastic: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.78, flatShading: true }),
-    greenGlass: new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.22, metalness: 0.12, flatShading: true }),
-    darkIron: new THREE.MeshStandardMaterial({ color: 0x3a3a3e, metalness: 0.32, roughness: 0.72, flatShading: true }),
-    gold: new THREE.MeshStandardMaterial({ color: 0xd4a24a, metalness: 0.46, roughness: 0.42, flatShading: true }),
-    jade: new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.48, metalness: 0.06, flatShading: true }),
-    whiteCloth: new THREE.MeshStandardMaterial({ color: 0xe7e2d8, roughness: 0.94, flatShading: true }),
-    roastMeat: new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.78, flatShading: true }),
-    emberGlow: new THREE.MeshBasicMaterial({ color: 0xff4500 })
+    steel: new THREE.MeshStandardMaterial({ color: 0x9ea2a6, metalness: 0.35, roughness: 0.62, flatShading: true }),
+    brass: new THREE.MeshStandardMaterial({ color: 0x9e7438, metalness: 0.34, roughness: 0.58, flatShading: true }),
+    wood: new THREE.MeshStandardMaterial({ color: 0x5e3c24, roughness: 0.94, flatShading: true }),
+    bamboo: new THREE.MeshStandardMaterial({ color: 0xb59a66, roughness: 0.92, flatShading: true }),
+    redPlastic: new THREE.MeshStandardMaterial({ color: 0x99322c, roughness: 0.80, flatShading: true }),
+    greenGlass: new THREE.MeshStandardMaterial({ color: 0x2d5938, roughness: 0.30, metalness: 0.08, flatShading: true }),
+    darkIron: new THREE.MeshStandardMaterial({ color: 0x303236, metalness: 0.28, roughness: 0.78, flatShading: true }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xb38a42, metalness: 0.42, roughness: 0.48, flatShading: true }),
+    jade: new THREE.MeshStandardMaterial({ color: 0x3d7a62, roughness: 0.56, metalness: 0.04, flatShading: true }),
+    whiteCloth: new THREE.MeshStandardMaterial({ color: 0xd4ccbe, roughness: 0.94, flatShading: true }),
+    roastMeat: new THREE.MeshStandardMaterial({ color: 0x7a2b1e, roughness: 0.76, flatShading: true }),
+    emberGlow: new THREE.MeshBasicMaterial({ color: 0xc4481c })
 };
 
 function buildCharacterProp(propType) {
@@ -22299,17 +22344,17 @@ function createKowloonVoxelUmbrella(spec) {
     const umbrella = new THREE.Group();
     umbrella.name = 'kowloon_umbrella';
 
-    // Classic 1980s HK umbrella color palette based on character index
-    const canopyColors = [0xb91c1c, 0x0369a1, 0x0f766e, 0x9333ea, 0xd97706, 0x1e293b];
+    // Weathered 1980s HK umbrella color palette based on character index
+    const canopyColors = [0x7d3230, 0x2b4b5c, 0x2f4f4a, 0x5b4658, 0x8c6230, 0x323942];
     const primaryColor = canopyColors[spec.index % canopyColors.length];
     const canopyMat = new THREE.MeshStandardMaterial({
         color: primaryColor,
-        roughness: 0.82,
+        roughness: 0.84,
         flatShading: true
     });
     const stripeMat = new THREE.MeshStandardMaterial({
-        color: 0xfef08a,
-        roughness: 0.86,
+        color: 0xc4b078,
+        roughness: 0.88,
         flatShading: true
     });
 
@@ -22457,8 +22502,8 @@ function createHeavyCarryCargoProp(cargoType, tierIndex = 0) {
     const cargo = new THREE.Group();
     cargo.name = `carry_cargo_${resolvedType}_tier_${tierIndex}`;
 
-    const cardboardMat = new THREE.MeshStandardMaterial({ color: 0xb4834e, roughness: 0.85, flatShading: true });
-    const stringMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.7, flatShading: true });
+    const cardboardMat = new THREE.MeshStandardMaterial({ color: 0x9c764c, roughness: 0.88, flatShading: true });
+    const stringMat = new THREE.MeshStandardMaterial({ color: 0xc4b278, roughness: 0.78, flatShading: true });
 
     switch (resolvedType) {
         case 'market_crate': {
@@ -22553,7 +22598,7 @@ function createHeavyCarryCargoProp(cargoType, tierIndex = 0) {
 
         case 'fabric_bales': {
             // Bundled Voxel garment factory textile bolts strapped flat for stacking (h=0.19)
-            const palette = [0xbe123c, 0x1d4ed8, 0x047857, 0xd97706, 0x7c3aed];
+            const palette = [0x87363b, 0x2d4866, 0x2f5947, 0x996b32, 0x564366];
             const offsets = [[-0.075, 0.05], [0.075, 0.05], [-0.075, 0.135], [0.075, 0.135]];
             offsets.forEach(([pz, py], i) => {
                 const boltMat = new THREE.MeshStandardMaterial({ color: palette[(i + tierIndex) % palette.length], roughness: 0.75, flatShading: true });
@@ -23665,17 +23710,21 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
             const windGust = Math.sin(t * 1.65) * 0.5 + Math.sin(t * 3.7) * 0.5;
             const gustPush = Math.max(0, windGust);
 
+            const moveAmp = (charGroup.userData && charGroup.userData.rider)
+                ? (typeof run !== 'undefined' && run ? Math.min(1, run.strideAmp || 0) : 1)
+                : (charGroup.userData && charGroup.userData.ease != null ? Math.min(1, charGroup.userData.ease) : 1);
+
             // Cautious puddle-stepping stride with slight hunch under the umbrella canopy
-            j.pelvis.position.y = basePelvisY - 0.018 + Math.abs(sinU) * 0.034;
-            j.pelvis.position.x = Math.cos(uWalk * 0.5) * 0.025;
-            j.pelvis.rotation.y = sinU * 0.08;
-            j.pelvis.rotation.z = cosU * 0.035;
+            j.pelvis.position.y = basePelvisY - 0.014 + Math.abs(sinU) * 0.034 * moveAmp;
+            j.pelvis.position.x = Math.cos(uWalk * 0.5) * 0.025 * moveAmp;
+            j.pelvis.rotation.y = sinU * 0.08 * moveAmp;
+            j.pelvis.rotation.z = cosU * 0.035 * moveAmp;
 
             // Lean forward into the rain & brace against wind gusts
             j.spine.rotation.x = 0.09 + gustPush * 0.08;
             j.chest.rotation.x = 0.11 + gustPush * 0.07;
-            j.chest.rotation.y = -0.10 - sinU * 0.07;
-            j.chest.rotation.z = -gustPush * 0.05;
+            j.chest.rotation.y = -0.06 - sinU * 0.07 * moveAmp;
+            j.chest.rotation.z = -gustPush * 0.04;
 
             // Head tucked slightly down to stay dry, glancing down at wet puddles & side to side
             j.neck.rotation.x = 0.12;
@@ -23696,30 +23745,31 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
                 j.browR.rotation.z = 0.15 + gustPush * 0.15;
             }
 
-            // Legs: high-stepping over alley puddles
-            j.leftThigh.rotation.x = sinU * 0.52;
-            j.rightThigh.rotation.x = -sinU * 0.52;
-            j.leftShin.rotation.x = 0.12 + Math.max(0, -cosU * 0.72);
-            j.rightShin.rotation.x = 0.12 + Math.max(0, cosU * 0.72);
-            j.leftFoot.rotation.x = -sinU * 0.22;
-            j.rightFoot.rotation.x = sinU * 0.22;
+            // Legs: high-stepping over alley puddles when moving, planted when standing still
+            j.leftThigh.rotation.x = sinU * 0.52 * moveAmp;
+            j.rightThigh.rotation.x = -sinU * 0.52 * moveAmp;
+            j.leftShin.rotation.x = (0.12 + Math.max(0, -cosU * 0.72)) * moveAmp;
+            j.rightShin.rotation.x = (0.12 + Math.max(0, cosU * 0.72)) * moveAmp;
+            j.leftFoot.rotation.x = -sinU * 0.22 * moveAmp;
+            j.rightFoot.rotation.x = sinU * 0.22 * moveAmp;
 
             // Right Arm: Holding the umbrella handle chest-high and centered over the head
             j.rightUpperArm.rotation.set(
-                -0.78 - gustPush * 0.10 + Math.abs(sinU) * 0.04,
-                -0.32,
-                -0.12
+                -0.78 - gustPush * 0.10 + Math.abs(sinU) * 0.04 * moveAmp,
+                -0.12,
+                -0.10
             );
             j.rightForeArm.rotation.set(
                 -0.96 + gustPush * 0.08,
-                -0.18,
-                0.22
+                0.0,
+                0.16
             );
-            // Counter-angle the wrist so the umbrella shaft rises vertically & pitches into the wind
+            // Upright pitch compensation (+Y world shaft) that tilts forward (+Z) into wind gusts
+            // and angles slightly inward (+X) to center the canopy directly over the head
             j.rightHand.rotation.set(
-                1.62 - gustPush * 0.18,
-                0.08,
-                -0.14 + Math.sin(t * 5.5) * 0.04
+                1.62 + gustPush * 0.14,
+                0.0,
+                -0.05 + Math.sin(t * 5.5) * 0.03
             );
 
             // Left Arm: Tucked in close to keep dry (or occasionally reaching out to test the rain)
@@ -23730,14 +23780,15 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
                 j.leftForeArm.rotation.set(-0.75 - reach * 0.25, 0, 0);
                 j.leftHand.rotation.z = -0.35 * reach;
             } else {
-                j.leftUpperArm.rotation.set(-0.28 - sinU * 0.22, 0.28, 0.08);
+                j.leftUpperArm.rotation.set(-0.28 - sinU * 0.22 * moveAmp, 0.28, 0.08);
                 j.leftForeArm.rotation.set(-0.88, 0.18, -0.12);
             }
 
-            // Animate canopy rotation jitter & falling water droplets from umbrella rim
+            // Animate subtle canopy sway & falling water droplets from umbrella rim
             if (j.umbrellaProp) {
-                j.umbrellaProp.rotation.y = Math.sin(t * 2.2) * 0.14;
-                j.umbrellaProp.rotation.z = gustPush * 0.10 + Math.sin(t * 14.0) * 0.015 * gustPush;
+                j.umbrellaProp.rotation.x = 0;
+                j.umbrellaProp.rotation.y = Math.sin(t * 2.2) * 0.10;
+                j.umbrellaProp.rotation.z = Math.sin(t * 14.0) * 0.012 * gustPush;
                 const dripsGroup = j.umbrellaProp.userData.dripsGroup;
                 if (dripsGroup) {
                     dripsGroup.children.forEach((drop) => {
@@ -30057,6 +30108,7 @@ function runPlaceRider(dt, moving, travel, ux, uz) {
     const carried = syncPlayerLoad(fig, stepping);
     const pack = fig.studio;
     if (carried > 0) pack.clip = "carry_object";
+    else if (wxNow.rain > 0.08) pack.clip = "umbrella_rain";
     else if (stepping && g > 0.55) {
       pack.clip = "run";
     } else if (stepping) {
