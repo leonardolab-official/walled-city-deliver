@@ -75,7 +75,7 @@
   #tools { position: static; width: min(100%, max-content); max-width: 100%; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; transform: translateZ(0); }
   #minimap {
     position: fixed;
-    top: calc(max(var(--frame), env(safe-area-inset-top)) + 50px);
+    top: max(var(--frame), env(safe-area-inset-top));
     right: max(var(--frame), env(safe-area-inset-right));
     z-index: 3;
     display: block;
@@ -91,6 +91,9 @@
     #ui.walk-bare #run-board {
       width: min(280px, calc(100vw - 112px - 2 * max(var(--frame), env(safe-area-inset-left)) - 16px));
     }
+  }
+  @media (max-width: 430px) {
+    #minimap { width: 100px; height: 100px; }
   }
   #minimap[hidden] { display: none !important; }
   #tool-row { display: flex; flex-direction: row; align-items: center; gap: 6px; }
@@ -111,6 +114,9 @@
     text-shadow: 0 0 6px #ff2a1e, 0 0 16px rgba(255, 30, 20, 0.85);
   }
   h1 > span { color: inherit; font-size: 1em; letter-spacing: 0.18em; display: inline; }
+  header.panel h1 { white-space: normal; }
+  header.panel h1 > .when,
+  header.panel #wx-read { flex-wrap: wrap; white-space: normal; }
   header.panel h1,
   header.panel h1 > .when,
   header.panel #wx-read,
@@ -144,6 +150,104 @@
   .wx-fade > span { grid-area: 1 / 1; }
   header.panel #wx-read .wx-fade > span[style*="visibility: hidden"],
   header.panel #wx-read .wx-fade > span[style*="visibility:hidden"] { text-shadow: none; }
+  header.panel #wx-read #wx-purse {
+    color: #ffc56a;
+    text-shadow:
+      0 0 1px #fff4d2,
+      0 0 5px #ffc56a,
+      0 0 12px #ffb020,
+      0 0 22px rgba(255, 176, 32, 0.95);
+  }
+  header.panel #wx-read #wx-purse::before {
+    content: "·";
+    margin-right: 0.55em;
+    letter-spacing: 0;
+    font-weight: 400;
+    opacity: 0.95;
+    color: #ff4a38;
+    text-shadow:
+      0 0 1px #ffd4cc,
+      0 0 5px #ff4a38,
+      0 0 12px #ff2418,
+      0 0 22px rgba(255, 32, 24, 0.95);
+  }
+  #wx-purse:empty { display: none; }
+  #run-clock {
+    position: fixed;
+    left: 50%;
+    top: max(var(--frame), env(safe-area-inset-top));
+    transform: translateX(-50%);
+    z-index: 7;
+    width: max-content;
+    pointer-events: none;
+    margin: 0;
+    padding: 4px 18px 8px;
+    background: #120806;
+    border: 1px solid #3dff88;
+    box-shadow:
+      0 0 12px rgba(61, 255, 136, 0.7),
+      inset 0 0 10px rgba(61, 255, 136, 0.2);
+    font-weight: 700;
+    font-size: clamp(44px, 8vh, 76px);
+    letter-spacing: 0.08em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #fffaf2;
+    text-shadow:
+      0 0 1px #fff,
+      0 0 5px #fffaf2,
+      0 0 12px rgba(255, 250, 242, 0.85),
+      0 0 22px rgba(255, 244, 220, 0.55);
+    transition: color 0.35s ease, text-shadow 0.35s ease;
+  }
+  #run-clock.mid {
+    color: #ffc56a;
+    text-shadow:
+      0 0 1px #fff4d2,
+      0 0 5px #ffc56a,
+      0 0 12px #ffb020,
+      0 0 22px rgba(255, 176, 32, 0.95);
+  }
+  #run-clock.low {
+    color: #ff4a38;
+    text-shadow:
+      0 0 1px #ffd4cc,
+      0 0 5px #ff4a38,
+      0 0 12px #ff2418,
+      0 0 22px rgba(255, 32, 24, 0.95);
+    animation: run-clock-low 0.7s ease-in-out infinite;
+  }
+  #run-clock.low.late { animation-duration: 0.34s; }
+  #run-clock.bonus {
+    color: #3dff88;
+    text-shadow:
+      0 0 1px #eaffea,
+      0 0 5px #3dff88,
+      0 0 12px #14e06a,
+      0 0 22px rgba(61, 255, 136, 0.95);
+    animation: none;
+  }
+  @keyframes run-clock-low {
+    0%, 100% {
+      text-shadow:
+        0 0 1px #ffd4cc,
+        0 0 5px #ff4a38,
+        0 0 12px #ff2418,
+        0 0 22px rgba(255, 32, 24, 0.95);
+    }
+    50% {
+      text-shadow:
+        0 0 1px #fff,
+        0 0 8px #ff3a2a,
+        0 0 18px #ff2418,
+        0 0 32px rgba(255, 32, 24, 1);
+    }
+  }
+  #run-clock[hidden] { display: none !important; }
+  body:has(#boot) #run-clock { display: none; }
+  @media (max-width: 720px), (max-height: 540px) {
+    #run-clock { font-size: clamp(36px, 11vw, 52px); padding: 2px 12px 6px; letter-spacing: 0.06em; }
+  }
   .kicker { font-family: "PingFang HK", "Heiti TC", sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b56a; margin-bottom: 2px; overflow-wrap: anywhere; }
   .chrome { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
   .seg { display: inline-flex; border: 1px solid #4a342c; border-radius: 0; overflow: hidden; }
@@ -362,7 +466,15 @@
     pointer-events: auto;
   }
   #start[hidden] { display: none !important; }
-  #ui.walk-bare header.panel { order: -1; align-self: flex-start; }
+  #ui.walk-bare header.panel { order: -1; align-self: flex-start; width: auto; max-width: min(42vw, calc(50vw - var(--inset-x) - 72px)); }
+  #ui.walk-bare header.panel h1,
+  #ui.walk-bare header.panel .when,
+  #ui.walk-bare header.panel #wx-read {
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
   #ui.walk-bare #run-board { order: 1; }
   #run-center {
     position: fixed;
@@ -394,15 +506,16 @@
     pointer-events: none;
   }
   #roof-go {
-    position: static;
+    position: fixed;
     pointer-events: auto;
-    z-index: 8;
+    z-index: 9;
     display: none;
     box-sizing: border-box;
     width: max-content;
     max-width: calc(100vw - 2 * (max(var(--frame), env(safe-area-inset-left)) + 96px));
     min-width: 0;
     min-height: clamp(30px, 4.2vh, 42px);
+    margin: 0;
     padding: clamp(6px, 0.9vh, 8px) clamp(12px, 1.6vw, 18px);
     align-items: center;
     justify-content: center;
@@ -417,6 +530,14 @@
   }
   #roof-go.on { display: inline-flex; }
   #roof-go[hidden] { display: none !important; }
+  #roof-go.enter { transform: translate(-50%, -50%); }
+  #roof-go.exit {
+    left: 50%;
+    top: auto;
+    bottom: calc(var(--inset-b) + 20px);
+    transform: translateX(-50%);
+    z-index: 8;
+  }
 
   #run-board {
     pointer-events: auto;
@@ -427,7 +548,6 @@
     overflow-y: auto;
   }
   #run-board[hidden] { display: none !important; }
-  #run-purse { color: #ffc56a; font-size: 12px; letter-spacing: 0.08em; }
   .run-slip { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
   .run-slip b { font-weight: 600; font-size: 13px; color: #ffe7df; }
   .run-slip span { font-size: 12px; color: #d4b56a; }
@@ -476,28 +596,7 @@
   #run-prompt.take .ico-take,
   #run-prompt.give .ico-give,
   #run-prompt.lift .ico-lift { display: block; }
-  #run-gear {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    gap: 3px;
-    margin-top: 8px;
-    width: 100%;
-    min-width: 0;
-  }
-  #run-gear button {
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: none;
-    padding: 6px 3px;
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    line-height: 1.2;
-    white-space: nowrap;
-    text-align: center;
-  }
   .run-slip b, .run-slip span { overflow-wrap: anywhere; }
-  #run-gear button:disabled { opacity: 0.45; }
   #run-use {
     position: static;
     pointer-events: auto;
@@ -517,7 +616,7 @@
     position: fixed;
     left: 50%;
     /* Fallback until the slot line is measured. The icons stay on that line. */
-    top: 87px;
+    top: calc(var(--inset-t) + 118px);
     transform: translateX(-50%);
     z-index: 6;
     display: flex;
@@ -531,7 +630,7 @@
   }
   #run-arrows[hidden] { display: none !important; }
   @media (aspect-ratio <= 1), (max-width: 720px) {
-    #run-arrows { top: 84px; }
+    #run-arrows { top: calc(var(--inset-t) + 96px); }
   }
   /* A narrow screen has no open band for a full row, so the arrows become a
      short column and the board and map leave a lane for it. */
@@ -560,8 +659,20 @@
   .run-arrow svg { width: 34px; height: 34px; display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
   .run-arrow b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; }
   .run-arrow span { display: block; font-size: 10px; color: #ffe7df; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .run-arrow.late { color: #ff3a2a; }
-  .run-arrow.late svg { filter: drop-shadow(0 0 6px rgba(255, 58, 42, 0.85)); }
+  .run-arrow.ok { color: #3dff88; }
+  .run-arrow.ok svg { filter: drop-shadow(0 0 6px rgba(61, 255, 136, 0.85)); }
+  .run-arrow.warm { color: #ffc56a; }
+  .run-arrow.hot, .run-arrow.late { color: #ff3a2a; }
+  .run-arrow.hot svg, .run-arrow.late svg { filter: drop-shadow(0 0 6px rgba(255, 58, 42, 0.85)); }
+  .run-slip i.ok em { background: #3dff88; }
+  .run-slip i.warm em { background: #ffc56a; }
+  .run-slip i.hot em { background: #ff3a2a; }
+  #run-order.green { border-color: #3dff88; box-shadow: 0 0 12px rgba(61, 255, 136, 0.28); }
+  #run-order.yellow { border-color: #ffc56a; }
+  #run-order.red { border-color: #ff3a2a; box-shadow: 0 0 12px rgba(255, 58, 42, 0.28); }
+  #run-prompt.green { border-color: #3dff88; box-shadow: 0 0 12px rgba(61, 255, 136, 0.45); }
+  #run-prompt.yellow { border-color: #ffc56a; }
+  #run-prompt.red { border-color: #ff3a2a; box-shadow: 0 0 12px rgba(255, 58, 42, 0.45); }
   #run-sheet {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
     z-index: 30; pointer-events: auto; width: min(420px, calc(100vw - 48px));
@@ -578,7 +689,8 @@
   #ui:not(.walk-bare) #dock-wrap,
   #ui:not(.walk-bare) #toggle-legend { display: none; }
   #ui.walk-bare #dock-wrap { display: none; }
-  #ui.walk-bare #toggle-legend { display: none; }
+  #ui.walk-bare #toggle-legend,
+  #ui.walk-bare #toggle-settings { display: none; }
   /* The place note is a view-mode sheet. Walking keeps the street clear. */
   #ui.walk-bare #card { display: none; }
   #ui.walk-bare {
@@ -720,7 +832,7 @@
   @media (aspect-ratio <= 1) {
     #col-left, #col-right { display: contents; }
     #ui { display: flex; flex-direction: column; align-items: stretch; }
-    header.panel { order: 1; align-self: flex-start; width: max-content; max-width: calc(100% - 96px); }
+    header.panel { order: 1; align-self: flex-start; width: auto; max-width: min(calc(100% - 96px), calc(50vw - var(--inset-x) - 72px)); }
     header.panel h1 { font-size: clamp(13px, 4.4vw, 18px); }
     /* Same top edge as the clock, on the right. Out of the column so it does not take a row. */
     #tools {
@@ -1124,19 +1236,14 @@ applyBoot();
 </script>
 <canvas id="c"></canvas>
 <div id="ui">
+  <div id="run-clock" hidden></div>
   <div id="col-left">
   <header class="panel">
-    <h1><span class="when"><span id="wx-read"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span></span></h1>
+    <h1><span class="when"><span id="wx-read"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span><span id="wx-purse"></span></span></span></span></h1>
   </header>
   <div id="run-board" class="panel" hidden>
-    <div id="run-purse"></div>
     <div id="run-lip" hidden><i></i><i></i><i></i></div>
     <div id="run-near"></div>
-    <div id="run-gear">
-      <button type="button" id="run-cloth"></button>
-      <button type="button" id="run-strap"></button>
-      <button type="button" id="run-bell"></button>
-    </div>
     <div id="run-slips"></div>
   </div>
 
@@ -1221,8 +1328,8 @@ applyBoot();
   <div id="walk-pad" aria-hidden="true">
     <div id="walk-stick" role="application" aria-label="Move"><i aria-hidden="true"></i></div>
   </div>
+<button type="button" id="roof-go" hidden>進入</button>
 <div id="run-corner">
-  <button type="button" id="roof-go" hidden>進入</button>
   <button type="button" id="run-use" hidden></button>
 </div>
 <button type="button" id="run-prompt" hidden>
@@ -16000,30 +16107,25 @@ let sheetPortrait = null;
 // Keep the delivery HUD inside the frame. The arrow icons stay on the slot
 // line, and the row moves into the gap beside the map when centering would
 // cover the board. Called on resize and when the buttons or the arrow count change.
-// Oilcloth, Strap, and Bell stay on one line. The type shrinks to the board
-// before a label is cut short.
-function fitGearLine() {
-  const gear = document.getElementById("run-gear");
-  if (!gear || !gear.getClientRects().length) return;
-  const buttons = gear.querySelectorAll("button");
-  if (!buttons.length) return;
-  for (let i = 0; i < buttons.length; i++) {
-    buttons[i].style.fontSize = "";
-    buttons[i].style.flex = "0 0 auto";
-  }
-  const room = gear.clientWidth;
-  if (!(room > 0)) {
-    for (let i = 0; i < buttons.length; i++) buttons[i].style.flex = "";
+function fitPurseRoom() {
+  const header = document.querySelector("header.panel");
+  const clockEl = document.getElementById("run-clock");
+  const ui = document.getElementById("ui");
+  if (!header || !ui) return;
+  if (!clockEl || clockEl.hidden || getComputedStyle(clockEl).display === "none") {
+    header.style.maxWidth = "";
     return;
   }
-  let size = parseFloat(getComputedStyle(buttons[0]).fontSize) || 11;
-  let guard = 0;
-  while (gear.scrollWidth > room + 1 && size > 6 && guard < 6) {
-    size = Math.max(6, size * (room - 1) / gear.scrollWidth);
-    for (let i = 0; i < buttons.length; i++) buttons[i].style.fontSize = size.toFixed(2) + "px";
-    guard++;
+  const cr = clockEl.getBoundingClientRect();
+  const pad = parseFloat(getComputedStyle(ui).paddingLeft) || 24;
+  let limit = cr.left;
+  const map = document.getElementById("minimap");
+  if (map && !map.hidden && getComputedStyle(map).display !== "none") {
+    const mr = map.getBoundingClientRect();
+    if (mr.width > 1 && mr.top < cr.bottom && mr.left < limit) limit = mr.left;
   }
-  for (let i = 0; i < buttons.length; i++) buttons[i].style.flex = "";
+  const room = limit - pad - 10;
+  header.style.maxWidth = room > 64 ? Math.floor(room) + "px" : "";
 }
 function fitRunHub() {
   if (fitRunHub.busy) return;
@@ -16038,6 +16140,7 @@ function fitRunHub() {
     const stick = document.getElementById("walk-stick");
     const corner = document.getElementById("run-corner");
     if (!ui || !arrows) return;
+    fitPurseRoom();
     const padOn = pad && getComputedStyle(pad).display !== "none";
     const stickW = padOn && stick ? stick.getBoundingClientRect().width : 0;
     ui.style.setProperty("--stick-clear", stickW > 0 ? Math.ceil(stickW + 10) + "px" : "0px");
@@ -16072,6 +16175,14 @@ function fitRunHub() {
       };
     };
     const placeTop = function () {
+      const clock = document.getElementById("run-clock");
+      if (clock && !clock.hidden && getComputedStyle(clock).display !== "none") {
+        const cr = clock.getBoundingClientRect();
+        if (cr.height > 1) {
+          arrows.style.top = Math.round(cr.bottom + 10) + "px";
+          return;
+        }
+      }
       if (!lip || lip.hidden || getComputedStyle(lip).display === "none") return;
       const lr = lip.getBoundingClientRect();
       if (lr.height < 1) return;
@@ -16118,7 +16229,6 @@ function fitRunHub() {
     placeTop();
   } finally {
     fitRunHub.busy = false;
-    fitGearLine();
   }
 }
 function fit() {
@@ -16238,7 +16348,15 @@ function fitDockText() {
   requestAnimationFrame(run);
 }
 addEventListener("resize", fit);
-addEventListener("orientationchange", fit);
+function fitAfterTurn() {
+  fit();
+  requestAnimationFrame(function () {
+    fit();
+    requestAnimationFrame(fit);
+  });
+  setTimeout(fit, 160);
+}
+addEventListener("orientationchange", fitAfterTurn);
 if (window.visualViewport) visualViewport.addEventListener("resize", fit);
 document.addEventListener("titles-dismissed", function () {
   requestAnimationFrame(function () { fitRunHub(); });
@@ -22764,12 +22882,13 @@ function studioClipFor(fig) {
   if (ud.role === "shove" || ud.role === "follow") return (heat.phase === "chase" && (ud.speed || 0) > 0.3) ? "chasing" : "fight";
   if (ud.roof) {
     const moving = ud.roofMoving || 0;
+    const stepping = (s.stepDist || 0) > 0.02;
     const group = ud.roof.group;
-    if (group && group.mode === "chase" && moving > 0.45) {
+    if (group && group.mode === "chase" && moving > 0.45 && stepping) {
       const it = group.kids[group.it];
       return fig === it ? "chasing" : "being_chased";
     }
-    if (moving > 0.4) return "walk";
+    if (moving > 0.4 && stepping) return "walk";
     if (ud.play === "fight") return "fight";
     if (ud.play === "sit") return "idle_sit";
     return "work_stand";
@@ -22779,8 +22898,12 @@ function studioClipFor(fig) {
   if (ud.role === "drunk") return "drunk_sway";
   if (wxNow.rain > 0.08) return "umbrella_rain";
   const finishing = (s.plantW || 0) > 0.06;
-  if ((moving > 0.55 && (ud.speed || 0) > 1.35) || (finishing && s.prevClip === "run" && (ud.speed || 0) > 1.1)) return "run";
-  if (moving > 0.1 || finishing || (s.stepDist || 0) > 0.004) return "walk";
+  const stepping = (s.stepDist || 0) > 0.004;
+  // Ease remembers that they meant to walk. Without a real step that holds
+  // the last stride and the body freezes where the lane stopped them.
+  if (stepping && moving > 0.55 && (ud.speed || 0) > 1.35) return "run";
+  if (finishing && s.prevClip === "run" && (ud.speed || 0) > 1.1) return "run";
+  if (stepping || finishing) return "walk";
   return "idle_stand";
 }
 // A greeting, a shopkeeper's wave, and a child waving are an arm layer.
@@ -22875,7 +22998,11 @@ function poseStudioCast(now, dt) {
   function take(fig) {
     if (!fig || !fig.studio) return;
     const ud = fig.userData;
-    const dozing = !!(ud && ud.doze);
+    let dozing = !!(ud && ud.doze);
+    if (fig.visible && dozing) {
+      wakeFigure(fig);
+      dozing = false;
+    }
     if (!fig.visible && !dozing) return;
     if (seen.has(fig)) return;
     seen.add(fig);
@@ -23086,12 +23213,15 @@ function makeCitizen(wear) {
 // A lane is stored in local metres. The tenements are shifted by their own
 // row, so the figure has to use that same shift. World paths are already
 // in scene space.
-function walkerFrame(path, along, dir) {
+function walkerFrame(path, along, dir, rail) {
   const span = Math.max(0.5, path.b - path.a);
   const at = Math.max(0, Math.min(span, along));
   const face = dir < 0 ? -1 : 1;
+  // The rail stays put when they turn around. Tying it to the facing put the
+  // body on the opposite side of a narrow alley, which is the shop wall.
+  const side = rail == null ? face : (rail < 0 ? -1 : 1);
   const keep = path.keep == null ? 0.14 : path.keep;
-  const lat = path.axis === "z" ? face * keep : -face * keep;
+  const lat = path.axis === "z" ? side * keep : -side * keep;
   let worldX, worldZ, yaw;
   if (path.line) {
     const pts = path.line;
@@ -23127,23 +23257,49 @@ function walkerFrame(path, along, dir) {
   }
   return { worldX, worldZ, yaw };
 }
-function walkerBlocked(path, along, dir) {
-  const frame = walkerFrame(path, along, dir);
+function walkerBlocked(path, along, dir, rail) {
+  const frame = walkerFrame(path, along, dir, rail);
   // The player's capsule is wide enough to catch lamp poles. A resident on a
   // rail is thinner, and must not count their own body or the person beside them:
   // that read every step as a wall, so they stopped and leapt to the other side.
   return walkBlocked(frame.worldX, frame.worldZ, { pad: 0.04, bodies: false });
 }
+function walkerRail(ud) {
+  if (!ud) return 1;
+  if (ud.rail == null) ud.rail = ud.dir < 0 ? -1 : 1;
+  return ud.rail < 0 ? -1 : 1;
+}
+// The nearest station on this rail that is clear, with room to take a step.
+function walkerEscape(path, along, rail) {
+  const span = Math.max(0.5, path.b - path.a);
+  for (let d = 0.3; d <= 4.2; d += 0.3) {
+    for (let s = -1; s <= 1; s += 2) {
+      const at = along + s * d;
+      if (at < 0.25 || at > span - 0.25) continue;
+      const face = s > 0 ? 1 : -1;
+      if (walkerBlocked(path, at, face, rail)) continue;
+      const ahead = at + face * 0.4;
+      if (ahead < 0.2 || ahead > span - 0.2) continue;
+      if (walkerBlocked(path, ahead, face, rail)) continue;
+      return { along: at, dir: face };
+    }
+  }
+  const other = rail < 0 ? 1 : -1;
+  if (!walkerBlocked(path, Math.max(0.3, Math.min(span - 0.3, along)), 1, other)) {
+    return { along: Math.max(0.3, Math.min(span - 0.3, along)), dir: 1, rail: other };
+  }
+  return null;
+}
 // The furthest point on this lane that is still clear of the walls. A step
 // that would enter the masonry stops at the last open sample instead.
-function walkerClear(path, from, to, face) {
-  if (!walkerBlocked(path, to, face)) return to;
-  if (walkerBlocked(path, from, face)) return null;
+function walkerClear(path, from, to, face, rail) {
+  if (!walkerBlocked(path, to, face, rail)) return to;
+  if (walkerBlocked(path, from, face, rail)) return null;
   let lo = from;
   let hi = to;
   for (let n = 0; n < 5; n++) {
     const mid = (lo + hi) * 0.5;
-    if (walkerBlocked(path, mid, face)) hi = mid;
+    if (walkerBlocked(path, mid, face, rail)) hi = mid;
     else lo = mid;
   }
   if (Math.abs(lo - from) < 0.025) return null;
@@ -23789,6 +23945,7 @@ function advanceWalker(ud, now, fig) {
     } else if (ud.wait > 0) {
       // Already stopped this frame.
     } else {
+      const rail = walkerRail(ud);
       let face = ud.dir;
       let step = speed * dt;
       if (ud.heat && step > 0.18) step = 0.18;
@@ -23804,21 +23961,34 @@ function advanceWalker(ud, now, fig) {
       if (ud.flow && ud.corner) {
         // The corner step already has them. Do not walk through the wall.
       } else {
-        const clear = walkerClear(path, ud.along, landed, face);
+        const clear = walkerClear(path, ud.along, landed, face, rail);
         if (clear != null) {
           ud.along = clear;
           if (face !== ud.dir && !ud.heat && !ud.flow) ud.dir = face;
         } else {
-          // The lane ahead is masonry. Turn back along the same alley when
-          // that side is open. A flow walker who is boxed in takes a real
-          // corner, and leaves only once the picture has let them go.
-          const back = -ud.dir;
-          const heldAlong = Math.max(0, Math.min(span, ud.along));
+          // The lane ahead is masonry. Turn back along the same rail. The
+          // other side of the alley is a wall, so it is not a way out.
+          // A flow walker who is boxed in takes a real corner, and leaves
+          // only once the picture has let them go.
+          const back = -face;
+          const behind = Math.max(0, Math.min(span, ud.along + back * 0.5));
           const chestY = (ud.y == null ? GROUND_Y : ud.y) + 0.85;
-          if (!walkerBlocked(path, heldAlong, back)) {
-            ud.dir = back;
-            ud.wait = 0.35;
-            ud.act = null;
+          const behindOpen = Math.abs(behind - ud.along) > 0.12 && !walkerBlocked(path, behind, back, rail);
+          const buried = walkerBlocked(path, ud.along, face, rail);
+          if (buried) {
+            const out = walkerEscape(path, ud.along, rail);
+            if (out) {
+              ud.along = out.along;
+              ud.dir = out.dir;
+              if (out.rail != null) ud.rail = out.rail;
+              ud.act = null;
+            } else if (ud.flow && !ud.corner && !figureRemember(ud, ud.x, chestY, ud.z)) ud.depart = 1;
+          } else if (behindOpen) {
+            if (ud.dir !== back) {
+              ud.dir = back;
+              ud.wait = 0.35;
+              ud.act = null;
+            }
           } else if (ud.flow && !ud.corner) {
             flowConsiderTurn(ud);
             if (!ud.corner && !figureRemember(ud, ud.x, chestY, ud.z)) ud.depart = 1;
@@ -23830,7 +24000,7 @@ function advanceWalker(ud, now, fig) {
   let along = ud.along;
   let dy = 0;
   if (!offLane) {
-    const frame = walkerFrame(path, along, ud.dir);
+    const frame = walkerFrame(path, along, ud.dir, walkerRail(ud));
     const yaw = frame.yaw;
     const pz = frame.worldZ;
     const footY = path.y == null ? GROUND_Y : path.y;
@@ -23863,7 +24033,10 @@ function advanceWalker(ud, now, fig) {
   const turning = Math.min(1, Math.abs(dy) / 1.15);
   // Heat does not shorten its step at the kerb. That read as a group arriving
   // and locking. A flee has already left this rail by then.
-  const stride = ud.wait > 0 ? 0 : ud.held ? 0.25 : ((ud.heat || ud.corner) ? (1 - turning * 0.35) : Math.min(1, endProx / 0.55) * (1 - turning));
+  // A body that did not move is standing. Leaving the walk ease up froze the stride.
+  const stalled = !offLane && ud.alongPrev != null && Math.abs(along - ud.alongPrev) < 0.002;
+  ud.alongPrev = along;
+  const stride = (ud.wait > 0 || stalled) ? 0 : ud.held ? 0.25 : ((ud.heat || ud.corner) ? (1 - turning * 0.35) : Math.min(1, endProx / 0.55) * (1 - turning));
   if (ud.ease == null) ud.ease = ud.act ? 0 : 1;
   ud.ease += (stride - ud.ease) * Math.min(1, dt * (ud.heat ? 4.2 : 5));
   const rig = ud.rig;
@@ -24295,6 +24468,7 @@ function addWalker(path, spec, i, place) {
   const dir = place ? place.dir : (i % 2 ? -1 : 1);
   const along = place ? place.along : (i * 5.1 + path.a) % span;
   ud.dir = dir;
+  ud.rail = dir < 0 ? -1 : 1;
   ud.along = along;
   ud.live = 1;
   ud.inside = inside ? 1 : 0;
@@ -28453,14 +28627,18 @@ function seatRoofDoors() {
 }
 function roofDoorNear() {
   if (!walkMode || roofStay || walkGlide) return null;
-  let best = null;
-  let bestD = 1.55 * 1.55;
+  let best = null, bestD = Infinity;
   for (let i = 0; i < roofDoors.length; i++) {
     const d = roofDoors[i];
     if (!d.live) continue;
-    const dx = walkX - d.x, dz = walkZ - d.z;
-    const dd = dx * dx + dz * dz;
-    if (dd < bestD) { bestD = dd; best = d; }
+    // Same gate as Take: the street side of the mouth, and a clear line to it.
+    // 2.2 m is the mouth. 4.2 m is the person a step inside the gate.
+    if (!runAtEntrance(d.x, d.z, d.ox, d.oz)) continue;
+    const mouth = Math.hypot(walkX - d.x, walkZ - d.z);
+    const inside = Math.hypot(walkX - (d.x - d.ox * 1.25), walkZ - (d.z - d.oz * 1.25));
+    if (mouth >= 2.2 && inside >= 4.2) continue;
+    const reach = mouth < 2.2 ? mouth : inside;
+    if (reach < bestD) { bestD = reach; best = d; }
   }
   return best;
 }
@@ -28946,16 +29124,40 @@ function syncRoofButton() {
   if (!btn) return;
   roofOffer = roofStay ? null : roofDoorNear();
   const show = walkMode && !walkGlide && (roofStay || roofOffer);
-  if (!show) {
+  function hide() {
     btn.hidden = true;
-    btn.classList.remove("on");
-  } else {
+    btn.classList.remove("on", "enter", "exit");
+    btn.style.left = "";
+    btn.style.top = "";
+    btn.style.bottom = "";
+  }
+  if (!show) hide();
+  else {
     const key = roofStay ? "exitBtn" : "enterBtn";
     if (btn.getAttribute("data-i18n") !== key) btn.setAttribute("data-i18n", key);
     const label = t(key);
     if (btn.textContent !== label) btn.textContent = label;
-    btn.hidden = false;
-    btn.classList.add("on");
+    if (roofStay) {
+      btn.classList.remove("enter");
+      btn.classList.add("on", "exit");
+      btn.hidden = false;
+      btn.style.left = "";
+      btn.style.top = "";
+      let lift = 0;
+      const order = document.getElementById("run-order");
+      if (order && !order.hidden) {
+        const r = order.getBoundingClientRect();
+        if (r.height > 1) lift = Math.ceil(r.height + 12);
+      }
+      btn.style.bottom = lift ? "calc(var(--inset-b) + 20px + " + lift + "px)" : "";
+    } else {
+      btn.classList.remove("exit");
+      btn.classList.add("on", "enter");
+      btn.hidden = false;
+      btn.style.bottom = "";
+      const y = GROUND_Y + WALK_EYE * 0.62;
+      if (!placeFloatingPrompt(btn, roofOffer.x, y, roofOffer.z, 0.5)) hide();
+    }
   }
   const sig = (btn.hidden ? "0" : "1") + btn.textContent;
   if (sig !== syncRoofButton.sig) {
@@ -29001,42 +29203,44 @@ const RUN_KIND_ITEM = {
 };
 const RUN_COPY = {
   zh: {
-    hint: "近了舖主或收貨的人會揮手 · 箭咀指向要交的人 · F 取貨交人 · 天台用進入",
+    hint: "標記顏色是路程 · 一單一個鐘 · 交到人手上即收錢 · 班次時間不停",
     purse: "袋中", take: "取貨", give: "交人", lift: "拾起",
-    shut: "舖未開", ended: "明日沒有舖肯交貨", full: "裝不下",
-    sheet: "今日", on: "準時", late: "遲到", fail: "未交到",
-    bonus: "一併送達", net: "實收", close: "收下",
-    cloth: "油布", strap: "綁帶", bell: "車鈴",
+    shut: "舖未開", ended: "這一班完了", full: "手上有貨",
+    sheet: "這一班", on: "收到", late: "遲到", fail: "未交到",
+    bonus: "一併送達", net: "本班", close: "再來一班",
+    green: "短程", yellow: "過舖", red: "上天台",
     first: "第一單", ground: "在地上", roof: "天台", door: "門",
     stair: "旁的梯", beside: "旁的門", from: "取", keeper: "舖主"
   },
   en: {
-    hint: "The shopkeeper or the person waves when you are near · the arrow points to them · F takes and hands over · a roof uses Enter",
+    hint: "The marker color is the length of the fare · one parcel, one clock · the money lands when you hand it over · the shift clock keeps running",
     purse: "Purse", take: "Take", give: "Hand over", lift: "Pick up",
-    shut: "Counters are shut", ended: "No counter will load you tomorrow", full: "No room",
-    sheet: "Today", on: "On time", late: "Late", fail: "Missed",
-    bonus: "Together", net: "Net", close: "Close",
-    cloth: "Oilcloth", strap: "Strap", bell: "Bell",
+    shut: "Counters are shut", ended: "This shift is over", full: "Hands are full",
+    sheet: "This shift", on: "Paid", late: "Late", fail: "Missed",
+    bonus: "Together", net: "Shift", close: "Another shift",
+    green: "Short", yellow: "Counter", red: "Roof",
     first: "First job", ground: "On the ground", roof: "Roof", door: "door",
     stair: " stair", beside: " door", from: " from", keeper: " shopkeeper"
   },
   ja: {
-    hint: "店の人や届け先が近くで手を振る · 矢印が届け先 · F で受け取りと手渡し · 屋上は進入",
+    hint: "印の色が距離 · 荷物は一つ、時計は一つ · 渡した瞬間に入る · シフトの時計は止まらない",
     purse: "財布", take: "受け取る", give: "渡す", lift: "拾う",
-    shut: "店は閉まっている", ended: "明日は荷物を出せない", full: "載らない",
-    sheet: "今日", on: "時間どおり", late: "遅れ", fail: "届かず",
-    bonus: "まとめて", net: "差引", close: "閉じる",
-    cloth: "油布", strap: "紐", bell: "ベル",
+    shut: "店は閉まっている", ended: "この回は終わり", full: "手がふさがっている",
+    sheet: "この回", on: "入金", late: "遅れ", fail: "届かず",
+    bonus: "まとめて", net: "この回", close: "もう一回",
+    green: "近い", yellow: "店", red: "屋上",
     first: "最初の一件", ground: "地面", roof: "屋上", door: "扉",
     stair: "脇の階段", beside: "脇の扉", from: "で受け取る", keeper: "の店主"
   }
 };
+const SHIFT_SECS = 180;
+const FARE_BASE = { green: 12, yellow: 22, red: 36 };
 const run = {
-  purse: 36, day: false, ended: false, sheet: false, intro: 0,
+  purse: 36, day: false, ended: false, sheet: false, intro: 3,
   jobs: [], slips: [], runs: [], openRun: null, shops: null,
   seq: 1, speed: 0, wasFast: false, fastAt: -10, dropCool: 0,
-  gear: { cloth: false, strap: false, bell: false },
-  boxMat: null, layAt: 0
+  boxMat: null, layAt: 0,
+  shift: SHIFT_SECS, earned: 0, log: [], flash: 0, flashN: 0
 };
 function runText(key) {
   const pack = RUN_COPY[lang] || RUN_COPY.zh;
@@ -29061,6 +29265,28 @@ function runSlots() {
     if (j.state === "carried") n += j.slots;
   }
   return n;
+}
+function runCarrying() {
+  for (let i = 0; i < run.jobs.length; i++) {
+    const s = run.jobs[i].state;
+    if (s === "carried" || s === "dropped") return true;
+  }
+  return false;
+}
+function runFareLeft(job, now) {
+  return job.t0 + job.window - (job.dock || 0) - now;
+}
+function runFareHue(job, now) {
+  const u = job.window > 0 ? runFareLeft(job, now) / job.window : 0;
+  if (u > 0.55) return "ok";
+  if (u > 0.28) return "warm";
+  return "hot";
+}
+function runClockText(sec) {
+  const s = Math.max(0, Math.ceil(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + ":" + (r < 10 ? "0" : "") + r;
 }
 function runSpeed(quicker, push) {
   if (run.sheet) return 0;
@@ -29097,7 +29323,7 @@ function runNoteMove(travel, dt) {
 function runBellSlow(ud, speed) {
   if (!run.day || !walkMode || !ud || ud.heat || ud.x == null) return speed;
   const dist = Math.hypot(walkX - ud.x, walkZ - ud.z);
-  const reach = run.gear.bell ? 1.55 : 1.15;
+  const reach = 1.15;
   if (dist < reach && dist > 0.25) return speed * Math.max(0.35, dist / reach);
   return speed;
 }
@@ -29435,54 +29661,20 @@ function runMakeSlip(shop, itemKey, dest) {
     slots: RUN_ITEM[itemKey].slots
   };
 }
-function runLay(shop, itemKey, dest, now) {
-  const gap = runMeal(clockHour()) ? 18 + Math.random() * 10 : 32 + Math.random() * 16;
-  shop.next = now + gap;
+function runLay(shop, itemKey, dest, now, cls) {
+  shop.next = now + 8;
   shop.slip = runMakeSlip(shop, itemKey, dest);
+  shop.slip.class = cls || "green";
+  shop.slip.base = FARE_BASE[shop.slip.class] || FARE_BASE.green;
 }
-function runMeal(hour) {
-  return (hour >= 7 && hour < 9) || (hour >= 12 && hour < 14) || (hour >= 18 && hour < 20);
-}
-function runTutorial(now) {
-  if (run.intro >= 3 || run.ended) return false;
-  if (clockHour() >= 22) return true;
-  const shops = runShops();
-  if (run.intro === 0) {
-    let best = null, bestD = 1e9;
-    for (let i = 0; i < shops.length; i++) {
-      const s = shops[i];
-      if (s.kind !== "grocery" && s.kind !== "cafe") continue;
-      if (!shopOpenNow(s.kind)) continue;
-      const d = Math.hypot(walkX - s.x, walkZ - s.z);
-      if (d < bestD) { bestD = d; best = s; }
-    }
-    if (!best) return true;
-    if (best.slip) return false;
-    const dest = runPickDest(best, "near", 40) || runPickDest(best, "near", 70) || runPickDest(best, "ground", 90);
-    if (!dest) { run.intro = 3; return false; }
-    if (!run.day) setWeather("clear", true);
-    runLay(best, "grocery" === best.kind ? "grocery" : "bottle", dest, now);
-    best.next = now + 40;
-    return false;
-  }
-  if (run.intro === 1 || run.intro === 25) return false;
-  if (run.intro === 2) {
-    let best = null, bestD = 1e9;
-    for (let i = 0; i < shops.length; i++) {
-      const s = shops[i];
-      if (s.slip || !runCanPost(s, now)) continue;
-      const item = runChooseItem(s.kind, 0);
-      if (RUN_ITEM[item].slots !== 1) continue;
-      const d = Math.hypot(walkX - s.x, walkZ - s.z);
-      if (d < bestD) { bestD = d; best = s; }
-    }
-    if (!best) return false;
-    const dest = runPickDest(best, "roof", 140) || runPickDest(best, "keeper", 90) || runPickDest(best, "ground", 90);
-    if (!dest) { run.intro = 3; return false; }
-    runLay(best, runChooseItem(best.kind, 1), dest, now);
-    return false;
-  }
-  return false;
+function runLayFare(shop, cls, now, salt) {
+  let dest = null;
+  if (cls === "red") dest = runPickDest(shop, "roof", 150);
+  else if (cls === "yellow") dest = runPickDest(shop, "keeper", 110);
+  else dest = runPickDest(shop, "near", 48) || runPickDest(shop, "ground", 55);
+  if (!dest) return false;
+  runLay(shop, runChooseItem(shop.kind, salt), dest, now, cls);
+  return true;
 }
 function runSlipCount() {
   let n = 0;
@@ -29491,41 +29683,54 @@ function runSlipCount() {
   return n;
 }
 function runOffer(now) {
-  if (run.ended || run.sheet || !walkMode) return;
-  if (runTutorial(now)) return;
-  if (now < run.layAt || runSlipCount() >= 14) return;
-  run.layAt = now + 0.6;
+  if (run.ended || run.sheet || !walkMode || !run.day) return;
   const shops = runShops();
-  let best = null, bestD = 36;
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
-    if (s.slip || !runCanPost(s, now)) continue;
-    const d = Math.hypot(walkX - s.x, walkZ - s.z);
-    if (d < bestD) { bestD = d; best = s; }
+    if (s.slip && Math.hypot(walkX - s.x, walkZ - s.z) > 62) s.slip = null;
   }
-  if (!best) return;
-  const salt = (run.seq * 17 + Math.floor(best.x + best.z)) | 0;
-  const item = runChooseItem(best.kind, salt);
-  const roof = (salt % 10) < 3;
-  const asKeeper = !roof && (salt % 3) === 1;
-  let dest = roof ? runPickDest(best, "roof", 110) : null;
-  if (!dest && asKeeper) dest = runPickDest(best, "keeper", 90);
-  if (!dest) dest = runPickDest(best, "ground", 90);
-  if (!dest) return;
-  runLay(best, item, dest, now);
-}
-function runExpire(now) {
-  const shops = run.shops || [];
+  if (runSlipCount() >= 3) return;
+  if (now < run.layAt) return;
+  run.layAt = now + 0.25;
+  const have = { green: 0, yellow: 0, red: 0 };
   for (let i = 0; i < shops.length; i++) {
-    const s = shops[i];
-    if (!s.slip) continue;
-    if (now - s.slip.born > 40) s.slip = null;
+    const cls = shops[i].slip && shops[i].slip.class;
+    if (cls && have[cls] != null) have[cls]++;
+  }
+  const order = [];
+  if (!have.green) order.push("green");
+  if (!have.yellow) order.push("yellow");
+  if (!have.red) order.push("red");
+  if (!order.length) order.push("green", "yellow", "red");
+  const reach = [42, 60];
+  for (let r = 0; r < reach.length; r++) {
+    const candidates = [];
+    for (let i = 0; i < shops.length; i++) {
+      const s = shops[i];
+      if (s.slip || !runCanPost(s, now)) continue;
+      const d = Math.hypot(walkX - s.x, walkZ - s.z);
+      if (d < reach[r]) candidates.push({ s: s, d: d });
+    }
+    candidates.sort(function (a, b) { return a.d - b.d; });
+    for (let c = 0; c < order.length; c++) {
+      const cap = Math.min(6, candidates.length);
+      for (let i = 0; i < cap; i++) {
+        if (runLayFare(candidates[i].s, order[c], now, run.seq + i + c)) return;
+      }
+    }
   }
 }
+function runExpire() {}
 function runOpenDay(now) {
   if (run.ended) return;
   run.day = true;
+  run.sheet = false;
   run.seeded = false;
+  run.intro = 3;
+  run.shift = SHIFT_SECS;
+  run.earned = 0;
+  run.log = [];
+  run.flash = 0;
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
     shops[i].slip = null;
@@ -29533,22 +29738,18 @@ function runOpenDay(now) {
   }
   todLock = null;
   const from = ((stepSky.clock == null ? OPEN_CLOCK : stepSky.clock) % 1 + 1) % 1;
-  const to = 8 / 24;
+  const to = 10 / 24;
   const span = todShort(from, to);
   const dayLen = 1680;
   if (Math.abs(span) < 0.004) {
     stepSky.glide = null;
-    stepSky.hold = null;
-    stepSky.day = dayLen;
-    stepSky.origin = to;
-    stepSky.t0 = now;
+    stepSky.hold = to;
     stepSky.clock = to;
   } else {
-    // Ease the sun and the clock across. A short hop stays brief, and a long
-    // one still finishes before the morning has moved on.
+    // Ease the sun to mid-morning, then hold it. The shift clock is the race.
     const dur = Math.min(6.5, Math.max(2.4, Math.abs(span) * 12));
     stepSky.hold = null;
-    stepSky.glide = { from: from, to: to, span: span, t0: now, t1: now + dur, play: true, day: dayLen };
+    stepSky.glide = { from: from, to: to, span: span, t0: now, t1: now + dur, play: false, day: dayLen };
   }
   const tod = document.getElementById("tod-seg");
   if (tod) tod.querySelectorAll("button").forEach(b => { b.disabled = true; });
@@ -29558,27 +29759,8 @@ function runOpenDay(now) {
     if (stepSky.glide && wxT1 > now) wxT1 = stepSky.glide.t1;
   }
 }
-function runSeed(now) {
+function runSeed() {
   run.seeded = true;
-  const shops = runShops();
-  const list = [];
-  for (let i = 0; i < shops.length; i++) if (runCanPost(shops[i], now)) list.push(shops[i]);
-  list.sort(function (a, b) {
-    return Math.hypot(walkX - a.x, walkZ - a.z) - Math.hypot(walkX - b.x, walkZ - b.z);
-  });
-  const cap = Math.min(12, list.length);
-  for (let i = 0; i < cap; i++) {
-    const s = list[i];
-    const salt = (i * 17 + 3) | 0;
-    const item = runChooseItem(s.kind, salt);
-    const roof = i > 0 && (salt % 10) < 3;
-    const asKeeper = !roof && (salt % 3) === 1;
-    let dest = roof ? runPickDest(s, "roof", 110) : null;
-    if (!dest && asKeeper) dest = runPickDest(s, "keeper", 90);
-    if (!dest) dest = runPickDest(s, "ground", 90);
-    if (!dest) continue;
-    runLay(s, item, dest, now);
-  }
 }
 function runBegin(now) {
   if (run.day) return;
@@ -29587,29 +29769,24 @@ function runBegin(now) {
 function runFail(job) {
   if (!job || job.state === "failed" || job.state === "done") return;
   job.state = "failed";
-  run.purse -= job.cost;
   runRemoveBody(job);
   if (run.intro === 1 && job.first) run.intro = 2;
   if (job.second) run.intro = 3;
 }
 function runDeliver(job, now) {
-  const elapsed = now - job.t0;
-  if (elapsed > job.window * 1.4) { runFail(job); return; }
-  job.late = elapsed > job.window;
+  const left = runFareLeft(job, now);
+  if (left <= 0) { runFail(job); return; }
   job.state = "done";
-  const fee = runFee(job);
-  job.fee = job.late ? Math.max(1, Math.floor(fee / 2)) : fee;
+  job.fee = (job.base || FARE_BASE.green) + Math.max(0, Math.floor(left));
+  run.purse += job.fee;
+  run.earned += job.fee;
+  run.flash = now + 1.5;
+  run.flashN = job.fee;
+  run.log.push({ name: runWord(job.kind) + " · " + runText(job.class || "green"), fee: job.fee });
   if (job.box) { city.remove(job.box); job.box = null; }
   if (job.fig && job.fig.studio) job.fig.studio.wave = 0;
   if (job.first && run.intro === 1) run.intro = 2;
   if (job.second) run.intro = 3;
-}
-function runFee(job) {
-  const pathM = Math.max(18, job.dist * 1.35);
-  let fee = 3 + Math.max(1, Math.round(pathM / 30));
-  if (job.roof) fee += 4;
-  if (job.slots >= 2) fee += 3;
-  return fee;
 }
 function runRemoveBody(job) {
   if (job.fig) {
@@ -29652,20 +29829,21 @@ function runFreeze() {
 }
 function runTake(slip, now) {
   const item = RUN_ITEM[slip.item];
-  if (clockHour() >= 22 || run.ended || run.sheet) return false;
-  if (runSlots() + item.slots > 3) return false;
+  if (!item || run.ended || run.sheet || run.shift <= 0) return false;
+  if (runCarrying()) return false;
   runFreeze();
   const job = {
-    id: run.seq++, item: slip.item, kind: slip.shop.kind, slots: item.slots,
-    cost: item.cost, drop: item.drop, rain: item.rain,     roof: slip.dest.roof, keeper: !!slip.dest.keeper, sit: !!slip.dest.sit,
+    id: run.seq++, item: slip.item, kind: slip.shop.kind, slots: 1,
+    class: slip.class || "green", base: slip.base || FARE_BASE.green, dock: 0,
+    cost: item.cost, drop: item.drop, rain: item.rain, roof: slip.dest.roof, keeper: !!slip.dest.keeper, sit: !!slip.dest.sit,
     post: slip.dest.post, x: slip.dest.x, z: slip.dest.z, y: slip.dest.y, yaw: slip.dest.yaw,
     street: slip.dest.street, mark: slip.dest.mark, door: slip.dest.door,
     dist: slip.dest.dist, state: "carried", t0: now,
-    first: run.intro === 0, second: run.intro === 2,
+    first: false, second: false,
     fig: null, box: null
   };
   const pathM = Math.max(18, job.dist * 1.35);
-  job.window = pathM / 3.2 * 1.45 + (job.roof ? 22 : 0) + 18;
+  job.window = pathM / 3.2 * 1.35 + 16 + (job.class === "red" ? 18 : 0);
   run.jobs.push(job);
   slip.shop.slip = null;
   if (run.intro === 0) run.intro = 1;
@@ -29766,16 +29944,10 @@ function runUnderAwning() {
 }
 function runWeather(dt) {
   if (runUnderAwning() || wxNow.rain < 0.45) return;
-  const slots = Math.min(3, Math.max(1, runSlots()));
-  const limit = [0, 50, 32, 18][slots] * (run.gear.cloth ? 2.2 : 1);
-  let top = null;
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
-    if (j.state === "carried" && j.rain) top = j;
+    if (j.state === "carried" && j.rain) j.dock = (j.dock || 0) + dt * 1.2;
   }
-  if (!top) return;
-  top.wet = (top.wet || 0) + dt;
-  if (top.wet >= limit) runFail(top);
 }
 function runBodyNear() {
   function close(x, z) { return x != null && Math.hypot(walkX - x, walkZ - z) < 0.5; }
@@ -29798,26 +29970,13 @@ function runBodyNear() {
   return false;
 }
 function runDropTop(now, hard) {
-  const slots = Math.min(3, runSlots());
-  let chance = (hard ? [0, 0.05, 0.15, 0.35] : [0, 0.08, 0.22, 0.45])[slots];
-  if (run.gear.strap) chance *= 0.5;
-  if (Math.random() >= chance) return;
-  let top = null;
-  for (let i = 0; i < run.jobs.length; i++) if (run.jobs[i].state === "carried") top = run.jobs[i];
-  if (!top) return;
-  if (top.drop !== "keep" || (top.rain && wxNow.rain >= 0.45)) { runFail(top); return; }
-  top.state = "dropped";
-  top.dx = walkX;
-  top.dz = walkZ;
-  top.onRoof = !!roofStay;
-  top.roofDoor = roofStay ? roofStay.door : null;
-  top.dropUntil = now + 8;
-  const box = runGroundProp(top.item);
-  box.scale.setScalar(FIG_SCALE);
-  const boxY = (roofStay ? roofStay.y : GROUND_Y) + (box.userData.foot || 0.08) * FIG_SCALE;
-  box.position.set(walkX - SHEAR_K * walkZ, boxY, walkZ);
-  city.add(box);
-  top.box = box;
+  if (Math.random() >= (hard ? 0.05 : 0.08)) return;
+  for (let i = 0; i < run.jobs.length; i++) {
+    const j = run.jobs[i];
+    if (j.state !== "carried") continue;
+    j.dock = (j.dock || 0) + (hard ? 6 : 4);
+    return;
+  }
 }
 function runBumps(now) {
   const fast = run.speed > 3;
@@ -29838,9 +29997,7 @@ function runWindows(now) {
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried" && j.state !== "dropped") continue;
-    if (j.state === "dropped" && j.rain && wxNow.rain >= 0.45) { runFail(j); continue; }
-    if (j.state === "dropped" && now > j.dropUntil) { runFail(j); continue; }
-    if (now > j.t0 + j.window * 1.4) runFail(j);
+    if (runFareLeft(j, now) <= 0) runFail(j);
   }
 }
 function runJobById(id) {
@@ -29853,34 +30010,37 @@ function runSettle(now) {
     const j = run.jobs[i];
     if (j.state === "carried" || j.state === "dropped") runFail(j);
   }
-  runFreeze();
-  let fees = 0, bonus = 0;
-  for (let i = 0; i < run.jobs.length; i++) if (run.jobs[i].state === "done") fees += run.jobs[i].fee || 0;
-  for (let i = 0; i < run.runs.length; i++) {
-    const ids = run.runs[i].ids;
-    if (ids.length < 2) continue;
-    let ok = true;
-    for (let k = 0; k < ids.length; k++) {
-      const j = runJobById(ids[k]);
-      if (!j || j.state !== "done") ok = false;
-    }
-    if (ok) bonus += ids.length >= 3 ? 10 : 4;
-  }
-  run.fees = fees;
-  run.bonus = bonus;
-  run.purse += fees + bonus;
+  run.shift = 0;
   run.day = false;
   run.sheet = true;
-  stepSky.glide = null;
-  stepSky.hold = null;
-  stepSky.day = 210;
-  stepSky.origin = ((stepSky.clock % 1) + 1) % 1;
-  stepSky.t0 = now;
-  wxLock = false;
-  const tod = document.getElementById("tod-seg");
-  if (tod) tod.querySelectorAll("button").forEach(b => { b.disabled = false; });
-  if (run.purse <= -30) run.ended = true;
   runPaint();
+}
+// The mouth faces the alley. A point behind the bay, through the back wall,
+// is the opposite way. The counter radius used to reach that side.
+function runShopOut(shop) {
+  const yaw = shop.yaw || 0;
+  return { x: Math.sin(yaw), z: Math.cos(yaw) };
+}
+function runShopSight(x0, z0, x1, z1) {
+  const dx = x1 - x0, dz = z1 - z0;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.25) return true;
+  const n = Math.max(2, Math.ceil(dist / 0.28));
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    if (walkBlocked(x0 + dx * t, z0 + dz * t, { pad: 0, bodies: false })) return false;
+  }
+  return true;
+}
+function runAtEntrance(x, z, ox, oz) {
+  const along = (walkX - x) * ox + (walkZ - z) * oz;
+  if (along < -0.45) return false;
+  return runShopSight(walkX, walkZ, x, z);
+}
+function runAtShopFront(shop) {
+  if (!shop) return false;
+  const out = runShopOut(shop);
+  return runAtEntrance(shop.x, shop.z, out.x, out.z);
 }
 function runNearSlip() {
   if (clockHour() >= 22 || run.ended) return null;
@@ -29889,6 +30049,7 @@ function runNearSlip() {
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
     if (!s.slip || !shopOpenNow(s.kind)) continue;
+    if (!runAtShopFront(s)) continue;
     const d = Math.hypot(walkX - s.x, walkZ - s.z);
     if (d < bestD) { bestD = d; best = s.slip; }
   }
@@ -29941,21 +30102,6 @@ function runLift(job) {
   job.state = "carried";
   if (job.box) { city.remove(job.box); job.box = null; }
 }
-function runNearCounter() {
-  const shops = run.shops || [];
-  for (let i = 0; i < shops.length; i++) {
-    if (!shopOpenNow(shops[i].kind)) continue;
-    if (Math.hypot(walkX - shops[i].x, walkZ - shops[i].z) < 2.2) return true;
-  }
-  return false;
-}
-function runBuy(which) {
-  const cost = which === "cloth" ? 36 : which === "strap" ? 48 : 20;
-  if (run.gear[which] || run.purse < cost || runSlots() > 0 || !runNearCounter() || run.ended) return;
-  run.purse -= cost;
-  run.gear[which] = true;
-  runPaint();
-}
 // The one action in reach. Take, give, and lift each keep their range, and
 // the nearest of those wins so two prompts never show at once.
 function runPromptTarget() {
@@ -29990,7 +30136,7 @@ function runPromptTarget() {
     consider("give", d, j.x, foot + WALK_EYE * 0.62, j.z, j, null);
   }
   const shop = runNearOrderShop();
-  if (shop && shop.slip) {
+  if (shop && shop.slip && !runCarrying()) {
     const post = runKeeperPost(shop);
     const kx = post ? post.x : shop.x;
     const kz = post ? post.z : shop.z;
@@ -30005,30 +30151,18 @@ function runPromptTarget() {
   }
   return best;
 }
-function runPlacePrompt(target) {
-  const btn = document.getElementById("run-prompt");
-  if (!btn) return;
-  if (!target) {
-    btn.hidden = true;
-    btn.classList.remove("on", "take", "give", "lift");
-    return;
-  }
+function placeFloatingPrompt(btn, x, y, z, span) {
   camera.updateMatrixWorld();
-  const v = runPlacePrompt.v || (runPlacePrompt.v = new THREE.Vector3());
+  const v = placeFloatingPrompt.v || (placeFloatingPrompt.v = new THREE.Vector3());
   const inv = camera.matrixWorldInverse.elements;
-  const cz = inv[2] * target.x + inv[6] * target.y + inv[10] * target.z + inv[14];
-  v.set(target.x, target.y, target.z);
+  const cz = inv[2] * x + inv[6] * y + inv[10] * z + inv[14];
+  v.set(x, y, z);
   v.project(camera);
   const facing = cz < 0 && v.x > -1.15 && v.x < 1.15 && v.y > -1.15 && v.y < 1.15;
-  if (!facing) {
-    btn.hidden = true;
-    btn.classList.remove("on", "take", "give", "lift");
-    return;
-  }
+  if (!facing) return false;
   const right = camera.matrixWorld.elements;
-  const span = target.kind === "lift" ? 0.32 : 0.5;
   function pin(sign) {
-    v.set(target.x + right[0] * span * sign, target.y, target.z + right[2] * span * sign);
+    v.set(x + right[0] * span * sign, y, z + right[2] * span * sign);
     v.project(camera);
     const box = renderer.domElement.getBoundingClientRect();
     return {
@@ -30036,24 +30170,25 @@ function runPlacePrompt(target) {
       y: box.top + (-v.y * 0.5 + 0.5) * box.height
     };
   }
-  function overlaps(p, r, size) {
-    return p.x - size / 2 < r.right && p.x + size / 2 > r.left && p.y - size / 2 < r.bottom && p.y + size / 2 > r.top;
+  const w = Math.max(42, btn.offsetWidth || 0);
+  const h = Math.max(42, btn.offsetHeight || 0);
+  function overlaps(p, r) {
+    return p.x - w / 2 < r.right && p.x + w / 2 > r.left && p.y - h / 2 < r.bottom && p.y + h / 2 > r.top;
   }
   function panels() {
     const list = [];
     const head = document.querySelector("header.panel");
     if (head) list.push(head);
-    const ids = ["walk-stick", "run-order", "run-corner", "run-board", "minimap"];
+    const ids = ["walk-stick", "run-order", "run-corner", "run-board", "minimap", "run-prompt", "roof-go"];
     for (let i = 0; i < ids.length; i++) {
       const el = document.getElementById(ids[i]);
-      if (el) list.push(el);
+      if (el && el !== btn) list.push(el);
     }
     return list;
   }
-  // Beside the body, on the side that misses the HUD. If the person is
-  // behind a panel, the icon sits on that panel's nearest edge.
+  // Beside the entrance, on the side that misses the HUD. If that point is
+  // behind a panel, the prompt sits on that panel's nearest edge.
   let p = pin(1);
-  const size = 42;
   const hud = panels();
   function hits(pt) {
     for (let i = 0; i < hud.length; i++) {
@@ -30061,7 +30196,7 @@ function runPlacePrompt(target) {
       if (el.hidden) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) continue;
-      if (overlaps(pt, r, size)) return r;
+      if (overlaps(pt, r)) return r;
     }
     return null;
   }
@@ -30074,10 +30209,10 @@ function runPlacePrompt(target) {
     if (!hit) break;
     const gap = 8;
     const options = [
-      { x: hit.left - size / 2 - gap, y: p.y },
-      { x: hit.right + size / 2 + gap, y: p.y },
-      { x: p.x, y: hit.top - size / 2 - gap },
-      { x: p.x, y: hit.bottom + size / 2 + gap }
+      { x: hit.left - w / 2 - gap, y: p.y },
+      { x: hit.right + w / 2 + gap, y: p.y },
+      { x: p.x, y: hit.top - h / 2 - gap },
+      { x: p.x, y: hit.bottom + h / 2 + gap }
     ];
     let best = options[0], bestC = Infinity;
     for (let i = 0; i < options.length; i++) {
@@ -30086,22 +30221,40 @@ function runPlacePrompt(target) {
     }
     p = { x: best.x, y: best.y };
   }
-  const edge = 24 + 21;
   const box = renderer.domElement.getBoundingClientRect();
-  p.x = Math.max(box.left + edge, Math.min(box.right - edge, p.x));
-  p.y = Math.max(box.top + edge, Math.min(box.bottom - edge, p.y));
+  const edgeX = 24 + w / 2;
+  const edgeY = 24 + h / 2;
+  p.x = Math.max(box.left + edgeX, Math.min(box.right - edgeX, p.x));
+  p.y = Math.max(box.top + edgeY, Math.min(box.bottom - edgeY, p.y));
+  btn.style.left = p.x + "px";
+  btn.style.top = p.y + "px";
+  btn.style.bottom = "";
+  return true;
+}
+function runPlacePrompt(target) {
+  const btn = document.getElementById("run-prompt");
+  if (!btn) return;
+  if (!target) {
+    btn.hidden = true;
+    btn.classList.remove("on", "take", "give", "lift", "green", "yellow", "red");
+    return;
+  }
+  const span = target.kind === "lift" ? 0.32 : 0.5;
+  if (!placeFloatingPrompt(btn, target.x, target.y, target.z, span)) {
+    btn.hidden = true;
+    btn.classList.remove("on", "take", "give", "lift", "green", "yellow", "red");
+    return;
+  }
   btn.hidden = false;
   btn.classList.add("on");
   btn.classList.toggle("take", target.kind === "take");
   btn.classList.toggle("give", target.kind === "give");
   btn.classList.toggle("lift", target.kind === "lift");
-  btn.style.left = p.x + "px";
-  btn.style.top = p.y + "px";
+  btn.classList.remove("green", "yellow", "red");
+  if (target.kind === "take" && target.shop && target.shop.slip) btn.classList.add(target.shop.slip.class || "green");
   const word = runText(target.kind);
   if (btn.getAttribute("aria-label") !== word) btn.setAttribute("aria-label", word);
-  const full = target.kind === "take" && target.shop && target.shop.slip &&
-    runSlots() + RUN_ITEM[target.shop.slip.item].slots > 3;
-  btn.disabled = !!full;
+  btn.disabled = false;
 }
 function runUse() {
   const now = performance.now() * 0.001;
@@ -30111,7 +30264,6 @@ function runUse() {
   if (target && target.kind === "lift") { runLift(target.job); runPaint(); return; }
   if (target && target.kind === "give") { runDeliver(target.job, now); runPaint(); return; }
   if (target && target.kind === "take" && target.shop && target.shop.slip) {
-    if (runSlots() + RUN_ITEM[target.shop.slip.item].slots > 3) return;
     runTake(target.shop.slip, now);
     runPaint();
     return;
@@ -30137,6 +30289,7 @@ function runNearOrderShop() {
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
     if (!s.slip || !shopOpenNow(s.kind)) continue;
+    if (!runAtShopFront(s)) continue;
     const post = runKeeperPost(s);
     const x = post ? post.x : s.x;
     const z = post ? post.z : s.z;
@@ -30147,7 +30300,8 @@ function runNearOrderShop() {
 }
 function runPaint() {
   const board = document.getElementById("run-board");
-  const purse = document.getElementById("run-purse");
+  const purse = document.getElementById("wx-purse");
+  const clock = document.getElementById("run-clock");
   const list = document.getElementById("run-slips");
   const near = document.getElementById("run-near");
   const sheet = document.getElementById("run-sheet");
@@ -30155,23 +30309,40 @@ function runPaint() {
   const use = document.getElementById("run-use");
   if (!board) return;
   const show = walkMode;
-  board.hidden = !show;
+  const now = performance.now() * 0.001;
   if (purse) {
-    const n = run.purse;
-    purse.textContent = runText("purse") + " " + (n < 0 ? "−$" + (-n) : "$" + n);
+    if (!show) purse.textContent = "";
+    else {
+      const n = run.purse;
+      let line = n < 0 ? "−$" + (-n) : "$" + n;
+      if (run.flash > now) line += "  +$" + run.flashN;
+      purse.textContent = line;
+    }
+  }
+  if (clock) {
+    const on = show && (run.day || run.sheet);
+    clock.hidden = !on;
+    if (on) {
+      clock.textContent = runClockText(run.shift);
+      const bonus = run.flash > now;
+      const left = run.shift;
+      clock.classList.toggle("bonus", bonus);
+      clock.classList.toggle("mid", !bonus && left <= 60 && left > 20);
+      clock.classList.toggle("low", !bonus && left <= 20);
+      clock.classList.toggle("late", !bonus && left <= 10);
+    } else clock.classList.remove("bonus", "mid", "low", "late", "warn");
+    fitPurseRoom();
   }
   if (list) {
     let html = "";
-    const now = performance.now() * 0.001;
     for (let i = 0; i < run.jobs.length; i++) {
       const j = run.jobs[i];
       if (j.state !== "carried" && j.state !== "dropped") continue;
-      const elapsed = now - j.t0;
-      const u = Math.max(0, 1 - elapsed / (j.window * 1.4));
-      const late = elapsed > j.window;
+      const left = runFareLeft(j, now);
+      const u = Math.max(0, Math.min(1, left / j.window));
       const where = j.state === "dropped" ? runText("ground") : runSub(j);
       html += "<div class='run-slip'><b>" + runLine(j) + "</b><span>" + where + "</span>" +
-        "<i class='" + (late ? "late" : "") + "'><em style='width:" + (u * 100).toFixed(1) + "%'></em></i></div>";
+        "<i class='" + runFareHue(j, now) + "'><em style='width:" + (u * 100).toFixed(1) + "%'></em></i></div>";
     }
     list.innerHTML = html;
   }
@@ -30194,47 +30365,40 @@ function runPaint() {
     }
     near.textContent = text;
   }
+  const slipOn = !!(list && list.innerHTML);
+  const nearOn = !!(near && near.textContent);
+  board.hidden = !show || (!slipOn && !nearOn);
   const order = document.getElementById("run-order");
   if (order) {
     order.hidden = !orderShop;
-    if (orderShop) {
-      const item = RUN_ITEM[orderShop.slip.item];
+    order.classList.remove("green", "yellow", "red");
+    if (orderShop && orderShop.slip) {
+      const slip = orderShop.slip;
       const title = document.getElementById("run-order-title");
       const thing = document.getElementById("run-order-item");
       const where = document.getElementById("run-order-where");
       const note = document.getElementById("run-order-note");
       const take = document.getElementById("run-order-take");
-      if (title) title.textContent = runWord(orderShop.kind);
-      if (thing) thing.textContent = runItemName(orderShop.slip.item);
-      if (where) where.textContent = runStreet(orderShop.street) + runText("from") + " · " + runDestLine(orderShop.slip.dest);
-      const full = runSlots() + item.slots > 3;
-      if (note) note.textContent = full ? runText("full") : "";
-      if (take) take.disabled = full;
+      order.classList.add(slip.class || "green");
+      if (title) title.textContent = runText(slip.class || "green") + " · " + runWord(orderShop.kind);
+      if (thing) thing.textContent = runItemName(slip.item);
+      if (where) where.textContent = runDestLine(slip.dest);
+      if (note) note.textContent = "$" + (slip.base || FARE_BASE.green) + " + " + (lang === "zh" ? "餘下秒數" : lang === "ja" ? "残り秒" : "seconds left");
+      if (take) take.disabled = false;
     }
   }
-  if (lip) {
-    const n = Math.min(3, runSlots());
-    lip.hidden = !show || !run.day;
-    const marks = lip.querySelectorAll("i");
-    for (let i = 0; i < marks.length; i++) marks[i].classList.toggle("on", i < n);
-  }
+  if (lip) lip.hidden = true;
   if (use) use.hidden = true;
   runPlacePrompt(prompt);
   if (sheet) {
     sheet.hidden = !run.sheet;
     if (run.sheet) {
       let rows = "";
-      for (let i = 0; i < run.jobs.length; i++) {
-        const j = run.jobs[i];
-        let how = runText("fail"), money = "−$" + j.cost;
-        if (j.state === "done" && j.late) { how = runText("late"); money = "$" + j.fee; }
-        else if (j.state === "done") { how = runText("on"); money = "$" + j.fee; }
-        const where = j.roof ? runText("roof") : runStreet(j.street);
-        rows += "<div class='run-row'><span>" + runWord(j.kind) + " · " + where + "</span><span>" + how + " " + money + "</span></div>";
+      const log = run.log || [];
+      for (let i = 0; i < log.length; i++) {
+        rows += "<div class='run-row'><span>" + log[i].name + "</span><span>$" + log[i].fee + "</span></div>";
       }
-      if (run.bonus) rows += "<div class='run-row'><span>" + runText("bonus") + "</span><span>$" + run.bonus + "</span></div>";
-      const net = (run.fees || 0) + (run.bonus || 0);
-      rows += "<div class='run-row net'><span>" + runText("net") + "</span><span>" + (net < 0 ? "−$" + (-net) : "$" + net) + "</span></div>";
+      rows += "<div class='run-row net'><span>" + runText("net") + "</span><span>$" + (run.earned || 0) + "</span></div>";
       const body = document.getElementById("run-sheet-body");
       if (body) body.innerHTML = rows;
       const h = document.getElementById("run-sheet-title");
@@ -30242,22 +30406,6 @@ function runPaint() {
       const c = document.getElementById("run-sheet-close");
       if (c) c.textContent = runText("close");
     }
-  }
-  let gearSig = "";
-  ["cloth", "strap", "bell"].forEach(name => {
-    const b = document.getElementById("run-" + name);
-    if (!b) return;
-    const cost = name === "cloth" ? 36 : name === "strap" ? 48 : 20;
-    const label = runText(name) + " $" + cost;
-    if (b.textContent !== label) b.textContent = label;
-    gearSig += label + "|";
-    b.classList.toggle("on", !!run.gear[name]);
-    b.disabled = !!run.gear[name] || run.purse < cost || runSlots() > 0 || !runNearCounter() || run.ended;
-  });
-  gearSig += board && !board.hidden ? "1" : "0";
-  if (gearSig !== runPaint.gear) {
-    runPaint.gear = gearSig;
-    fitGearLine();
   }
   const hint = document.getElementById("hint");
   if (hint && run.day && walkMode && !run.sheet) hint.textContent = runText("hint");
@@ -30374,9 +30522,10 @@ function runGuides(now) {
     const ang = runBearing(aim.x, aim.z) * 180 / Math.PI;
     const svg = el.querySelector("svg");
     if (svg) svg.style.transform = "rotate(" + ang.toFixed(1) + "deg)";
-    const left = j.t0 + j.window * 1.4 - now;
-    const late = now > j.t0 + j.window;
-    el.classList.toggle("late", late);
+    const left = runFareLeft(j, now);
+    const hue = runFareHue(j, now);
+    el.classList.remove("ok", "warm", "hot", "late");
+    el.classList.add(hue);
     const time = el.querySelector("b");
     const name = el.querySelector("span");
     if (time) time.textContent = runLeftLabel(left);
@@ -30393,13 +30542,14 @@ function runGuides(now) {
 function stepRun(now, dt) {
   if (!run.shops) runShops();
   if (run.day && !run.seeded && !run.sheet && walkMode) runSeed(now);
-  if (run.day && !run.sheet && clockHour() >= 22 && !(stepSky.glide && stepSky.glide.play)) runSettle(now);
-  runExpire(now);
+  if (run.day && !run.sheet && walkMode) {
+    run.shift -= dt;
+    if (run.shift <= 0) runSettle(now);
+  }
   runWindows(now);
   if (run.day) runWeather(dt);
   if (walkMode && !run.sheet) {
     runOffer(now);
-    runWatchLeave();
     runBumps(now);
   }
   runPosePeople(now, dt);
@@ -30432,10 +30582,6 @@ document.getElementById("run-sheet-close").addEventListener("click", function (e
   if (!run.ended) runOpenDay(performance.now() * 0.001);
   runPaint();
 });
-document.getElementById("run-cloth").addEventListener("click", function () { runBuy("cloth"); });
-document.getElementById("run-strap").addEventListener("click", function () { runBuy("strap"); });
-document.getElementById("run-bell").addEventListener("click", function () { runBuy("bell"); });
-
 // The map sits at the top right, under the settings gear. Streets turn under a player mark that
 // stays pointing up. A cell stays dark until the runner has stood within
 // sight of it, and that stays for the session. Parcel marks draw over the fog.
@@ -33262,6 +33408,7 @@ function stepRoofVisit(now) {
     const fig = roofVisit[i];
     const home = fig.userData.roof;
     const ud = fig.userData;
+    const wasX = home.x, wasZ = home.z;
     let yaw = fig.rotation.y;
     let moving = 0.7;
     if (group.mode === "chase" && group.kids.length > 1) {
@@ -33297,6 +33444,16 @@ function stepRoofVisit(now) {
       moving = 0.7;
     }
     roofClamp(group, home);
+    if (Math.hypot(home.x - wasX, home.z - wasZ) < 0.012) {
+      home.stuck = (home.stuck || 0) + 1;
+      if (home.stuck > 18) {
+        const goal = roofPick(group);
+        home.goalX = goal.x;
+        home.goalZ = goal.z;
+        home.stuck = 0;
+        if (group.mode === "chase") group.mode = "play";
+      }
+    } else home.stuck = 0;
     fig.position.set(home.x, home.y, home.z);
     const dy = Math.atan2(Math.sin(yaw - fig.rotation.y), Math.cos(yaw - fig.rotation.y));
     fig.rotation.y += dy * Math.min(1, dt * 7);
@@ -34530,7 +34687,15 @@ function stillMatrixWorld(force) {
 // A hidden figure is not in the picture and not in the puddles. Skipping its
 // bones until it is shown again leaves the pose that was last composed.
 function dozeFigure(fig) {
-  if (!fig || fig.userData.doze) return;
+  if (!fig) return;
+  // A mesh that is still in the scene has to keep its place. Stubbing the
+  // matrix left the last pose painted in the alley after the body had walked
+  // on, and a turn of the camera showed that frozen figure.
+  if (fig.visible) {
+    wakeFigure(fig);
+    return;
+  }
+  if (fig.userData.doze) return;
   fig.userData.doze = 1;
   fig.updateMatrixWorld = stillMatrixWorld;
 }
