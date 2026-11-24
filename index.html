@@ -114,9 +114,10 @@
     text-shadow: 0 0 6px #ff2a1e, 0 0 16px rgba(255, 30, 20, 0.85);
   }
   h1 > span { color: inherit; font-size: 1em; letter-spacing: 0.18em; display: inline; }
-  header.panel h1 { white-space: normal; }
+  header.panel h1 { white-space: nowrap; }
   header.panel h1 > .when,
-  header.panel #wx-read { flex-wrap: wrap; white-space: normal; }
+  header.panel #wx-read,
+  header.panel #wx-line { flex-wrap: nowrap; white-space: nowrap; }
   header.panel h1,
   header.panel h1 > .when,
   header.panel #wx-read,
@@ -137,9 +138,15 @@
     text-shadow: 0 0 8px rgba(255, 160, 40, 0.8);
   }
   #wx-read {
-    display: inline-flex; flex-wrap: nowrap; align-items: baseline; column-gap: 0.55em; row-gap: 1px;
-    width: max-content; max-width: 100%;
+    display: flex; flex-direction: column; flex-wrap: nowrap; align-items: flex-start;
+    row-gap: 2px;
+    width: max-content; max-width: none;
     letter-spacing: 0.04em; font-weight: 500;
+  }
+  #wx-line {
+    display: inline-flex; flex-wrap: nowrap; align-items: baseline;
+    width: max-content; max-width: none;
+    white-space: nowrap;
   }
   #wx-read:empty { display: none; }
   #wx-tod { display: none; }
@@ -158,19 +165,7 @@
       0 0 12px #ffb020,
       0 0 22px rgba(255, 176, 32, 0.95);
   }
-  header.panel #wx-read #wx-purse::before {
-    content: "·";
-    margin-right: 0.55em;
-    letter-spacing: 0;
-    font-weight: 400;
-    opacity: 0.95;
-    color: #ff4a38;
-    text-shadow:
-      0 0 1px #ffd4cc,
-      0 0 5px #ff4a38,
-      0 0 12px #ff2418,
-      0 0 22px rgba(255, 32, 24, 0.95);
-  }
+  #wx-purse { display: block; white-space: nowrap; line-height: 1.35; }
   #wx-purse:empty { display: none; }
   #run-clock {
     position: fixed;
@@ -181,14 +176,14 @@
     width: max-content;
     pointer-events: none;
     margin: 0;
-    padding: 4px 18px 8px;
+    padding: 3px 14px 6px;
     background: #120806;
     border: 1px solid #3dff88;
     box-shadow:
       0 0 12px rgba(61, 255, 136, 0.7),
       inset 0 0 10px rgba(61, 255, 136, 0.2);
     font-weight: 700;
-    font-size: clamp(44px, 8vh, 76px);
+    font-size: clamp(35px, 6.4vh, 61px);
     letter-spacing: 0.08em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
@@ -246,7 +241,7 @@
   #run-clock[hidden] { display: none !important; }
   body:has(#boot) #run-clock { display: none; }
   @media (max-width: 720px), (max-height: 540px) {
-    #run-clock { font-size: clamp(36px, 11vw, 52px); padding: 2px 12px 6px; letter-spacing: 0.06em; }
+    #run-clock { font-size: clamp(29px, 8.8vw, 42px); padding: 2px 10px 5px; letter-spacing: 0.06em; }
   }
   .kicker { font-family: "PingFang HK", "Heiti TC", sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b56a; margin-bottom: 2px; overflow-wrap: anywhere; }
   .chrome { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
@@ -466,14 +461,16 @@
     pointer-events: auto;
   }
   #start[hidden] { display: none !important; }
-  #ui.walk-bare header.panel { order: -1; align-self: flex-start; width: auto; max-width: min(42vw, calc(50vw - var(--inset-x) - 72px)); }
+  #ui.walk-bare header.panel { order: -1; align-self: flex-start; width: max-content; max-width: none; }
   #ui.walk-bare header.panel h1,
   #ui.walk-bare header.panel .when,
-  #ui.walk-bare header.panel #wx-read {
-    width: auto;
-    max-width: 100%;
+  #ui.walk-bare header.panel #wx-read,
+  #ui.walk-bare header.panel #wx-line {
+    width: max-content;
+    max-width: none;
     min-width: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
   }
   #ui.walk-bare #run-board { order: 1; }
   #run-center {
@@ -629,8 +626,22 @@
     pointer-events: none;
   }
   #run-arrows[hidden] { display: none !important; }
-  @media (aspect-ratio <= 1), (max-width: 720px) {
+  @media (max-width: 720px) and (aspect-ratio > 1) {
     #run-arrows { top: calc(var(--inset-t) + 96px); }
+  }
+  /* Portrait: the guide sits under the map, clear of its lower edge. */
+  @media (aspect-ratio <= 1) {
+    #run-arrows {
+      left: auto;
+      right: max(var(--frame), env(safe-area-inset-right));
+      transform: none;
+      top: calc(var(--inset-t) + 112px + 12px);
+      width: max-content;
+      justify-content: center;
+    }
+  }
+  @media (aspect-ratio <= 1) and (max-width: 430px) {
+    #run-arrows { top: calc(var(--inset-t) + 100px + 12px); }
   }
   /* A narrow screen has no open band for a full row, so the arrows become a
      short column and the board and map leave a lane for it. */
@@ -832,7 +843,7 @@
   @media (aspect-ratio <= 1) {
     #col-left, #col-right { display: contents; }
     #ui { display: flex; flex-direction: column; align-items: stretch; }
-    header.panel { order: 1; align-self: flex-start; width: auto; max-width: min(calc(100% - 96px), calc(50vw - var(--inset-x) - 72px)); }
+    header.panel { order: 1; align-self: flex-start; width: max-content; max-width: none; }
     header.panel h1 { font-size: clamp(13px, 4.4vw, 18px); }
     /* Same top edge as the clock, on the right. Out of the column so it does not take a row. */
     #tools {
@@ -932,7 +943,7 @@
       letter-spacing: 0.06em;
       max-width: calc(100vw - 2 * (max(var(--frame), env(safe-area-inset-left)) + 64px));
     }
-    h1 > .when, #wx-read { flex-wrap: wrap; }
+    h1 > .when, #wx-read, #wx-line { flex-wrap: nowrap; white-space: nowrap; }
   }
   @media (max-width: 560px) and (min-height: 541px) {
     #roof-go {
@@ -1239,7 +1250,7 @@ applyBoot();
   <div id="run-clock" hidden></div>
   <div id="col-left">
   <header class="panel">
-    <h1><span class="when"><span id="wx-read"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span><span id="wx-purse"></span></span></span></span></h1>
+    <h1><span class="when"><span id="wx-read"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span><span id="wx-purse"></span></span></span></h1>
   </header>
   <div id="run-board" class="panel" hidden>
     <div id="run-lip" hidden><i></i><i></i><i></i></div>
@@ -16109,23 +16120,28 @@ let sheetPortrait = null;
 // cover the board. Called on resize and when the buttons or the arrow count change.
 function fitPurseRoom() {
   const header = document.querySelector("header.panel");
+  const line = document.getElementById("wx-line");
+  const h1 = header && header.querySelector("h1");
   const clockEl = document.getElementById("run-clock");
   const ui = document.getElementById("ui");
-  if (!header || !ui) return;
-  if (!clockEl || clockEl.hidden || getComputedStyle(clockEl).display === "none") {
-    header.style.maxWidth = "";
-    return;
-  }
+  if (!header || !ui || !h1) return;
+  h1.style.fontSize = "";
+  header.style.maxWidth = "";
+  if (!line) return;
+  if (!clockEl || clockEl.hidden || getComputedStyle(clockEl).display === "none") return;
   const cr = clockEl.getBoundingClientRect();
-  const pad = parseFloat(getComputedStyle(ui).paddingLeft) || 24;
-  let limit = cr.left;
-  const map = document.getElementById("minimap");
-  if (map && !map.hidden && getComputedStyle(map).display !== "none") {
-    const mr = map.getBoundingClientRect();
-    if (mr.width > 1 && mr.top < cr.bottom && mr.left < limit) limit = mr.left;
-  }
-  const room = limit - pad - 10;
-  header.style.maxWidth = room > 64 ? Math.floor(room) + "px" : "";
+  if (cr.width < 1) return;
+  const hr = header.getBoundingClientRect();
+  const pad = parseFloat(getComputedStyle(header).paddingLeft) || 0;
+  const room = cr.left - (hr.left + pad) - 12;
+  if (!(room > 36)) return;
+  const purse = document.getElementById("wx-purse");
+  const purseW = purse && purse.textContent && getComputedStyle(purse).display !== "none" ? purse.scrollWidth : 0;
+  const need = Math.max(line.scrollWidth, purseW);
+  if (need <= room + 1) return;
+  const size = parseFloat(getComputedStyle(h1).fontSize);
+  if (!(size > 0)) return;
+  h1.style.fontSize = Math.max(11, (size * room) / need).toFixed(2) + "px";
 }
 function fitRunHub() {
   if (fitRunHub.busy) return;
@@ -16163,6 +16179,25 @@ function fitRunHub() {
     if (arrows.hidden || getComputedStyle(arrows).display === "none") {
       arrows.style.top = "";
       return;
+    }
+    if (portraitSheet() && map && !map.hidden && getComputedStyle(map).display !== "none") {
+      const mr = map.getBoundingClientRect();
+      if (mr.width > 1) {
+        arrows.style.left = "0px";
+        arrows.style.right = "auto";
+        arrows.style.transform = "none";
+        arrows.style.width = "max-content";
+        arrows.style.maxWidth = "none";
+        const natural = arrows.offsetWidth;
+        const edge = 8;
+        let left = mr.left + (mr.width - natural) / 2;
+        if (left < edge) left = edge;
+        if (left + natural > innerWidth - edge) left = Math.max(edge, innerWidth - edge - natural);
+        arrows.style.left = Math.round(left) + "px";
+        arrows.style.width = natural + "px";
+        arrows.style.top = Math.round(mr.bottom + 12) + "px";
+        return;
+      }
     }
     const frameL = parseFloat(getComputedStyle(ui).paddingLeft) || 24;
     const frameR = innerWidth - (parseFloat(getComputedStyle(ui).paddingRight) || 24);
@@ -22881,14 +22916,15 @@ function studioClipFor(fig) {
   if (ud.role === "run") return (heat.phase === "chase" && (ud.speed || 0) > 0.3) ? "being_chased" : "fight";
   if (ud.role === "shove" || ud.role === "follow") return (heat.phase === "chase" && (ud.speed || 0) > 0.3) ? "chasing" : "fight";
   if (ud.roof) {
+    // The step length is only written once a stride clip is already playing,
+    // so waiting for it left them on the standing pose while the roof moved them.
     const moving = ud.roofMoving || 0;
-    const stepping = (s.stepDist || 0) > 0.02;
     const group = ud.roof.group;
-    if (group && group.mode === "chase" && moving > 0.45 && stepping) {
+    if (group && group.mode === "chase" && moving > 0.45) {
       const it = group.kids[group.it];
       return fig === it ? "chasing" : "being_chased";
     }
-    if (moving > 0.4 && stepping) return "walk";
+    if (moving > 0.4) return "walk";
     if (ud.play === "fight") return "fight";
     if (ud.play === "sit") return "idle_sit";
     return "work_stand";
@@ -29721,7 +29757,22 @@ function runOffer(now) {
   }
 }
 function runExpire() {}
-function runOpenDay(now) {
+// A hair past eight, so the hour label does not fall back to seven.
+const DAY_START = (8 + 1e-4) / 24;
+function plantMorning(now) {
+  const morning = DAY_START;
+  stepSky.glide = null;
+  stepSky.hold = morning;
+  stepSky.clock = morning;
+  stepSky.origin = morning;
+  stepSky.t0 = now;
+  darkness = darknessOf(morning);
+  night = darkness > 0.55;
+  placeSun(morning);
+  paintSky();
+  paintClock(true);
+}
+function runOpenDay(now, restart) {
   if (run.ended) return;
   run.day = true;
   run.sheet = false;
@@ -29737,23 +29788,25 @@ function runOpenDay(now) {
     shops[i].next = 0;
   }
   todLock = null;
-  const from = ((stepSky.clock == null ? OPEN_CLOCK : stepSky.clock) % 1 + 1) % 1;
-  const to = 10 / 24;
-  const span = todShort(from, to);
-  const dayLen = 1680;
-  if (Math.abs(span) < 0.004) {
-    stepSky.glide = null;
-    stepSky.hold = to;
-    stepSky.clock = to;
+  const morning = DAY_START;
+  if (restart) {
+    // A failed shift starts the day over. The hour it stopped on does not carry.
+    plantMorning(now);
   } else {
-    // Ease the sun to mid-morning, then hold it. The shift clock is the race.
-    const dur = Math.min(6.5, Math.max(2.4, Math.abs(span) * 12));
-    stepSky.hold = null;
-    stepSky.glide = { from: from, to: to, span: span, t0: now, t1: now + dur, play: false, day: dayLen };
+    const from = ((stepSky.clock == null ? OPEN_CLOCK : stepSky.clock) % 1 + 1) % 1;
+    const span = todShort(from, morning);
+    const dayLen = 1680;
+    if (Math.abs(span) < 0.004) plantMorning(now);
+    else {
+      // Ease the sun to eight in the morning, then hold it. The shift clock is the race.
+      const dur = Math.min(6.5, Math.max(2.4, Math.abs(span) * 12));
+      stepSky.hold = null;
+      stepSky.glide = { from: from, to: morning, span: span, t0: now, t1: now + dur, play: false, day: dayLen };
+    }
   }
   const tod = document.getElementById("tod-seg");
   if (tod) tod.querySelectorAll("button").forEach(b => { b.disabled = true; });
-  if (!run.morning) {
+  if (restart || !run.morning) {
     run.morning = true;
     setWeather("clear", true);
     if (stepSky.glide && wxT1 > now) wxT1 = stepSky.glide.t1;
@@ -30579,7 +30632,7 @@ document.getElementById("run-sheet-close").addEventListener("click", function (e
   runForgetJobs();
   run.runs = [];
   run.openRun = null;
-  if (!run.ended) runOpenDay(performance.now() * 0.001);
+  if (!run.ended) runOpenDay(performance.now() * 0.001, true);
   runPaint();
 });
 // The map sits at the top right, under the settings gear. Streets turn under a player mark that
