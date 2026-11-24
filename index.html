@@ -23043,6 +23043,16 @@ function poseStudioCast(now, dt) {
     if (seen.has(fig)) return;
     seen.add(fig);
     const pack = fig.studio;
+    const p = fig.position;
+    let dist = 0;
+    // The walk is chosen from this length. Measuring it after the choice
+    // left a moving body on the standing pose.
+    if (pack.stepX != null) {
+      dist = Math.hypot(p.x - pack.stepX, p.z - pack.stepZ);
+      // A spawn or a lane snap is not a step.
+      if (dist > 1.5) dist = 0;
+    }
+    pack.stepDist = dist;
     const clip = studioClipFor(fig);
     pack.clip = clip;
     const anchor = pack.cargoAnchor;
@@ -23051,18 +23061,10 @@ function poseStudioCast(now, dt) {
       anchor.rotation.set(-0.2, 0, 0);
     }
     const stride = gaitStride(clip, pack, fig.scale.x || FIG_SCALE);
-    const p = fig.position;
-    let dist = 0;
     if (stride > 0) {
-      if (pack.stepX != null) {
-        dist = Math.hypot(p.x - pack.stepX, p.z - pack.stepZ);
-        // A spawn or a lane snap is not a step.
-        if (dist > 1.5) dist = 0;
-      }
       pack.gaitCycle = ((pack.gaitCycle || 0) + dist / stride) % 1;
       pack.gaitPhase = pack.gaitCycle * Math.PI * 2 + (pack.phaseOffset || 0);
     } else pack.gaitPhase = null;
-    pack.stepDist = dist;
     pack.stepX = p.x;
     pack.stepZ = p.z;
     // A hidden body keeps the step it is on, and poses again from that phase.
