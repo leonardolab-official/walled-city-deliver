@@ -650,8 +650,8 @@
   #run-arrows {
     position: fixed;
     left: 50%;
-    /* Fallback until the slot line is measured. The icons stay on that line. */
-    top: calc(var(--inset-t) + 118px);
+    /* Fallback until the timer is measured. The icons stay centered under it. */
+    top: calc(var(--inset-t) + 12px + 4.2em);
     transform: translateX(-50%);
     z-index: 6;
     display: flex;
@@ -664,43 +664,6 @@
     pointer-events: none;
   }
   #run-arrows[hidden] { display: none !important; }
-  @media (max-width: 720px) and (aspect-ratio > 1) {
-    #run-arrows { top: calc(var(--inset-t) + 96px); }
-  }
-  /* Portrait: the guide sits under the map, clear of its lower edge. */
-  @media (aspect-ratio <= 1) {
-    #run-arrows {
-      left: auto;
-      right: max(var(--frame), env(safe-area-inset-right));
-      transform: none;
-      top: calc(var(--inset-t) + 112px + 12px);
-      width: max-content;
-      justify-content: center;
-    }
-  }
-  @media (aspect-ratio <= 1) and (max-width: 430px) {
-    #run-arrows { top: calc(var(--inset-t) + 100px + 12px); }
-  }
-  /* A narrow screen has no open band for a full row, so the arrows become a
-     short column and the map leaves a lane for it. */
-  #ui.walk-bare:has(#run-arrows.tight) #minimap {
-    width: clamp(76px, 22vw, 104px);
-    height: clamp(76px, 22vw, 104px);
-  }
-  #run-arrows.tight {
-    left: auto;
-    right: calc(var(--inset-r) + clamp(76px, 22vw, 104px) + 8px);
-    transform: none;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    width: max-content;
-    max-width: 64px;
-  }
-  #run-arrows.tight .run-arrow { width: auto; max-width: 64px; }
-  #run-arrows.tight .run-arrow span { display: none; }
-  #run-arrows.tight .run-arrow svg { width: 22px; height: 22px; }
-  #run-arrows.tight .run-arrow b { font-size: 10px; letter-spacing: 0; }
   .run-arrow { width: 64px; text-align: center; color: #ffc56a; }
   .run-arrow svg { width: 34px; height: 34px; display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
   .run-arrow b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; }
@@ -16223,8 +16186,6 @@ function fitRunHub() {
   try {
     const ui = document.getElementById("ui");
     const arrows = document.getElementById("run-arrows");
-    const map = document.getElementById("minimap");
-    const lip = document.getElementById("run-lip");
     const pad = document.getElementById("walk-pad");
     const stick = document.getElementById("walk-stick");
     const corner = document.getElementById("run-corner");
@@ -16243,7 +16204,6 @@ function fitRunHub() {
       }
     }
     ui.style.setProperty("--corner-clear", cornerW > 0 ? Math.ceil(cornerW + 10) + "px" : "0px");
-    arrows.classList.remove("tight");
     arrows.style.left = "";
     arrows.style.right = "";
     arrows.style.width = "";
@@ -16253,87 +16213,11 @@ function fitRunHub() {
       arrows.style.top = "";
       return;
     }
-    if (portraitSheet() && map && !map.hidden && getComputedStyle(map).display !== "none") {
-      const mr = map.getBoundingClientRect();
-      if (mr.width > 1) {
-        arrows.style.left = "0px";
-        arrows.style.right = "auto";
-        arrows.style.transform = "none";
-        arrows.style.width = "max-content";
-        arrows.style.maxWidth = "none";
-        const natural = arrows.offsetWidth;
-        const edge = 8;
-        let left = mr.left + (mr.width - natural) / 2;
-        if (left < edge) left = edge;
-        if (left + natural > innerWidth - edge) left = Math.max(edge, innerWidth - edge - natural);
-        arrows.style.left = Math.round(left) + "px";
-        arrows.style.width = natural + "px";
-        arrows.style.top = Math.round(mr.bottom + 12) + "px";
-        return;
-      }
+    const clock = document.getElementById("run-clock");
+    if (clock && !clock.hidden && getComputedStyle(clock).display !== "none") {
+      const cr = clock.getBoundingClientRect();
+      if (cr.height > 1) arrows.style.top = Math.round(cr.bottom + 12) + "px";
     }
-    const frameL = parseFloat(getComputedStyle(ui).paddingLeft) || 24;
-    const frameR = innerWidth - (parseFloat(getComputedStyle(ui).paddingRight) || 24);
-    const gapOf = function () {
-      const mr = map && !map.hidden ? map.getBoundingClientRect() : null;
-      return {
-        left: frameL,
-        right: mr && mr.width > 1 ? mr.left - 8 : frameR
-      };
-    };
-    const placeTop = function () {
-      const clock = document.getElementById("run-clock");
-      if (clock && !clock.hidden && getComputedStyle(clock).display !== "none") {
-        const cr = clock.getBoundingClientRect();
-        if (cr.height > 1) {
-          arrows.style.top = Math.round(cr.bottom + 10) + "px";
-          return;
-        }
-      }
-      if (!lip || lip.hidden || getComputedStyle(lip).display === "none") return;
-      const lr = lip.getBoundingClientRect();
-      if (lr.height < 1) return;
-      const icon = arrows.querySelector(".run-arrow:not([hidden]) svg") || arrows.querySelector("svg");
-      const ih = icon ? icon.getBoundingClientRect().height : 34;
-      arrows.style.top = (lr.top + lr.height / 2 - ih / 2) + "px";
-    };
-    arrows.style.left = "0px";
-    arrows.style.transform = "none";
-    arrows.style.width = "max-content";
-    arrows.style.maxWidth = "none";
-    const natural = arrows.offsetWidth;
-    const gap = gapOf();
-    const room = gap.right - gap.left;
-    const centered = (innerWidth - natural) / 2;
-    if (natural <= room + 0.5 && centered >= gap.left - 0.5 && centered + natural <= gap.right + 0.5) {
-      arrows.style.left = "";
-      arrows.style.width = "";
-      arrows.style.maxWidth = "";
-      arrows.style.transform = "";
-      placeTop();
-      return;
-    }
-    if (natural <= room + 0.5) {
-      arrows.style.left = (gap.left + (room - natural) / 2) + "px";
-      arrows.style.width = natural + "px";
-      arrows.style.maxWidth = "";
-      arrows.style.transform = "none";
-      placeTop();
-      return;
-    }
-    arrows.classList.add("tight");
-    arrows.style.left = "0px";
-    arrows.style.right = "auto";
-    arrows.style.width = "max-content";
-    arrows.style.maxWidth = "";
-    arrows.style.transform = "none";
-    const colW = Math.max(36, arrows.offsetWidth);
-    const g2 = gapOf();
-    const lane = Math.max(0, g2.right - g2.left);
-    const w = Math.min(colW, Math.max(36, lane));
-    arrows.style.left = (g2.left + Math.max(0, (lane - w) / 2)) + "px";
-    arrows.style.width = w + "px";
-    placeTop();
   } finally {
     fitRunHub.busy = false;
   }
