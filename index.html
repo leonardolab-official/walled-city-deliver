@@ -88,9 +88,6 @@
   }
   @media (aspect-ratio <= 1), (max-width: 720px), (max-height: 540px) {
     #minimap { width: 112px; height: 112px; }
-    #ui.walk-bare #run-board {
-      width: min(280px, calc(100vw - 112px - 2 * max(var(--frame), env(safe-area-inset-left)) - 16px));
-    }
   }
   @media (max-width: 430px) {
     #minimap { width: 100px; height: 100px; }
@@ -472,23 +469,18 @@
     flex-wrap: nowrap;
     white-space: nowrap;
   }
-  #ui.walk-bare #run-board { order: 1; }
+  /* The order card and the carried parcel sit together at the bottom right.
+     The card is first, so it stays above the note when both are open. */
   #run-center {
     position: fixed;
+    right: var(--inset-r);
     bottom: var(--inset-b);
     z-index: 7;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
-    /* Centered, and slid inward when the stick or the corner buttons would cover it. */
-    --run-w: max(88px, min(280px, calc(100vw - var(--inset-x) - var(--inset-r) - var(--stick-clear) - var(--corner-clear))));
-    width: var(--run-w);
-    left: clamp(
-      calc(var(--inset-x) + var(--stick-clear)),
-      calc(50% - var(--run-w) / 2),
-      calc(100vw - var(--inset-r) - var(--corner-clear) - var(--run-w))
-    );
+    width: min(280px, calc(100vw - var(--inset-x) - var(--inset-r) - var(--stick-clear) - 12px));
     pointer-events: none;
   }
   #run-corner {
@@ -562,9 +554,9 @@
 
   #run-board {
     pointer-events: auto;
-    width: min(280px, 72vw);
+    width: 100%;
     padding: 8px 10px 10px;
-    max-height: min(46dvh, calc(100dvh - var(--inset-t) - var(--inset-b) - 148px));
+    max-height: min(36dvh, 220px);
     overflow-x: hidden;
     overflow-y: auto;
   }
@@ -690,13 +682,10 @@
     #run-arrows { top: calc(var(--inset-t) + 100px + 12px); }
   }
   /* A narrow screen has no open band for a full row, so the arrows become a
-     short column and the board and map leave a lane for it. */
+     short column and the map leaves a lane for it. */
   #ui.walk-bare:has(#run-arrows.tight) #minimap {
     width: clamp(76px, 22vw, 104px);
     height: clamp(76px, 22vw, 104px);
-  }
-  #ui.walk-bare:has(#run-arrows.tight) #run-board {
-    width: min(280px, calc(100vw - var(--inset-x) - var(--inset-r) - clamp(76px, 22vw, 104px) - 48px - 16px));
   }
   #run-arrows.tight {
     left: auto;
@@ -1311,12 +1300,6 @@ applyBoot();
   <header class="panel">
     <h1><span class="when"><span id="wx-read"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span><span id="wx-purse"></span></span></span></h1>
   </header>
-  <div id="run-board" class="panel" hidden>
-    <div id="run-lip" hidden><i></i><i></i><i></i></div>
-    <div id="run-near"></div>
-    <div id="run-slips"></div>
-  </div>
-
   </div>
   <div id="col-right">
   <div id="tools">
@@ -1417,6 +1400,11 @@ applyBoot();
     <span id="run-order-where"></span>
     <span id="run-order-note"></span>
     <button type="button" id="run-order-take"></button>
+  </div>
+  <div id="run-board" class="panel" hidden>
+    <div id="run-lip" hidden><i></i><i></i><i></i></div>
+    <div id="run-near"></div>
+    <div id="run-slips"></div>
   </div>
 </div>
 <div id="run-sheet" hidden>
@@ -16235,7 +16223,6 @@ function fitRunHub() {
   try {
     const ui = document.getElementById("ui");
     const arrows = document.getElementById("run-arrows");
-    const board = document.getElementById("run-board");
     const map = document.getElementById("minimap");
     const lip = document.getElementById("run-lip");
     const pad = document.getElementById("walk-pad");
@@ -16288,10 +16275,9 @@ function fitRunHub() {
     const frameL = parseFloat(getComputedStyle(ui).paddingLeft) || 24;
     const frameR = innerWidth - (parseFloat(getComputedStyle(ui).paddingRight) || 24);
     const gapOf = function () {
-      const br = board && !board.hidden ? board.getBoundingClientRect() : null;
       const mr = map && !map.hidden ? map.getBoundingClientRect() : null;
       return {
-        left: br && br.width > 1 ? br.right + 8 : frameL,
+        left: frameL,
         right: mr && mr.width > 1 ? mr.left - 8 : frameR
       };
     };
@@ -29284,13 +29270,15 @@ function syncRoofButton() {
       btn.hidden = false;
       btn.style.left = "";
       btn.style.top = "";
-      let lift = 0;
-      const order = document.getElementById("run-order");
-      if (order && !order.hidden) {
-        const r = order.getBoundingClientRect();
-        if (r.height > 1) lift = Math.ceil(r.height + 12);
+      btn.style.bottom = "";
+      const stack = document.getElementById("run-center");
+      if (stack) {
+        const r = stack.getBoundingClientRect();
+        const b = btn.getBoundingClientRect();
+        if (r.width > 1 && r.height > 1 && b.width > 1 && r.left < b.right - 1 && r.right > b.left + 1) {
+          btn.style.bottom = Math.ceil(window.innerHeight - r.top + 12) + "px";
+        }
       }
-      btn.style.bottom = lift ? "calc(var(--inset-b) + 20px + " + lift + "px)" : "";
     } else {
       btn.classList.remove("exit");
       btn.classList.add("on", "enter");
