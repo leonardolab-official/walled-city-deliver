@@ -1565,7 +1565,9 @@ function drsSyncTier() {
 function stepDrs(fdt) {
   // A hidden tab and a stalled clock are not the frame rate. A long frame
   // still counts, but it is capped so one hitch cannot empty the scale.
-  if (document.hidden || !(fdt > 0) || fdt > 0.5) return;
+  // Dropping the frame entirely left a machine that never finishes a frame
+  // stuck at the full buffer.
+  if (document.hidden || !(fdt > 0)) return;
   if (drs.hold > 0) { drs.hold--; return; }
   const sample = Math.min(fdt, 0.05);
   drs.avg = drs.samples === 0 ? sample : drs.avg * 0.85 + sample * 0.15;
@@ -5377,8 +5379,8 @@ function flushShops() {
   const groups = {};
   for (let i = 0; i < shopQueue.length; i++) {
     const it = shopQueue[i];
-    // One batch per quadrant, same split as the props, so a view of one side
-    // does not draw the shops on the other three.
+    // One batch per 32 m cell, same split as the props, so a view down one
+    // alley does not draw the shops on the far side of the fort.
     const key = it.geo.uuid + "|" + it.mat.uuid + "|" + blockQuad(it.x, it.z);
     let g = groups[key];
     if (!g) groups[key] = g = { geo: it.geo, mat: it.mat, items: [] };
@@ -8399,31 +8401,40 @@ function makeRoundTank() {
   return mergeGeos([body, lid, hoop, spout]);
 }
 function blockQuad(x, z) {
-  return (x >= 105 ? 1 : 0) + (z >= 60 ? 2 : 0);
+  // 32 m cells across the 210 by 120 m fort. Four quadrants each stayed
+  // inside the street frustum, so a batch drew the whole city.
+  return Math.floor(x / 32) + Math.floor(z / 32) * 64;
 }
 function fillInst(geo, mat, items, place) {
-  if (!items.length) return null;
-  if (items.length > 160 && !fillInst.split) {
+  if (!items.length) {
+    fillInst.last = [];
+    return null;
+  }
+  if (items.length > 48 && !fillInst.split) {
     const probe = new THREE.Object3D();
-    const bins = [[], [], [], []];
+    const bins = new Map();
     for (let i = 0; i < items.length; i++) {
       probe.position.set(0, 0, 0);
       probe.rotation.set(0, 0, 0);
       probe.scale.set(1, 1, 1);
       place(probe, items[i]);
-      bins[blockQuad(probe.position.x, probe.position.z)].push(items[i]);
+      const key = blockQuad(probe.position.x, probe.position.z);
+      let bin = bins.get(key);
+      if (!bin) bins.set(key, bin = []);
+      bin.push(items[i]);
     }
-    let filled = 0;
-    for (let i = 0; i < 4; i++) if (bins[i].length) filled++;
-    if (filled > 1) {
+    if (bins.size > 1) {
       fillInst.split = true;
+      const made = [];
       let first = null;
-      for (let i = 0; i < 4; i++) {
-        if (!bins[i].length) continue;
-        const mesh = fillInst(geo, mat, bins[i], place);
+      bins.forEach(function (bin) {
+        const mesh = fillInst(geo, mat, bin, place);
         if (!first) first = mesh;
-      }
+        const part = fillInst.last || [];
+        for (let p = 0; p < part.length; p++) made.push(part[p]);
+      });
       fillInst.split = false;
+      fillInst.last = made;
       return first;
     }
   }
@@ -8471,6 +8482,7 @@ function fillInst(geo, mat, items, place) {
     mesh.instanceColor = col;
   }
   city.add(mesh);
+  fillInst.last = [mesh];
   return mesh;
 }
 function placeBox(o, it) {
@@ -8526,7 +8538,8 @@ function seatRoofClutter() {
   clutterStats.boxTanks = roofQ.tank.length;
 }
 function tagKit(mesh, kit) {
-  if (mesh) mesh.userData.kit = kit;
+  const list = fillInst.last && fillInst.last.length ? fillInst.last : (mesh ? [mesh] : []);
+  for (let i = 0; i < list.length; i++) if (list[i]) list[i].userData.kit = kit;
   return mesh;
 }
 function buildRoof() {
@@ -10277,9 +10290,13 @@ function dressAlleys() {
     return mesh;
   }
   function streetMesh(mesh, shadow) {
-    if (!mesh) return;
-    mesh.userData.street = 1;
-    if (shadow) mesh.castShadow = true;
+    const list = fillInst.last && fillInst.last.length ? fillInst.last : (mesh ? [mesh] : []);
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (!m) continue;
+      m.userData.street = 1;
+      if (shadow) m.castShadow = true;
+    }
   }
   fillInst.alley = true;
   [
@@ -27242,8 +27259,24 @@ function applyFogReach() {
   const eye = 1 - THREE.MathUtils.smoothstep(camera.position.y, 12, 60);
   near *= 1 - eye * 0.04;
   far *= 1 - eye * 0.03;
+  // On the street the weather fog sits past the far side of the fort, so it
+  // never hid a building. Pull it in with the clip once the eye is down in
+  // the lanes. The aerial view keeps the long view.
+  let clip = 8000;
+  if (walkMode) {
+    const eye = 1 - THREE.MathUtils.smoothstep(camera.position.y, 18, 70);
+    if (eye > 0) {
+      near = near + (Math.min(near, 42) - near) * eye;
+      far = far + (Math.min(far, 115) - far) * eye;
+      clip = 8000 + (150 - 8000) * eye;
+    }
+  }
   scene.fog.near = near;
-  scene.fog.far = Math.max(far, near + 48);
+  scene.fog.far = Math.max(far, near + 36);
+  if (Math.abs(camera.far - clip) > 0.5) {
+    camera.far = clip;
+    camera.updateProjectionMatrix();
+  }
 }
 function rollWeather(dark) {
   // Clear, cloudy, rain. After dark the same three remain, and rain is drawn more often.
@@ -31743,14 +31776,47 @@ function scopeInstances(mesh) {
   mesh.geometry = geo;
   mesh.frustumCulled = true;
 }
+const detailChunks = [];
+const streetChunks = [];
 city.traverse(obj => {
   if (obj.isInstancedMesh && obj.visible && obj.count > 0) scopeInstances(obj);
+  const u = obj.userData || {};
+  if (u.alley || u.shopStay) return;
+  if (obj.isInstancedMesh && u.lod === "detail") detailChunks.push(obj);
+  else if (obj.isInstancedMesh || u.cityMass) streetChunks.push(obj);
 });
+// A cell whose near edge is inside the street fog is not drawn. The frustum
+// alone kept a chunk whose sphere still crossed the far plane.
+function holdChunk(mesh, reach, street) {
+  const s = mesh.geometry && mesh.geometry.boundingSphere;
+  if (!s) return;
+  if (!street) {
+    if (mesh.userData.chunkHeld) {
+      mesh.visible = true;
+      mesh.userData.chunkHeld = 0;
+    }
+    return;
+  }
+  const near = Math.hypot(s.center.x - camera.position.x, s.center.z - camera.position.z) - s.radius;
+  const show = near < reach;
+  if (!show && mesh.visible) {
+    mesh.visible = false;
+    mesh.userData.chunkHeld = 1;
+  } else if (show && mesh.userData.chunkHeld) {
+    mesh.visible = true;
+    mesh.userData.chunkHeld = 0;
+  }
+}
+function stepDetailChunks() {
+  const street = walkMode && camera.position.y < 36;
+  for (let i = 0; i < streetChunks.length; i++) holdChunk(streetChunks[i], 112, street);
+  for (let i = 0; i < detailChunks.length; i++) holdChunk(detailChunks[i], 88, street);
+}
 // Inside shopfronts and stair mouths. Outer roads are not in this list.
 // An inside piece exists only in walk mode, and only while it sits in the frame.
 const shopStreams = [];
 const shopCam = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), walk: false };
-// scopeInstances replaces each batch sphere with the whole quadrant. The walk
+// scopeInstances replaces each batch sphere with that cell. The walk
 // test needs the piece itself, read from the shared vertex buffer.
 const shopUnit = new WeakMap();
 function shopPieceBounds(geo) {
@@ -32105,7 +32171,9 @@ function syncShopFronts() {
   }
   camera.updateMatrixWorld();
   const turned = Math.abs(shopCam.quat.dot(camera.quaternion));
-  if (!flipped && shopCam.walk && shopCam.pos.distanceToSquared(camera.position) < 0.08 && turned > 0.9996) return;
+  // A couple of metres, not every step. Repacking the shop fronts on a
+  // 0.3 m drift was a few milliseconds on the walking frame.
+  if (!flipped && shopCam.walk && shopCam.pos.distanceToSquared(camera.position) < 6.25 && turned > 0.9996) return;
   shopCam.walk = true;
   shopCam.pos.copy(camera.position);
   shopCam.quat.copy(camera.quaternion);
@@ -34766,6 +34834,22 @@ function flushFigure(fig) {
   if (!fig || fig.userData.doze) return;
   THREE.Object3D.prototype.updateMatrixWorld.call(fig, true);
 }
+// The street light shader and each cast member compile on first use.
+// Doing that while someone walks into frame was a hitch on the playing frame.
+(function warmCastPrograms() {
+  const names = Object.keys(STUDIO);
+  const group = new THREE.Group();
+  group.visible = false;
+  for (let i = 0; i < names.length; i++) {
+    const wear = STUDIO[names[i]];
+    if (!wear || !wear.studioId) continue;
+    group.add(makeCitizen(wear));
+  }
+  scene.add(group);
+  renderer.compile(scene, camera);
+  scene.remove(group);
+  warmCastPrograms.keep = group;
+})();
 (function tick() {
   requestAnimationFrame(tick);
   const now = performance.now() * 0.001;
@@ -34999,6 +35083,7 @@ function flushFigure(fig) {
   camera.updateMatrixWorld();
   su.uView.value.set(renderer.domElement.width, renderer.domElement.height);
   su.uInvVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+  stepDetailChunks();
   poseStudioCast(now, dt);
   renderFrame();
 })();
