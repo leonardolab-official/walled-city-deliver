@@ -5960,6 +5960,19 @@ const SHOP_SEAT = 0.40;
 // Open shopfronts, not doors and not a shuttered bay. Filled once the
 // figures exist, so a keeper can stand in the mouth of the shop.
 const shopPosts = [];
+// Every real counter, including a bay whose roller is down for good.
+// The box is the recess, not the whole lot: that is the room behind the gate.
+const shopFronts = [];
+function noteShopFront(bay, face, kind, shut, depth) {
+  const deep = Math.min(1.62, Math.max(0.2, depth || 0.7));
+  let x0 = bay.x, z0 = bay.z, x1 = bay.x + bay.w, z1 = bay.z + bay.d;
+  if (face === "n") z1 = Math.min(z1, bay.z + deep);
+  else if (face === "s") z0 = Math.max(z0, bay.z + bay.d - deep);
+  else if (face === "w") x1 = Math.min(x1, bay.x + deep);
+  else x0 = Math.max(x0, bay.x + bay.w - deep);
+  if (x1 - x0 < 0.15 || z1 - z0 < 0.15) return;
+  shopFronts.push({ x: x0, z: z0, x2: x1, z2: z1, kind: kind, shut: !!shut });
+}
 function noteShopkeeper(bay, face, kind, data) {
   const spec = SHOP_KIND[kind] || {};
   const glass = !!spec.glass;
@@ -6684,6 +6697,7 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
     addShopMesh(shopGeo.pot, solidMat("wbucket", 0x66726e, 0.82, 0.06), bp.x, sitY(bp.x, bp.z, -0.14, 0.7), bp.z, 0, 0.55, 0.7, 0.55);
   }
   if (kind === "door" && variant === 2) noteOpenEntrance(bay, face);
+  if (kind !== "door") noteShopFront(bay, face, kind, variant === "shut", room);
   if (variant === "shut" || kind === "door") {
     addShopMesh.pinX = addShopMesh.pinZ = null;
     addShopMesh.hours = 0;
@@ -25198,7 +25212,8 @@ function syncKeepers(now) {
   for (let i = 0; i < keeperPosts.length; i++) {
     const post = keeperPosts[i];
     const py = post.y + 0.85;
-    const want = walkMode && (shopOpenNow(post.kind) || runKeeperWanted(post));
+    // A delivery never keeps a keeper standing once the gate is down.
+    const want = walkMode && shopOpenNow(post.kind);
     const held = figureRemember(post, post.x, py, post.z);
     const away = npcAway(post.x, post.z) && !held;
     if (post.fig) {
@@ -29453,19 +29468,43 @@ function runBellSlow(ud, speed) {
   if (dist < reach && dist > 0.25) return speed * Math.max(0.35, dist / reach);
   return speed;
 }
+// Open on the clock the player can see, and still open when the shift holds
+// at morning. A counter that is up for the glide and shut at eight is closed.
+function runShopTrading(kind) {
+  if (!shopOpenNow(kind)) return false;
+  const glide = stepSky.glide;
+  if (!glide || glide.to == null) return true;
+  const hour = ((glide.to % 1) + 1) % 1 * 24;
+  const span = SHOP_HOURS[kind];
+  if (!span) return hour >= 7 && hour < 23;
+  return hourInSpan(hour, span);
+}
+// The recess plus the doorway. A shuttered bay is always closed. The rest
+// follow the gate the player is looking at.
+function runInClosedShop(x, z) {
+  const pad = 0.22;
+  for (let i = 0; i < shopFronts.length; i++) {
+    const f = shopFronts[i];
+    if (!f.shut && runShopTrading(f.kind)) continue;
+    if (x > f.x - pad && x < f.x2 + pad && z > f.z - pad && z < f.z2 + pad) return true;
+  }
+  return false;
+}
 function runMouth(post) {
   const fx = post.fx, fz = post.fz;
   if (fx == null || fz == null) return null;
-  const outs = [0.85, 1.25, 1.7];
+  const outs = [0.85, 1.25, 1.7, 2.15, 2.6];
   for (let i = 0; i < outs.length; i++) {
     const x = post.x + fx * outs[i];
     const z = post.z + fz * outs[i];
+    if (runInClosedShop(x, z)) continue;
     if (walkInside(x, z) && !walkBlocked(x, z, { bodies: false, pad: 0.02 })) {
       return { x: x, z: z, rot: post.rot };
     }
   }
-  const lastX = post.x + fx * 1.25, lastZ = post.z + fz * 1.25;
+  const lastX = post.x + fx * 1.7, lastZ = post.z + fz * 1.7;
   const spot = walkClear(lastX, lastZ);
+  if (runInClosedShop(spot.x, spot.z)) return null;
   if (!walkInside(spot.x, spot.z) || walkBlocked(spot.x, spot.z, { bodies: false, pad: 0.02 })) return null;
   if (Math.hypot(spot.x - post.x, spot.z - post.z) > 3.2) return null;
   return { x: spot.x, z: spot.z, rot: post.rot };
@@ -29515,6 +29554,40 @@ function runLanePlace(x, z) {
     return "middle";
   }
   return "none";
+}
+function runLeaveClosed(x, z) {
+  if (!runInClosedShop(x, z)) return { x: x, z: z };
+  for (let ring = 1; ring <= 10; ring++) {
+    const step = 0.34 * ring;
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      const nx = x + Math.cos(a) * step;
+      const nz = z + Math.sin(a) * step;
+      if (runInClosedShop(nx, nz) || runOnCarriage(nx, nz)) continue;
+      if (!walkInside(nx, nz) || walkBlocked(nx, nz, { pad: 0.12, bodies: false })) continue;
+      return { x: nx, z: nz };
+    }
+  }
+  return null;
+}
+function runDestClosed(dest) {
+  if (!dest || dest.roof) return false;
+  if (dest.keeper && dest.post != null) {
+    for (let i = 0; i < keeperPosts.length; i++) {
+      if (keeperPosts[i].i !== dest.post) continue;
+      if (!runShopTrading(keeperPosts[i].kind)) return true;
+      break;
+    }
+  }
+  return runInClosedShop(dest.x, dest.z);
+}
+function runStepOutOfShop(job) {
+  if (!job || job.roof || !runInClosedShop(job.x, job.z)) return;
+  const out = runLeaveClosed(job.x, job.z);
+  if (!out) return;
+  job.x = out.x;
+  job.z = out.z;
+  if (job.fig && !job.roof) job.fig.position.set(job.x - SHEAR_K * job.z, GROUND_Y, job.z);
 }
 function runSpotTaken(x, z) {
   const lim = 2.4 * 2.4;
@@ -29572,7 +29645,7 @@ function runMark(x, z, selfKind) {
   const shops = runShops();
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
-    if (s.kind === selfKind) continue;
+    if (s.kind === selfKind || !runShopTrading(s.kind)) continue;
     const d = Math.hypot(s.x - x, s.z - z);
     if (d < bestD) { bestD = d; best = s; }
   }
@@ -29608,6 +29681,7 @@ function runMouthFar(x, z, shop) {
 }
 function runStandClear(x, z, shop, loose) {
   if (runOnCarriage(x, z) || !walkInside(x, z)) return false;
+  if (runInClosedShop(x, z)) return false;
   if (walkBlocked(x, z, { pad: 0.12, bodies: false })) return false;
   if (!runMouthFar(x, z, shop)) return false;
   const dx = x - shop.x, dz = z - shop.z;
@@ -29657,6 +29731,7 @@ function runFaceOpen(x, z, hint, roofDoor) {
 // Beside the door, on the alley side, not in the mouth and not out on the road.
 // About two in five sit. The stool is theirs. They look down the open lane.
 function runStandOffShop(shop) {
+  if (!shop || !runShopTrading(shop.kind)) return null;
   const yaw = shop.yaw || 0;
   const fx = Math.sin(yaw), fz = Math.cos(yaw);
   const rx = Math.cos(yaw), rz = -Math.sin(yaw);
@@ -29684,14 +29759,15 @@ function runPickKeeper(shop, maxDist) {
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
     if (s === shop || s.slip) continue;
-    if (!shopOpenNow(s.kind) || runSecondsLeft(s.kind) < 70) continue;
+    if (!runShopTrading(s.kind) || runSecondsLeft(s.kind) < 70) continue;
     const d = Math.hypot(s.x - shop.x, s.z - shop.z);
     if (d < minD || d > cap) continue;
+    if (runInClosedShop(s.x, s.z)) continue;
     if (runOnCarriage(s.x, s.z) || !walkInside(s.x, s.z)) continue;
     if (walkBlocked(s.x, s.z, { pad: 0.06, bodies: false })) continue;
     if (runSpotTaken(s.x, s.z)) continue;
     const post = runKeeperPost(s);
-    if (!post) continue;
+    if (!post || runInClosedShop(post.x, post.z)) continue;
     if (d < bestD) {
       bestD = d;
       best = {
@@ -29713,7 +29789,7 @@ function runPickDest(shop, mode, maxDist) {
     const shops = runShops();
     for (let i = 0; i < shops.length; i++) {
       const s = shops[i];
-      if (s === shop) continue;
+      if (s === shop || !runShopTrading(s.kind)) continue;
       const d = Math.hypot(s.x - shop.x, s.z - shop.z);
       if (d < minD || d > cap) continue;
       if (mode === "near" && s.street !== shop.street) continue;
@@ -29771,7 +29847,7 @@ function runSecondsLeft(kind) {
 function runCanPost(shop, now) {
   if (run.ended || run.sheet) return false;
   if (now < shop.next) return false;
-  if (!shopOpenNow(shop.kind)) return false;
+  if (!runShopTrading(shop.kind)) return false;
   const hour = clockHour();
   if (hour >= 21) return false;
   if (runSecondsLeft(shop.kind) < 70) return false;
@@ -29814,6 +29890,7 @@ function runOffer(now) {
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
     if (s.slip && Math.hypot(walkX - s.x, walkZ - s.z) > 62) s.slip = null;
+    if (s.slip && runDestClosed(s.slip.dest)) s.slip = null;
   }
   if (runSlipCount() >= 3) return;
   if (now < run.layAt) return;
@@ -30012,6 +30089,7 @@ function runWatchLeave() {
 function runPerson(job) {
   if (job.keeper) return;
   if (job.fig || job.state !== "carried" && job.state !== "dropped") return;
+  if (!job.roof && runInClosedShop(job.x, job.z)) return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
   const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
   const foot = job.roof ? job.y : GROUND_Y;
@@ -30038,6 +30116,7 @@ function runPosePeople(now, dt) {
   for (let i = 0; i < run.jobs.length; i++) {
     const job = run.jobs[i];
     if (job.state === "done" && job.fig) {
+      runStepOutOfShop(job);
       runHoldReceiver(job);
       continue;
     }
@@ -30045,6 +30124,7 @@ function runPosePeople(now, dt) {
       runRemoveBody(job);
       continue;
     }
+    runStepOutOfShop(job);
     const show = walkMode;
     if (!show) {
       if (job.fig) job.fig.visible = false;
@@ -30558,16 +30638,6 @@ function runPaint() {
     fitRunHub();
   }
 }
-function runKeeperWanted(post) {
-  const jobs = run.jobs || [];
-  for (let i = 0; i < jobs.length; i++) {
-    const j = jobs[i];
-    if (!j.keeper || j.post == null) continue;
-    if (j.state !== "carried" && j.state !== "dropped") continue;
-    if (j.post === post.i) return true;
-  }
-  return false;
-}
 function runKeeperPost(shop) {
   if (shop.keeper) return shop.keeper;
   if (shop.keeperMiss) return null;
@@ -30606,7 +30676,7 @@ function runWaves() {
     for (let k = 0; k < keeperPosts.length; k++) {
       if (keeperPosts[k].i === j.post) { post = keeperPosts[k]; break; }
     }
-    if (!post || Math.hypot(walkX - post.x, walkZ - post.z) > 4.2) continue;
+    if (!post || !shopOpenNow(post.kind) || Math.hypot(walkX - post.x, walkZ - post.z) > 4.2) continue;
     post.playerWave = true;
     run.waving.push(post);
   }
@@ -30725,9 +30795,11 @@ document.getElementById("run-sheet-close").addEventListener("click", function (e
   if (!run.ended) runOpenDay(performance.now() * 0.001, true);
   runPaint();
 });
-// The map sits at the top right, under the settings gear. Streets turn under a player mark that
-// stays pointing up. A cell stays dark until the runner has stood within
-// sight of it, and that stays for the session. Parcel marks draw over the fog.
+// The map sits at the top right, under the settings gear. The mark points
+// straight up, and the streets turn with the way the runner is facing.
+// Looking around does not turn the map. A cell stays dark until the runner
+// has stood within sight of it, and that stays for the session. Parcel marks
+// draw over the fog.
 const miniMap = {
   x0: -10,
   z0: -14,
@@ -30845,12 +30917,17 @@ function miniMapStamp(src, sx, sy, sw, sh, dest) {
     miniMap.ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
   }
 }
+function miniMapYaw() {
+  const face = run.riderFace == null ? walkYaw + Math.PI : run.riderFace;
+  return face - Math.PI;
+}
 function miniMapAims(ctx, pxPerM, cx, cy) {
   if (run.sheet || !run.jobs) return;
   const now = performance.now() * 0.001;
   const w = miniMap.view.width, h = miniMap.view.height;
   const pad = 16;
-  const c = Math.cos(walkYaw), s = Math.sin(walkYaw);
+  const yaw = miniMapYaw();
+  const c = Math.cos(yaw), s = Math.sin(yaw);
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried" && j.state !== "dropped") continue;
@@ -30933,7 +31010,7 @@ function miniMapDraw() {
   ctx.rect(0, 0, view.width, view.height);
   ctx.clip();
   ctx.translate(view.width / 2, view.height / 2);
-  ctx.rotate(walkYaw);
+  ctx.rotate(miniMapYaw());
   ctx.imageSmoothingEnabled = false;
   miniMapStamp(miniMap.base, sx, sy, sw, sw, dw);
   miniMapStamp(miniMap.fog, sx, sy, sw, sw, dw);
