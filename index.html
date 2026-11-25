@@ -30007,22 +30007,35 @@ function runReceiverOf(job) {
   if (!job.fig) return null;
   return { fig: job.fig, home: job.yaw || 0, seated: false };
 }
-function runArrowBits() {
-  if (runArrowBits.geo) return runArrowBits;
-  // Short enough to sit over the hair under a low shop ceiling.
-  const geo = new THREE.ConeGeometry(0.2, 0.4, 5);
-  geo.rotateX(Math.PI);
-  geo.translate(0, 0.2, 0);
+// Same hexes as the slip border and the order-slider fill.
+function runLevelHex(cls) {
+  if (cls === "red") return 0xff3a2a;
+  if (cls === "yellow") return 0xffc56a;
+  return 0x3dff88;
+}
+function runHueHex(hue) {
+  if (hue === "hot") return 0xff3a2a;
+  if (hue === "warm") return 0xffc56a;
+  return 0x3dff88;
+}
+function runGlowMat(hex) {
   const mat = new THREE.MeshBasicMaterial({
-    color: 0xffd000,
+    color: hex,
     transparent: true,
     opacity: 1,
     depthWrite: false,
     fog: false
   });
   mat.toneMapped = false;
+  return mat;
+}
+function runArrowBits() {
+  if (runArrowBits.geo) return runArrowBits;
+  // Short enough to sit over the hair under a low shop ceiling.
+  const geo = new THREE.ConeGeometry(0.2, 0.4, 5);
+  geo.rotateX(Math.PI);
+  geo.translate(0, 0.2, 0);
   runArrowBits.geo = geo;
-  runArrowBits.mat = mat;
   return runArrowBits;
 }
 function runEnsureArrow(job) {
@@ -30030,8 +30043,9 @@ function runEnsureArrow(job) {
   const bits = runArrowBits();
   const g = new THREE.Group();
   g.name = "receiverArrow";
-  const tip = new THREE.Mesh(bits.geo, bits.mat);
-  const tail = new THREE.Mesh(bits.geo, bits.mat);
+  const mat = runGlowMat(runHueHex("ok"));
+  const tip = new THREE.Mesh(bits.geo, mat);
+  const tail = new THREE.Mesh(bits.geo, mat);
   tip.frustumCulled = false;
   tail.frustumCulled = false;
   tip.castShadow = tail.castShadow = false;
@@ -30042,7 +30056,9 @@ function runEnsureArrow(job) {
   g.visible = false;
   scene.add(g);
   job.spot = g;
+  job.spotMat = mat;
   job.spotTail = tail;
+  job.spotHue = "ok";
   return g;
 }
 function runParkArrow(job) {
@@ -30051,8 +30067,11 @@ function runParkArrow(job) {
 function runDropArrow(job) {
   if (!job || !job.spot) return;
   scene.remove(job.spot);
+  if (job.spotMat) job.spotMat.dispose();
   job.spot = null;
+  job.spotMat = null;
   job.spotTail = null;
+  job.spotHue = null;
 }
 function runShowArrow(job, fig, now) {
   const g = runEnsureArrow(job);
@@ -30075,8 +30094,12 @@ function runShowArrow(job, fig, now) {
   g.position.set(head.x, head.y + bob * 0.07, head.z);
   g.rotation.y = now * 1.8;
   if (job.spotTail) job.spotTail.position.y = 0.3 + Math.sin(now * 3.8 + job.id * 0.7 + 1.1) * 0.06;
-  const pulse = 0.72 + (bob * 0.5 + 0.5) * 0.28;
-  runArrowBits().mat.opacity = pulse;
+  const hue = runFareHue(job, now);
+  if (job.spotHue !== hue && job.spotMat) {
+    job.spotHue = hue;
+    job.spotMat.color.setHex(runHueHex(hue));
+  }
+  if (job.spotMat) job.spotMat.opacity = 0.72 + (bob * 0.5 + 0.5) * 0.28;
   g.visible = true;
 }
 // Nearby is a short stretch of lane, not the whole block. Standing receivers
@@ -30136,6 +30159,100 @@ function runSpotReceivers(now, dt) {
       continue;
     }
     runFaceReceiver(job, now, dt, live);
+  }
+}
+function runHoloBits() {
+  if (runHoloBits.ring) return runHoloBits;
+  const ring = new THREE.TorusGeometry(0.5, 0.028, 6, 40);
+  ring.rotateX(Math.PI / 2);
+  const inner = new THREE.TorusGeometry(0.32, 0.014, 6, 28);
+  inner.rotateX(Math.PI / 2);
+  const beam = new THREE.CylinderGeometry(0.42, 0.42, 1.15, 18, 1, true);
+  beam.translate(0, 0.58, 0);
+  runHoloBits.ring = ring;
+  runHoloBits.inner = inner;
+  runHoloBits.beam = beam;
+  return runHoloBits;
+}
+function runEnsureHolo(shop) {
+  if (shop.holo) return shop.holo;
+  const bits = runHoloBits();
+  const hex = runLevelHex(shop.slip && shop.slip.class);
+  const g = new THREE.Group();
+  g.name = "orderHolo";
+  const beam = new THREE.Mesh(bits.beam, runGlowMat(hex));
+  const spin = new THREE.Group();
+  const ring = new THREE.Mesh(bits.ring, runGlowMat(hex));
+  const inner = new THREE.Mesh(bits.inner, runGlowMat(hex));
+  const ripple = new THREE.Mesh(bits.ring, runGlowMat(hex));
+  beam.material.side = THREE.DoubleSide;
+  beam.material.opacity = 0.22;
+  inner.material.opacity = 0.7;
+  inner.position.y = 0.01;
+  ripple.material.opacity = 0.45;
+  ripple.position.y = 0.02;
+  beam.frustumCulled = ring.frustumCulled = inner.frustumCulled = ripple.frustumCulled = false;
+  beam.castShadow = ring.castShadow = inner.castShadow = ripple.castShadow = false;
+  beam.receiveShadow = ring.receiveShadow = inner.receiveShadow = ripple.receiveShadow = false;
+  spin.add(ring);
+  spin.add(inner);
+  g.add(beam);
+  g.add(spin);
+  g.add(ripple);
+  g.visible = false;
+  g.renderOrder = 3;
+  scene.add(g);
+  shop.holo = g;
+  shop.holoBeam = beam;
+  shop.holoSpin = spin;
+  shop.holoRing = ring;
+  shop.holoInner = inner;
+  shop.holoRipple = ripple;
+  shop.holoClass = (shop.slip && shop.slip.class) || "green";
+  return g;
+}
+function runParkHolo(shop) {
+  if (shop.holo) shop.holo.visible = false;
+}
+function runShowHolo(shop, now) {
+  const g = runEnsureHolo(shop);
+  const cls = (shop.slip && shop.slip.class) || "green";
+  if (shop.holoClass !== cls) {
+    shop.holoClass = cls;
+    const hex = runLevelHex(cls);
+    shop.holoBeam.material.color.setHex(hex);
+    shop.holoRing.material.color.setHex(hex);
+    shop.holoInner.material.color.setHex(hex);
+    shop.holoRipple.material.color.setHex(hex);
+  }
+  g.position.set(shop.x - SHEAR_K * shop.z, GROUND_Y + 0.03, shop.z);
+  const t = now + (shop.post || 0) * 0.37;
+  const breath = 0.5 + 0.5 * Math.sin(t * 2.6);
+  shop.holoSpin.rotation.y = t * 0.9;
+  shop.holoInner.rotation.y = -t * 1.7;
+  shop.holoSpin.scale.setScalar(1 + breath * 0.06);
+  shop.holoRing.material.opacity = 0.78 + breath * 0.22;
+  shop.holoInner.material.opacity = 0.42 + breath * 0.38;
+  const dist = Math.hypot(walkX - shop.x, walkZ - shop.z);
+  const close = dist < 1.15 ? 0.28 : dist < 2.4 ? 0.28 + (dist - 1.15) / 1.25 * 0.72 : 1;
+  shop.holoBeam.material.opacity = (0.14 + breath * 0.1) * close;
+  const rip = (t * 0.42) % 1;
+  const spread = 1 + rip * 0.62;
+  shop.holoRipple.scale.set(spread, 1, spread);
+  shop.holoRipple.material.opacity = (1 - rip) * 0.5;
+  g.visible = true;
+}
+function runSpotHolos(now) {
+  const shops = run.shops;
+  if (!shops) return;
+  const show = walkMode && !run.sheet && !run.ended;
+  for (let i = 0; i < shops.length; i++) {
+    const shop = shops[i];
+    if (!show || !shop.slip || !shopOpenNow(shop.kind)) {
+      runParkHolo(shop);
+      continue;
+    }
+    runShowHolo(shop, now);
   }
 }
 function runPosePeople(now, dt) {
@@ -30794,6 +30911,7 @@ function stepRun(now, dt) {
     runBumps(now);
   }
   runPosePeople(now, dt);
+  runSpotHolos(now);
   runWaves();
   runPaint();
   runGuides(now);
