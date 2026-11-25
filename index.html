@@ -3975,37 +3975,38 @@ const SHOP_KIND = {
   water:      { use: "service", words: ["水房"], blade: "#d5dde2", ink: "#1a3040", fascia: "#3d4a55", inkF: "#e6eef2", tube: 0xd5e0ea },
   door:       { use: "home", words: [], stack: 0 }
 };
-// One span for each trade, the hours that trade kept in Hong Kong.
-// A clinic opens late in the morning. Rice and hardware close with the
-// working day. Tofu starts before dawn and is done by mid-afternoon.
-// A bing sutt runs from breakfast through supper. Mahjong and pai kau
-// open in the afternoon and stay up past midnight. Herbal tea lasts
-// until midnight. When the close is not later than the open, the gate
-// stays up through the night.
+// One span for each trade. The close is the first hour the gate is down.
+// When the close is not later than the open, the gate stays up through the night.
+// Clinics keep office hours. Rice, hardware and the workshops follow the
+// working day, and the food works light their fires before dawn. Grocers
+// shut after the evening. The cafe and the herbal counter stay lit through
+// the night. The dog-meat stall covers supper until the morning works are
+// open. Mahjong and pai kau run from afternoon until those fires are up.
+// The handoff is an hour, so an order can be taken at every hour.
 const SHOP_HOURS = {
   dentist:    [10, 20],
   doctor:     [9, 21],
-  pharmacy:   [9, 22],
+  pharmacy:   [9, 23],
   bonesetter: [10, 21],
-  herbal:     [8, 24],
+  herbal:     [8, 2],
   grocery:    [7, 22],
   rice:       [8, 19],
-  cafe:       [6, 23],
+  cafe:       [6, 5],
   barber:     [10, 20],
   electrical: [10, 20],
   hardware:   [8, 19],
-  mahjong:    [13, 4],
-  paikau:     [14, 3],
-  dogmeat:    [17, 23],
-  fishball:   [6, 18],
-  noodle:     [6, 19],
-  bbq:        [9, 21],
-  tofu:       [5, 15],
+  mahjong:    [13, 5],
+  paikau:     [14, 5],
+  dogmeat:    [17, 6],
+  fishball:   [4, 18],
+  noodle:     [4, 19],
+  bbq:        [9, 22],
+  tofu:       [4, 15],
   candy:      [9, 18],
   plastic:    [8, 20],
   textile:    [8, 20],
-  joss:       [8, 20],
-  water:      [6, 21]
+  joss:       [7, 21],
+  water:      [4, 21]
 };
 const SHOP_HOUR_KIND = [""];
 const SHOP_HOUR_ID = { "": 0 };
@@ -22731,14 +22732,6 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
   const gw = pack.gestureW || 0;
   const gesture = pack._gesture || (gw > 0.01 ? pack._gestureHold : "");
   if (gesture && gw > 0.01) applyWaveOverlay(pack, t, gw, gesture === "wave_sit");
-  // A seated receiver stays on the chair. The neck and the head carry the look.
-  if (!(pack.lookFresh > (elapsed || 0) - 0.12)) pack.look = 0;
-  const look = pack.look || 0;
-  if (look) {
-    pack.spine.rotation.y += look * 0.35;
-    if (pack.neck) pack.neck.rotation.y += look * 0.5;
-    pack.head.rotation.y += look * 0.4;
-  }
   pack.prevClip = clip;
 }
 const STUDIO_BY_ID = {};
@@ -27416,7 +27409,8 @@ function stepSky(now) {
   stepSky.rain = wxNow.rain;
 }
 stepSky.origin = OPEN_CLOCK;
-stepSky.day = 210;
+// Midnight to midnight, in real seconds.
+stepSky.day = 120;
 stepSky.clock = OPEN_CLOCK;
 let todLock = null;
 let wxLock = false;
@@ -29639,7 +29633,7 @@ function runPickKeeper(shop, maxDist) {
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
     if (s === shop || s.slip) continue;
-    if (!runShopTrading(s.kind) || runSecondsLeft(s.kind) < 70) continue;
+    if (!runOrderReady(s.kind)) continue;
     const d = Math.hypot(s.x - shop.x, s.z - shop.z);
     if (d < minD || d > cap) continue;
     if (runInClosedShop(s.x, s.z)) continue;
@@ -29724,14 +29718,36 @@ function runSecondsLeft(kind) {
   }
   return left * (stepSky.day / 24);
 }
+// One in-game hour. A counter stops offering in that last hour once another
+// trade is already open, so the handoff does not leave a gap with no order.
+function runOrderLead() {
+  const day = stepSky.day > 0 ? stepSky.day : 120;
+  return day / 24;
+}
+function runOrderReady(kind) {
+  if (!RUN_KIND_ITEM[kind] || !runShopTrading(kind)) return false;
+  const left = runSecondsLeft(kind);
+  if (left <= 0) return false;
+  if (left >= runOrderLead()) return true;
+  const kinds = Object.keys(RUN_KIND_ITEM);
+  for (let i = 0; i < kinds.length; i++) {
+    const other = kinds[i];
+    if (other === kind) continue;
+    if (runShopTrading(other) && runSecondsLeft(other) >= runOrderLead()) return false;
+  }
+  return true;
+}
+function runAnyOrderOpen() {
+  const kinds = Object.keys(RUN_KIND_ITEM);
+  for (let i = 0; i < kinds.length; i++) {
+    if (shopOpenNow(kinds[i])) return true;
+  }
+  return false;
+}
 function runCanPost(shop, now) {
   if (run.ended || run.sheet) return false;
   if (now < shop.next) return false;
-  if (!runShopTrading(shop.kind)) return false;
-  const hour = clockHour();
-  if (hour >= 21) return false;
-  if (runSecondsLeft(shop.kind) < 70) return false;
-  return true;
+  return runOrderReady(shop.kind);
 }
 function runChooseItem(kind, salt) {
   const list = RUN_KIND_ITEM[kind];
@@ -29785,7 +29801,7 @@ function runOffer(now) {
   if (!have.yellow) order.push("yellow");
   if (!have.red) order.push("red");
   if (!order.length) order.push("green", "yellow", "red");
-  const reach = [42, 60];
+  const reach = [42, 60, 280];
   for (let r = 0; r < reach.length; r++) {
     const candidates = [];
     for (let i = 0; i < shops.length; i++) {
@@ -29897,7 +29913,6 @@ function runRemoveBody(job) {
     city.remove(job.box);
     job.box = null;
   }
-  runDropArrow(job);
   job.depart = null;
 }
 function runForgetJobs() {
@@ -29992,269 +30007,6 @@ function runPerson(job) {
   wakeFigure(fig);
   job.fig = fig;
 }
-// The person waiting on an order. A shopkeeper stays on their post. Anyone
-// else is the figure the errand spawned at the door.
-function runReceiverOf(job) {
-  if (job.keeper && job.post != null) {
-    for (let k = 0; k < keeperPosts.length; k++) {
-      const post = keeperPosts[k];
-      if (post.i !== job.post || !post.fig) continue;
-      const seated = post.fig.userData && post.fig.userData.stance === "sit";
-      return { fig: post.fig, home: post.rot || 0, seated: seated };
-    }
-    return null;
-  }
-  if (!job.fig) return null;
-  return { fig: job.fig, home: job.yaw || 0, seated: false };
-}
-// Same hexes as the slip border and the order-slider fill.
-function runLevelHex(cls) {
-  if (cls === "red") return 0xff3a2a;
-  if (cls === "yellow") return 0xffc56a;
-  return 0x3dff88;
-}
-function runHueHex(hue) {
-  if (hue === "hot") return 0xff3a2a;
-  if (hue === "warm") return 0xffc56a;
-  return 0x3dff88;
-}
-function runGlowMat(hex) {
-  const mat = new THREE.MeshBasicMaterial({
-    color: hex,
-    transparent: true,
-    opacity: 1,
-    depthWrite: false,
-    fog: false
-  });
-  mat.toneMapped = false;
-  return mat;
-}
-function runArrowBits() {
-  if (runArrowBits.geo) return runArrowBits;
-  // Short enough to sit over the hair under a low shop ceiling.
-  const geo = new THREE.ConeGeometry(0.2, 0.4, 5);
-  geo.rotateX(Math.PI);
-  geo.translate(0, 0.2, 0);
-  runArrowBits.geo = geo;
-  return runArrowBits;
-}
-function runEnsureArrow(job) {
-  if (job.spot) return job.spot;
-  const bits = runArrowBits();
-  const g = new THREE.Group();
-  g.name = "receiverArrow";
-  const mat = runGlowMat(runHueHex("ok"));
-  const tip = new THREE.Mesh(bits.geo, mat);
-  const tail = new THREE.Mesh(bits.geo, mat);
-  tip.frustumCulled = false;
-  tail.frustumCulled = false;
-  tip.castShadow = tail.castShadow = false;
-  tip.receiveShadow = tail.receiveShadow = false;
-  tail.scale.setScalar(0.68);
-  g.add(tip);
-  g.add(tail);
-  g.visible = false;
-  scene.add(g);
-  job.spot = g;
-  job.spotMat = mat;
-  job.spotTail = tail;
-  job.spotHue = "ok";
-  return g;
-}
-function runParkArrow(job) {
-  if (job.spot) job.spot.visible = false;
-}
-function runDropArrow(job) {
-  if (!job || !job.spot) return;
-  scene.remove(job.spot);
-  if (job.spotMat) job.spotMat.dispose();
-  job.spot = null;
-  job.spotMat = null;
-  job.spotTail = null;
-  job.spotHue = null;
-}
-function runShowArrow(job, fig, now) {
-  const g = runEnsureArrow(job);
-  const head = runShowArrow.at || (runShowArrow.at = new THREE.Vector3());
-  const pack = fig.studio;
-  let placed = false;
-  if (pack && pack.head && fig.visible) {
-    pack.head.getWorldPosition(head);
-    const sc = fig.scale.x || FIG_SCALE;
-    if (head.distanceTo(fig.position) < 2.4) {
-      head.y += 0.16 * sc;
-      placed = true;
-    }
-  }
-  if (!placed) {
-    const sc = fig.scale.x || FIG_SCALE;
-    head.set(fig.position.x, fig.position.y + 1.55 * sc, fig.position.z);
-  }
-  const bob = Math.sin(now * 3.8 + job.id * 0.7);
-  g.position.set(head.x, head.y + bob * 0.07, head.z);
-  g.rotation.y = now * 1.8;
-  if (job.spotTail) job.spotTail.position.y = 0.3 + Math.sin(now * 3.8 + job.id * 0.7 + 1.1) * 0.06;
-  const hue = runFareHue(job, now);
-  if (job.spotHue !== hue && job.spotMat) {
-    job.spotHue = hue;
-    job.spotMat.color.setHex(runHueHex(hue));
-  }
-  if (job.spotMat) job.spotMat.opacity = 0.72 + (bob * 0.5 + 0.5) * 0.28;
-  g.visible = true;
-}
-// Nearby is a short stretch of lane, not the whole block. Standing receivers
-// turn on their feet. A seated shopkeeper stays in the chair and looks over.
-const RECEIVER_NEAR = 9;
-function runFaceReceiver(job, now, dt, live) {
-  const who = runReceiverOf(job);
-  if (!who) {
-    runParkArrow(job);
-    job.facing = 0;
-    return;
-  }
-  const fig = who.fig;
-  const pack = fig.studio;
-  const dx = walkX - fig.position.x;
-  const dz = walkZ - fig.position.z;
-  const foot = roofStay ? roofStay.y : GROUND_Y;
-  let close = live && Math.hypot(dx, dz) < RECEIVER_NEAR && Math.abs(foot - fig.position.y) < 2.4;
-  if (!live && job.fig && job.state === "done") close = Math.hypot(dx, dz) < RECEIVER_NEAR && Math.abs(foot - fig.position.y) < 2.4;
-  const step = Math.min(1, (dt || 0.016) * 4.5);
-  if (!who.seated) {
-    const want = close ? Math.atan2(dx, dz) : who.home;
-    const turn = Math.atan2(Math.sin(want - fig.rotation.y), Math.cos(want - fig.rotation.y));
-    fig.rotation.y += turn * step;
-    if (pack) pack.look = 0;
-  } else if (pack) {
-    let yaw = 0;
-    if (close) {
-      const face = Math.atan2(dx, dz);
-      yaw = Math.atan2(Math.sin(face - fig.rotation.y), Math.cos(face - fig.rotation.y));
-      if (yaw > 1.15) yaw = 1.15;
-      else if (yaw < -1.15) yaw = -1.15;
-    }
-    pack.look = (pack.look || 0) + (yaw - (pack.look || 0)) * step;
-    pack.lookFresh = now;
-  }
-  if (!live && who.seated && pack && Math.abs(pack.look || 0) < 0.04) job.facing = 0;
-  if (!live && !who.seated) {
-    const left = Math.abs(Math.atan2(Math.sin(who.home - fig.rotation.y), Math.cos(who.home - fig.rotation.y)));
-    if (left < 0.05) job.facing = 0;
-  }
-  if (live && fig.visible) runShowArrow(job, fig, now);
-  else runParkArrow(job);
-}
-function runSpotReceivers(now, dt) {
-  const jobs = run.jobs || [];
-  for (let i = 0; i < jobs.length; i++) {
-    const job = jobs[i];
-    const live = job.state === "carried" || job.state === "dropped";
-    if (!walkMode) {
-      runParkArrow(job);
-      continue;
-    }
-    if (live) job.facing = 1;
-    if (!live && !job.facing && !(job.state === "done" && job.fig)) {
-      runParkArrow(job);
-      continue;
-    }
-    runFaceReceiver(job, now, dt, live);
-  }
-}
-function runHoloBits() {
-  if (runHoloBits.ring) return runHoloBits;
-  const ring = new THREE.TorusGeometry(0.5, 0.028, 6, 40);
-  ring.rotateX(Math.PI / 2);
-  const inner = new THREE.TorusGeometry(0.32, 0.014, 6, 28);
-  inner.rotateX(Math.PI / 2);
-  const beam = new THREE.CylinderGeometry(0.42, 0.42, 1.15, 18, 1, true);
-  beam.translate(0, 0.58, 0);
-  runHoloBits.ring = ring;
-  runHoloBits.inner = inner;
-  runHoloBits.beam = beam;
-  return runHoloBits;
-}
-function runEnsureHolo(shop) {
-  if (shop.holo) return shop.holo;
-  const bits = runHoloBits();
-  const hex = runLevelHex(shop.slip && shop.slip.class);
-  const g = new THREE.Group();
-  g.name = "orderHolo";
-  const beam = new THREE.Mesh(bits.beam, runGlowMat(hex));
-  const spin = new THREE.Group();
-  const ring = new THREE.Mesh(bits.ring, runGlowMat(hex));
-  const inner = new THREE.Mesh(bits.inner, runGlowMat(hex));
-  const ripple = new THREE.Mesh(bits.ring, runGlowMat(hex));
-  beam.material.side = THREE.DoubleSide;
-  beam.material.opacity = 0.22;
-  inner.material.opacity = 0.7;
-  inner.position.y = 0.01;
-  ripple.material.opacity = 0.45;
-  ripple.position.y = 0.02;
-  beam.frustumCulled = ring.frustumCulled = inner.frustumCulled = ripple.frustumCulled = false;
-  beam.castShadow = ring.castShadow = inner.castShadow = ripple.castShadow = false;
-  beam.receiveShadow = ring.receiveShadow = inner.receiveShadow = ripple.receiveShadow = false;
-  spin.add(ring);
-  spin.add(inner);
-  g.add(beam);
-  g.add(spin);
-  g.add(ripple);
-  g.visible = false;
-  g.renderOrder = 3;
-  scene.add(g);
-  shop.holo = g;
-  shop.holoBeam = beam;
-  shop.holoSpin = spin;
-  shop.holoRing = ring;
-  shop.holoInner = inner;
-  shop.holoRipple = ripple;
-  shop.holoClass = (shop.slip && shop.slip.class) || "green";
-  return g;
-}
-function runParkHolo(shop) {
-  if (shop.holo) shop.holo.visible = false;
-}
-function runShowHolo(shop, now) {
-  const g = runEnsureHolo(shop);
-  const cls = (shop.slip && shop.slip.class) || "green";
-  if (shop.holoClass !== cls) {
-    shop.holoClass = cls;
-    const hex = runLevelHex(cls);
-    shop.holoBeam.material.color.setHex(hex);
-    shop.holoRing.material.color.setHex(hex);
-    shop.holoInner.material.color.setHex(hex);
-    shop.holoRipple.material.color.setHex(hex);
-  }
-  g.position.set(shop.x - SHEAR_K * shop.z, GROUND_Y + 0.03, shop.z);
-  const t = now + (shop.post || 0) * 0.37;
-  const breath = 0.5 + 0.5 * Math.sin(t * 2.6);
-  shop.holoSpin.rotation.y = t * 0.9;
-  shop.holoInner.rotation.y = -t * 1.7;
-  shop.holoSpin.scale.setScalar(1 + breath * 0.06);
-  shop.holoRing.material.opacity = 0.78 + breath * 0.22;
-  shop.holoInner.material.opacity = 0.42 + breath * 0.38;
-  const dist = Math.hypot(walkX - shop.x, walkZ - shop.z);
-  const close = dist < 1.15 ? 0.28 : dist < 2.4 ? 0.28 + (dist - 1.15) / 1.25 * 0.72 : 1;
-  shop.holoBeam.material.opacity = (0.14 + breath * 0.1) * close;
-  const rip = (t * 0.42) % 1;
-  const spread = 1 + rip * 0.62;
-  shop.holoRipple.scale.set(spread, 1, spread);
-  shop.holoRipple.material.opacity = (1 - rip) * 0.5;
-  g.visible = true;
-}
-function runSpotHolos(now) {
-  const shops = run.shops;
-  if (!shops) return;
-  const show = walkMode && !run.sheet && !run.ended;
-  for (let i = 0; i < shops.length; i++) {
-    const shop = shops[i];
-    if (!show || !shop.slip || !shopOpenNow(shop.kind)) {
-      runParkHolo(shop);
-      continue;
-    }
-    runShowHolo(shop, now);
-  }
-}
 function runPosePeople(now, dt) {
   refreshFigureView();
   for (let i = 0; i < run.jobs.length; i++) {
@@ -30299,7 +30051,6 @@ function runPosePeople(now, dt) {
     }
     wakeFigure(job.fig);
   }
-  runSpotReceivers(now, dt);
 }
 function runUnderAwning() {
   const shops = run.shops || [];
@@ -30411,7 +30162,7 @@ function runAtShopFront(shop) {
   return runAtEntrance(shop.x, shop.z, out.x, out.z);
 }
 function runNearSlip() {
-  if (clockHour() >= 22 || run.ended) return null;
+  if (run.ended) return null;
   let best = null, bestD = 2.2;
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
@@ -30649,7 +30400,7 @@ function runSub(job) {
   return runDestLine(job);
 }
 function runNearOrderShop() {
-  if (!walkMode || run.ended || run.sheet || clockHour() >= 22) return null;
+  if (!walkMode || run.ended || run.sheet) return null;
   const ready = runNearSlip();
   if (ready && ready.shop) return ready.shop;
   let best = null, bestD = 4.2;
@@ -30729,7 +30480,7 @@ function runPaint() {
         if (run.intro < 3 && d < farD) { farD = d; far = s; }
       }
       if (far && farD >= 6) text = runText("first") + " · " + runWord(far.kind) + " · " + runStreet(far.street);
-      else if (!run.day && clockHour() >= 21) text = runText("shut");
+      else if (!run.day && !runAnyOrderOpen()) text = runText("shut");
     }
     near.textContent = text;
   }
@@ -30911,7 +30662,6 @@ function stepRun(now, dt) {
     runBumps(now);
   }
   runPosePeople(now, dt);
-  runSpotHolos(now);
   runWaves();
   runPaint();
   runGuides(now);
