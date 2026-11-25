@@ -19,6 +19,9 @@
     /* How much of each lower corner the stick and the action buttons occupy. */
     --stick-clear: 0px;
     --corner-clear: 0px;
+    /* Half the countdown, plus a gap, so the time plate cannot reach it. */
+    --clock-guard: calc(0.5 * (2.32 * clamp(31.5px, 5.76vh, 54.9px) + 28px) + 28px);
+    --hud-cap: calc(50vw - var(--inset-x) - var(--clock-guard));
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); }
@@ -137,12 +140,12 @@
   #wx-read {
     display: flex; flex-direction: column; flex-wrap: nowrap; align-items: flex-start;
     row-gap: 2px;
-    width: max-content; max-width: none;
+    width: max-content; max-width: 100%;
     letter-spacing: 0.04em; font-weight: 500;
   }
   #wx-line {
     display: inline-flex; flex-wrap: nowrap; align-items: baseline;
-    width: max-content; max-width: none;
+    width: max-content; max-width: 100%;
     white-space: nowrap;
   }
   #wx-read:empty { display: none; }
@@ -162,7 +165,7 @@
       0 0 12px #ffb020,
       0 0 22px rgba(255, 176, 32, 0.95);
   }
-  #wx-purse { display: block; white-space: nowrap; line-height: 1.35; }
+  #wx-purse { display: block; max-width: 100%; white-space: nowrap; line-height: 1.35; }
   #wx-purse:empty { display: none; }
   #run-clock {
     position: fixed;
@@ -236,8 +239,11 @@
     }
   }
   #run-clock[hidden] { display: none !important; }
+  /* While the countdown is up, the time plate keeps a fixed ceiling and stops short of it. */
+  #ui:has(#run-clock:not([hidden])) header.panel { max-width: min(100%, var(--hud-cap)); }
   body:has(#boot) #run-clock { display: none; }
   @media (max-width: 720px), (max-height: 540px) {
+    :root { --clock-guard: calc(0.5 * (2.26 * clamp(26.1px, 7.92vw, 37.8px) + 20px) + 28px); }
     #run-clock { font-size: clamp(26.1px, 7.92vw, 37.8px); padding: 2px 10px 5px; letter-spacing: 0.06em; }
   }
   .kicker { font-family: "PingFang HK", "Heiti TC", sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b56a; margin-bottom: 2px; overflow-wrap: anywhere; }
@@ -458,13 +464,13 @@
     pointer-events: auto;
   }
   #start[hidden] { display: none !important; }
-  #ui.walk-bare header.panel { order: -1; align-self: flex-start; width: max-content; max-width: none; }
+  #ui.walk-bare header.panel { order: -1; align-self: flex-start; width: max-content; max-width: 100%; }
   #ui.walk-bare header.panel h1,
   #ui.walk-bare header.panel .when,
   #ui.walk-bare header.panel #wx-read,
   #ui.walk-bare header.panel #wx-line {
     width: max-content;
-    max-width: none;
+    max-width: 100%;
     min-width: 0;
     flex-wrap: nowrap;
     white-space: nowrap;
@@ -866,7 +872,7 @@
   @media (aspect-ratio <= 1) {
     #col-left, #col-right { display: contents; }
     #ui { display: flex; flex-direction: column; align-items: stretch; }
-    header.panel { order: 1; align-self: flex-start; width: max-content; max-width: none; }
+    header.panel { order: 1; align-self: flex-start; width: max-content; max-width: 100%; }
     header.panel h1 { font-size: clamp(13px, 4.4vw, 18px); }
     /* Same top edge as the clock, on the right. Out of the column so it does not take a row. */
     #tools {
@@ -16188,8 +16194,7 @@ function fitPurseRoom() {
   const line = document.getElementById("wx-line");
   const h1 = header && header.querySelector("h1");
   const clockEl = document.getElementById("run-clock");
-  const ui = document.getElementById("ui");
-  if (!header || !ui || !h1) return;
+  if (!header || !h1) return;
   h1.style.fontSize = "";
   header.style.maxWidth = "";
   if (!line) return;
@@ -16197,16 +16202,22 @@ function fitPurseRoom() {
   const cr = clockEl.getBoundingClientRect();
   if (cr.width < 1) return;
   const hr = header.getBoundingClientRect();
-  const pad = parseFloat(getComputedStyle(header).paddingLeft) || 0;
-  const room = cr.left - (hr.left + pad) - 12;
-  if (!(room > 36)) return;
+  const cs = getComputedStyle(header);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  const padR = parseFloat(cs.paddingRight) || 0;
+  const border = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+  const box = cr.left - hr.left - 28;
+  if (!(box > 0)) return;
+  header.style.maxWidth = Math.floor(box) + "px";
+  const inner = box - padL - padR - border;
+  if (!(inner > 8)) return;
   const purse = document.getElementById("wx-purse");
   const purseW = purse && purse.textContent && getComputedStyle(purse).display !== "none" ? purse.scrollWidth : 0;
   const need = Math.max(line.scrollWidth, purseW);
-  if (need <= room + 1) return;
+  if (need <= inner + 1) return;
   const size = parseFloat(getComputedStyle(h1).fontSize);
   if (!(size > 0)) return;
-  h1.style.fontSize = Math.max(11, (size * room) / need).toFixed(2) + "px";
+  h1.style.fontSize = ((size * inner) / need).toFixed(2) + "px";
 }
 function fitRunHub() {
   if (fitRunHub.busy) return;
