@@ -21092,16 +21092,67 @@ function getVoxelMat(colorHex, roughness = 0.84, metalness = 0.04, emissiveHex =
  */
 function buildVoxelCluster(blocks, scale = 1.0) {
     const group = new THREE.Group();
+    const buckets = new Map();
     for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         const [x, y, z, w, h, d, col, em = 0x000000, rough = 0.84, metal = 0.04] = b;
-        const mesh = new THREE.Mesh(unitBoxGeo, getVoxelMat(col, rough, metal, em));
-        mesh.position.set(x * scale, y * scale, z * scale);
-        mesh.scale.set(w * scale, h * scale, d * scale);
+        const mat = getVoxelMat(col, rough, metal, em);
+        let list = buckets.get(mat);
+        if (!list) buckets.set(mat, list = []);
+        list.push({
+            x: x * scale, y: y * scale, z: z * scale,
+            w: w * scale, h: h * scale, d: d * scale
+        });
+    }
+    const srcPos = unitBoxGeo.attributes.position;
+    const srcNrm = unitBoxGeo.attributes.normal;
+    const srcIdx = unitBoxGeo.index;
+    const vCount = srcPos.count;
+    const iCount = srcIdx ? srcIdx.count : vCount;
+    buckets.forEach(function (list, mat) {
+        let mesh;
+        if (list.length === 1) {
+            const box = list[0];
+            mesh = new THREE.Mesh(unitBoxGeo, mat);
+            mesh.position.set(box.x, box.y, box.z);
+            mesh.scale.set(box.w, box.h, box.d);
+        } else {
+            // Boxes on one joint share a transform. One mesh per colour draws
+            // the same cubes without a call for every block.
+            const pos = new Float32Array(list.length * vCount * 3);
+            const nrm = new Float32Array(list.length * vCount * 3);
+            const idx = new Uint32Array(list.length * iCount);
+            const pa = srcPos.array;
+            const na = srcNrm.array;
+            const ia = srcIdx ? srcIdx.array : null;
+            for (let b = 0; b < list.length; b++) {
+                const box = list[b];
+                const vo = b * vCount;
+                for (let p = 0; p < vCount; p++) {
+                    pos[(vo + p) * 3] = pa[p * 3] * box.w + box.x;
+                    pos[(vo + p) * 3 + 1] = pa[p * 3 + 1] * box.h + box.y;
+                    pos[(vo + p) * 3 + 2] = pa[p * 3 + 2] * box.d + box.z;
+                    nrm[(vo + p) * 3] = na[p * 3];
+                    nrm[(vo + p) * 3 + 1] = na[p * 3 + 1];
+                    nrm[(vo + p) * 3 + 2] = na[p * 3 + 2];
+                }
+                const io = b * iCount;
+                if (ia) {
+                    for (let p = 0; p < iCount; p++) idx[io + p] = ia[p] + vo;
+                } else {
+                    for (let p = 0; p < iCount; p++) idx[io + p] = vo + p;
+                }
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
+            geo.setIndex(new THREE.BufferAttribute(idx, 1));
+            mesh = new THREE.Mesh(geo, mat);
+        }
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         group.add(mesh);
-    }
+    });
     return group;
 }
 
@@ -21824,12 +21875,9 @@ function studioBuildCharacter(spec) {
     const isChild = !!b.isChild;
 
     const jointHelpers = [];
-    function addJointMarker(parent) {
-        const m = new THREE.Mesh(unitBoxGeo, getVoxelMat(0xd4a348, 0.3, 0.1, 0x8a611c));
-        m.scale.set(0.045, 0.045, 0.045);
-        m.visible = false;
-        parent.add(m);
-        jointHelpers.push(m);
+    function addJointMarker() {
+        // The gold cubes were a build aid. Leaving them in the rig walked a
+        // hidden mesh on every person, every frame.
     }
 
     // Core hierarchy
@@ -28446,7 +28494,7 @@ function setStreet(kind, fromPlace) {
   viewGlide = null;
   walkMode = on;
   syncPace();
-  applyCityLod(on);
+  syncCityLod();
   if (!on) purgeStreetCast();
   if (!on) {
     releaseStick();
@@ -31789,11 +31837,15 @@ city.traverse(obj => {
   if (obj.isInstancedMesh && u.lod === "detail") detailChunks.push(obj);
   else if (obj.isInstancedMesh || u.cityMass) streetChunks.push(obj);
 });
-// A cell whose near edge is inside the street fog is not drawn. The frustum
-// alone kept a chunk whose sphere still crossed the far plane.
-function holdChunk(mesh, reach, street) {
+// A cell whose near edge is still inside the street fog stays drawn. The
+// frustum alone kept a chunk whose sphere crossed the far plane. Distance is
+// to that near edge, so a fat sphere cannot hold a far cell on.
+function chunkNear(mesh) {
   const s = mesh.geometry && mesh.geometry.boundingSphere;
-  if (!s) return;
+  if (!s) return null;
+  return Math.hypot(s.center.x - camera.position.x, s.center.z - camera.position.z) - s.radius;
+}
+function holdChunk(mesh, reach, street) {
   if (!street) {
     if (mesh.userData.chunkHeld) {
       mesh.visible = true;
@@ -31801,7 +31853,8 @@ function holdChunk(mesh, reach, street) {
     }
     return;
   }
-  const near = Math.hypot(s.center.x - camera.position.x, s.center.z - camera.position.z) - s.radius;
+  const near = chunkNear(mesh);
+  if (near == null) return;
   const show = near < reach;
   if (!show && mesh.visible) {
     mesh.visible = false;
@@ -31811,10 +31864,105 @@ function holdChunk(mesh, reach, street) {
     mesh.userData.chunkHeld = 0;
   }
 }
+// Small loose props are not in a chunk, so the street hide never saw them.
+// Only a mesh smaller than a person is eligible, and only once it is well
+// into the fog. Walls, the road and the cages stay on their own lists.
+function looseFarMeshes() {
+  if (looseFarMeshes.list) return looseFarMeshes.list;
+  const skip = new Set();
+  for (let i = 0; i < streetChunks.length; i++) skip.add(streetChunks[i]);
+  for (let i = 0; i < detailChunks.length; i++) skip.add(detailChunks[i]);
+  const list = [];
+  scene.traverse(function (obj) {
+    if (!obj.isMesh || obj.isInstancedMesh || skip.has(obj)) return;
+    let p = obj;
+    while (p) {
+      const u = p.userData || {};
+      if (u.pelvis || u.ride || u.live || p === sky || p === rain || p === splash || p === ground || p === roads) return;
+      p = p.parent;
+    }
+    const geo = obj.geometry;
+    if (!geo || !geo.attributes || !geo.attributes.position) return;
+    if (!geo.boundingSphere) geo.computeBoundingSphere();
+    const s = geo.boundingSphere;
+    if (!s) return;
+    obj.updateWorldMatrix(true, false);
+    const e = obj.matrixWorld.elements;
+    const sx = Math.hypot(e[0], e[1], e[2]);
+    const sy = Math.hypot(e[4], e[5], e[6]);
+    const sz = Math.hypot(e[8], e[9], e[10]);
+    const worldR = s.radius * Math.max(sx, sy, sz);
+    if (!(worldR > 0) || worldR > 1.8) return;
+    obj.userData.farR = worldR;
+    list.push(obj);
+  });
+  looseFarMeshes.list = list;
+  return list;
+}
+function holdFarMesh(mesh, reach, street) {
+  if (!street) {
+    if (mesh.userData.farHeld) {
+      mesh.visible = true;
+      mesh.userData.farHeld = 0;
+    }
+    return;
+  }
+  const e = mesh.matrixWorld.elements;
+  const near = Math.hypot(e[12] - camera.position.x, e[14] - camera.position.z) - (mesh.userData.farR || 1);
+  const show = near < reach;
+  if (!show && mesh.visible) {
+    mesh.visible = false;
+    mesh.userData.farHeld = 1;
+  } else if (show && mesh.userData.farHeld) {
+    mesh.visible = true;
+    mesh.userData.farHeld = 0;
+  }
+}
+// The block beside the runner keeps every face. Farther down the lane the
+// small faces are already lost in the fog, and the large ones stay. From
+// above, the whole fort uses that same lighter index the opening view uses.
+function syncCityLod() {
+  const high = !walkMode || camera.position.y > 42;
+  const camX = camera.position.x;
+  const camZ = camera.position.z;
+  for (let i = 0; i < cityLods.length; i++) {
+    const rec = cityLods[i];
+    const geo = rec.geo;
+    const full = geo.userData.fullIndex;
+    const half = geo.userData.viewIndex;
+    if (!full || !half) continue;
+    let wantFull = false;
+    if (!high) {
+      const s = geo.boundingSphere;
+      const near = s
+        ? Math.hypot(s.center.x - camX, s.center.z - camZ) - s.radius
+        : Math.hypot(rec.mesh.position.x - camX, rec.mesh.position.z - camZ);
+      wantFull = near < 78;
+    }
+    const next = wantFull ? full : half;
+    if (geo.index === next) continue;
+    geo.setIndex(next);
+    if (rec.fullSpans) rec.mesh.userData.pickSpans = wantFull ? rec.fullSpans : rec.viewSpans;
+  }
+}
 function stepDetailChunks() {
-  const street = walkMode && camera.position.y < 36;
-  for (let i = 0; i < streetChunks.length; i++) holdChunk(streetChunks[i], 112, street);
-  for (let i = 0; i < detailChunks.length; i++) holdChunk(detailChunks[i], 88, street);
+  const street = walkMode && camera.position.y < 36 && !walkGlide;
+  const fogFar = scene.fog ? scene.fog.far : 115;
+  // The near face has to be inside the fog before a building drops, so the
+  // block fades rather than popping. Cage wire, boards and tarps stay with
+  // the mass. Flowers, pots and the thin bars are the detail list.
+  const massReach = Math.min(112, Math.max(84, fogFar - 6));
+  const detailReach = 72;
+  for (let i = 0; i < streetChunks.length; i++) holdChunk(streetChunks[i], massReach, street);
+  for (let i = 0; i < detailChunks.length; i++) holdChunk(detailChunks[i], detailReach, street);
+  if (street) {
+    const loose = looseFarMeshes();
+    for (let i = 0; i < loose.length; i++) holdFarMesh(loose[i], detailReach, true);
+  } else if (looseFarMeshes.list) {
+    const loose = looseFarMeshes.list;
+    for (let i = 0; i < loose.length; i++) holdFarMesh(loose[i], detailReach, false);
+  }
+  syncCityLod();
 }
 // Inside shopfronts and stair mouths. Outer roads are not in this list.
 // An inside piece exists only in walk mode, and only while it sits in the frame.
@@ -32119,18 +32267,22 @@ function packShopMesh(mesh) {
       s.shown[i] = 0;
       continue;
     }
-    let show = !flag && s.stay[i] === 1;
-    if (!show) {
-      const dx = s.px[i] - cam.x;
-      const dy = s.py[i] - cam.y;
-      const dz = s.pz[i] - cam.z;
-      const held = s.shown[i];
-      const reach = held ? 108 : 96;
-      keeperView.sphere.center.set(s.px[i], s.py[i], s.pz[i]);
-      keeperView.sphere.radius = s.pr[i] + (held ? 2.6 : 0.55);
-      show = dx * dx + dy * dy + dz * dz < reach * reach
-        && keeperView.frustum.intersectsSphere(keeperView.sphere);
-    }
+    const dx = s.px[i] - cam.x;
+    const dy = s.py[i] - cam.y;
+    const dz = s.pz[i] - cam.z;
+    const held = s.shown[i];
+    // Outer-road fronts used to stay in every street frame. On the lane they
+    // follow the fog and the view, so one behind you is not drawn. Above the
+    // roofs they stay, which is the aerial picture.
+    const stay = !flag && s.stay[i] === 1;
+    const onLane = camera.position.y < 40;
+    const fogFar = scene.fog ? scene.fog.far : 115;
+    const reach = stay && onLane ? Math.max(108, fogFar) : (held ? 108 : 96);
+    keeperView.sphere.center.set(s.px[i], s.py[i], s.pz[i]);
+    keeperView.sphere.radius = s.pr[i] + (held ? 2.6 : 0.55);
+    let show = dx * dx + dy * dy + dz * dz < reach * reach
+      && keeperView.frustum.intersectsSphere(keeperView.sphere);
+    if (stay && !onLane) show = true;
     s.shown[i] = show ? 1 : 0;
     if (!show) continue;
     ids[n++] = i;
@@ -33770,6 +33922,23 @@ function updateWetReflCamera(farLimit, planeY, clipDrop) {
   pe[14] = wetReflClip.w;
   return true;
 }
+// Pots, flowers and thin bars do not read in the small mirror. The buildings,
+// the cage wire and the people stay, so a puddle still shows the lane.
+function hideMirrorDetail(hide) {
+  const held = hideMirrorDetail.held || (hideMirrorDetail.held = []);
+  if (hide) {
+    held.length = 0;
+    for (let i = 0; i < detailChunks.length; i++) {
+      const mesh = detailChunks[i];
+      if (!mesh.visible) continue;
+      held.push(mesh);
+      mesh.visible = false;
+    }
+    return;
+  }
+  for (let i = 0; i < held.length; i++) held[i].visible = true;
+  held.length = 0;
+}
 function renderWetReflection() {
   if (uWet.value < 0.08) {
     uWetReflOn.value = 0;
@@ -33865,7 +34034,9 @@ function renderWetReflection() {
   renderer.clear();
   const heldWalk = uFxWalk.value;
   uFxWalk.value = 0;
+  hideMirrorDetail(true);
   renderer.render(scene, wetReflCam);
+  hideMirrorDetail(false);
   uFxWalk.value = heldWalk;
   renderer.setRenderTarget(prev);
   releaseMirrorSamplers();
