@@ -29247,7 +29247,7 @@ const RUN_COPY = {
     purse: "袋中", take: "取貨", give: "交人", lift: "拾起",
     shut: "舖未開", ended: "這一班完了", full: "手上有貨",
     sheet: "這一班", over: "這一班完了", survived: "撐了", earn: "收入",
-    done: "已交到", none: "沒有單", day: "日", days: "日",
+    done: "已交到", none: "沒有單", day: "日", days: "日", hour: "小時", hours: "小時",
     on: "收到", late: "遲到", fail: "未交到",
     bonus: "一併送達", net: "本班", close: "重新開始",
     green: "短程", yellow: "過舖", red: "上天台",
@@ -29259,7 +29259,7 @@ const RUN_COPY = {
     purse: "Purse", take: "Take", give: "Hand over", lift: "Pick up",
     shut: "Counters are shut", ended: "This shift is over", full: "Hands are full",
     sheet: "This shift", over: "Game over", survived: "Time survived", earn: "Earnings",
-    done: "Completed", none: "No orders", day: "day", days: "days",
+    done: "Completed", none: "No orders", day: "day", days: "days", hour: "hour", hours: "hours",
     on: "Paid", late: "Late", fail: "Failed",
     bonus: "Together", net: "Shift", close: "Restart",
     green: "Short", yellow: "Counter", red: "Roof",
@@ -29271,7 +29271,7 @@ const RUN_COPY = {
     purse: "財布", take: "受け取る", give: "渡す", lift: "拾う",
     shut: "店は閉まっている", ended: "この回は終わり", full: "手がふさがっている",
     sheet: "この回", over: "この回は終わり", survived: "生き残った", earn: "収入",
-    done: "届けた", none: "荷物はない", day: "日", days: "日",
+    done: "届けた", none: "荷物はない", day: "日", days: "日", hour: "時間", hours: "時間",
     on: "入金", late: "遅れ", fail: "届かず",
     bonus: "まとめて", net: "この回", close: "やり直す",
     green: "近い", yellow: "店", red: "屋上",
@@ -29336,11 +29336,12 @@ function runEsc(s) {
 function runSurvivedText(now) {
   const day = stepSky.day > 0 ? stepSky.day : 120;
   const elapsed = Math.max(0, (now || 0) - (run.t0 || now || 0));
-  const full = Math.floor(elapsed / day + 1e-9);
-  const start = run.clock0 == null ? DAY_START : run.clock0;
-  const clock = ((start + elapsed / day) % 1 + 1) % 1;
-  const unit = full === 1 ? runText("day") : runText("days");
-  return full + " " + unit + " · " + whenLabel(clock * 24, lang);
+  const span = elapsed / day;
+  const days = Math.floor(span + 1e-8);
+  const hours = Math.min(23, Math.floor((span - days) * 24 + 1e-6));
+  const dayUnit = days === 1 ? runText("day") : runText("days");
+  const hourUnit = hours === 1 ? runText("hour") : runText("hours");
+  return days + " " + dayUnit + " · " + hours + " " + hourUnit;
 }
 function runClockText(sec) {
   const s = Math.max(0, Math.ceil(sec));
@@ -29868,7 +29869,6 @@ function runOpenDay(now, restart) {
   run.earned = 0;
   run.log = [];
   run.t0 = now;
-  run.clock0 = DAY_START;
   run.survivedAt = now;
   run.flash = 0;
   const shops = run.shops || [];
