@@ -29308,9 +29308,10 @@ const RUN_COPY = {
   }
 };
 const SHIFT_SECS = 180;
+const START_PURSE = 0;
 const FARE_BASE = { green: 12, yellow: 22, red: 36 };
 const run = {
-  purse: 36, day: false, ended: false, sheet: false, intro: 3,
+  purse: START_PURSE, day: false, ended: false, sheet: false, intro: 3,
   jobs: [], slips: [], runs: [], openRun: null, shops: null,
   seq: 1, speed: 0, wasFast: false, fastAt: -10, dropCool: 0,
   boxMat: null, layAt: 0,
@@ -29985,7 +29986,7 @@ function runOpenDay(now, restart) {
   run.flash = 0;
   run.flashN = 0;
   if (restart) {
-    run.purse = 36;
+    run.purse = START_PURSE;
     run.slips = [];
     run.runs = [];
     run.openRun = null;
