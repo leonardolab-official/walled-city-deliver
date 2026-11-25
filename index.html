@@ -27401,6 +27401,7 @@ function stepSky(now) {
     clock = glide.from + glide.span * s;
     clock = ((clock % 1) + 1) % 1;
     if (u >= 1) {
+      const thenWalk = glide.thenWalk;
       stepSky.glide = null;
       if (glide.play) {
         stepSky.hold = null;
@@ -27411,6 +27412,12 @@ function stepSky(now) {
       } else {
         stepSky.hold = glide.to;
         clock = glide.to;
+      }
+      // The start picture stays put until eight in the morning has arrived.
+      if (thenWalk && !walkMode) {
+        run.t0 = now;
+        run.survivedAt = now;
+        setWalk(true);
       }
     }
   } else if (typeof stepSky.hold === "number") clock = ((stepSky.hold % 1) + 1) % 1;
@@ -29891,6 +29898,68 @@ function plantMorning(now) {
   paintSky();
   paintClock(true);
 }
+function runPlaceAtEntry() {
+  if (roofStay) {
+    clearRoofVisit();
+    roofStay = null;
+    setFloor(14);
+  }
+  walkGlide = null;
+  const pose = walkEntryPose();
+  const spot = walkClear(pose.x, pose.z);
+  walkX = spot.x;
+  walkZ = spot.z;
+  walkYaw = pose.yaw;
+  walkPitch = pose.pitch;
+  walkPinned = false;
+  walkHome = { x: walkX, z: walkZ };
+  walkHeld.clear();
+  releaseStick();
+  lookDrag = null;
+  run.speed = 0;
+  run.wasFast = false;
+  run.dropCool = 0;
+  run.gaitMix = 0;
+  run.strideAmp = 0;
+  run.riderPhase = 0;
+  run.riderFace = walkYaw + Math.PI;
+  placeWalkEye();
+  runPlaceRider(0, false, 0);
+}
+function runResetCast() {
+  dropKeepers();
+  for (let i = cityFolk.length - 1; i >= 0; i--) {
+    const ud = cityFolk[i];
+    dropFolk(ud);
+    if (ud.flow) {
+      cityFolk.splice(i, 1);
+      continue;
+    }
+    const path = ud.path;
+    if (!path) continue;
+    const span = Math.max(0.5, path.b - path.a);
+    ud.along = ((ud.who || 0) * 5.1 + path.a) % span;
+    ud.dir = (ud.who || 0) % 2 ? -1 : 1;
+    ud.depart = 0;
+    ud.retire = 0;
+    ud.wait = 0;
+    ud.act = null;
+    const frame = walkerFrame(path, ud.along, ud.dir);
+    ud.x = frame.worldX;
+    ud.z = frame.worldZ;
+    ud.y = path.y == null ? GROUND_Y : path.y;
+    ud.yaw = frame.yaw;
+  }
+  for (let i = alleyHeat.length - 1; i >= 0; i--) dropHeatOne(alleyHeat[i]);
+  heat.phase = "quiet";
+  heat.t = 0;
+  heat.spot = null;
+  heat.leaving = false;
+  for (let i = gangFight.length - 1; i >= 0; i--) dropGangOne(gangFight[i]);
+  gang.leaving = false;
+  dropSleepMeshes();
+  renderWetReflection.figs = null;
+}
 function runOpenDay(now, restart) {
   if (run.ended) return;
   run.day = true;
@@ -29903,10 +29972,25 @@ function runOpenDay(now, restart) {
   run.t0 = now;
   run.survivedAt = now;
   run.flash = 0;
+  run.flashN = 0;
+  if (restart) {
+    run.purse = 36;
+    run.slips = [];
+    run.runs = [];
+    run.openRun = null;
+    run.layAt = 0;
+    run.seq = 1;
+    runForgetJobs();
+  }
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
     shops[i].slip = null;
     shops[i].next = 0;
+    if (restart) runParkHolo(shops[i]);
+  }
+  if (restart) {
+    runResetCast();
+    runPlaceAtEntry();
   }
   todLock = null;
   markAir("tod-seg", "auto");
@@ -29919,7 +30003,8 @@ function runOpenDay(now, restart) {
     const span = todShort(from, morning);
     if (Math.abs(span) < 0.004) plantMorning(now);
     else {
-      // Ease the sun to eight in the morning, then let the day keep turning.
+      // Ease the sun to eight in the morning on the start picture, then let the day keep turning.
+      // The camera waits until this ease has finished.
       const dur = Math.min(6.5, Math.max(2.4, Math.abs(span) * 12));
       stepSky.hold = null;
       stepSky.glide = { from: from, to: morning, span: span, t0: now, t1: now + dur, play: true };
@@ -31048,10 +31133,12 @@ document.getElementById("run-prompt").addEventListener("click", function (e) {
 document.getElementById("run-sheet-close").addEventListener("click", function (e) {
   e.preventDefault();
   run.sheet = false;
-  runForgetJobs();
-  run.runs = [];
-  run.openRun = null;
   if (!run.ended) runOpenDay(performance.now() * 0.001, true);
+  else {
+    runForgetJobs();
+    run.runs = [];
+    run.openRun = null;
+  }
   runPaint();
 });
 // The map sits at the top right, under the settings gear. The mark points
@@ -31362,7 +31449,13 @@ function beginDelivery() {
   deliveryOn = true;
   const now = performance.now() * 0.001;
   if (!run.day && !run.sheet) runOpenDay(now);
-  setWalk(true);
+  const glide = stepSky.glide;
+  if (glide && glide.t1 > now + 0.02) {
+    glide.thenWalk = true;
+    controls.enabled = false;
+    const startBtn = document.getElementById("start");
+    if (startBtn) startBtn.hidden = true;
+  } else setWalk(true);
 }
 document.getElementById("roof-go").onclick = (e) => {
   e.preventDefault();
