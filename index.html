@@ -13782,10 +13782,9 @@ const traffic = [];
   // Kowloon Motor Bus, through the 1980s: cream above, red below, red roof.
   // The later orange fleet colour is a 1990s change.
   const kmbOrange = solid(0xc4161c, 0.5, 0.04);
-  // Urban taxis through the 1980s were red all over, including the roof.
-  // The green fleet was the New Territories. The glass stays paint.
-  const taxiRed = solid(0xde1418, 0.32, 0.08);
-  const taxiRoof = taxiRed;
+  // 1980s Hong Kong urban taxis: crimson red body with metallic silver roof.
+  const taxiRed = solid(0xd6141a, 0.3, 0.1);
+  const taxiRoof = solid(0xd4d8de, 0.26, 0.56);
   const silver = solid(0xd5d8dc, 0.32, 0.55);
   const ivory = solid(0xe6dece, 0.5, 0.04);
   const carBlue = solid(0x6d92a8, 0.48, 0.05);
@@ -14416,140 +14415,234 @@ const traffic = [];
     const b = r.piece(0.05, h, w, x, y, -z, mat, 3);
     if (tail) r.ride.tails.push(a, b);
   }
+  // =========================================================================
+  // 1980s HONG KONG VEHICLES (Rebuilt: Taxi, Saloon, Red Minibus, KMB Bus, Van, Lorry)
+  // =========================================================================
+  const crateBlue = solid(0x22568a, 0.65, 0.05);
+  const crateRed = solid(0xa82424, 0.65, 0.05);
+  const roofRackMat = solid(0x8a9298, 0.42, 0.68);
+  const hkFlagRed = glow(0xff2820, 0xff1e14, 1.45);
+
+  function addRakedPane(r, w, h, x, y, z, mat, tiltZ) {
+    r.put(0.035, h, w, x, y, z, mat, { z: tiltZ });
+  }
+  function addWheelArches(r, xs, halfZ, rad) {
+    for (let i = 0; i < xs.length; i++) {
+      r.arch(xs[i], halfZ, rad);
+      r.arch(xs[i], -halfZ, rad);
+    }
+  }
+  function addFenderMirrors(r, x, y, z) {
+    [-1, 1].forEach(s => {
+      r.bar(x, y, s * z, x + 0.03, y + 0.11, s * (z + 0.05), 0.01, chrome);
+      r.put(0.055, 0.075, 0.11, x + 0.02, y + 0.125, s * (z + 0.065), chrome);
+      r.put(0.015, 0.062, 0.092, x - 0.008, y + 0.125, s * (z + 0.065), glass);
+    });
+  }
+  function addTruckMirrors(r, x, y0, y1, z0, z1) {
+    [-1, 1].forEach(s => {
+      r.bar(x, y1, s * z0, x + 0.05, y1, s * z1, 0.012, blackTrim);
+      r.bar(x, y0, s * z0, x + 0.05, y0 + 0.04, s * z1, 0.012, blackTrim);
+      r.bar(x + 0.05, y0 + 0.04, s * z1, x + 0.05, y1, s * z1, 0.011, blackTrim);
+      r.put(0.045, (y1 - y0) * 0.72, 0.12, x + 0.05, (y0 + y1) * 0.5 + 0.02, s * (z1 + 0.03), blackTrim);
+      r.put(0.015, (y1 - y0) * 0.64, 0.1, x + 0.026, (y0 + y1) * 0.5 + 0.02, s * (z1 + 0.03), chrome);
+    });
+  }
+
+  // --- 1. 1980s HONG KONG URBAN TAXI (Toyota Crown MS110/YS120 / Nissan Cedric 430) ---
   function taxiDoorSide(g, w, h, body, noseAtLeft) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
     const xOf = (t) => (noseAtLeft ? t : 1 - t) * w;
-    g.fillStyle = "rgba(28,10,10,0.55)";
-    [0.3, 0.5, 0.72].forEach((t) => g.fillRect(xOf(t) - 1.5, h * 0.08, 3, h * 0.74));
-    g.fillStyle = "#e6eaee";
-    [0.4, 0.62].forEach((t) => g.fillRect(xOf(t), h * 0.46, w * 0.04, h * 0.07));
-    chromeBar(g, h * 0.05, w, 3);
-    g.fillStyle = "#1a1c1e";
+    // Lower black rocker sill + subtle shadow
+    g.fillStyle = "#16181a";
     g.fillRect(0, h * 0.84, w, h * 0.16);
-    g.fillStyle = "#121416";
-    [0.17, 0.825].forEach((t) => {
+    // Classic 80s Crown/Cedric chrome beltline & black rubber rub strip
+    chromeBar(g, h * 0.34, w, 4);
+    g.fillStyle = "#1e2022";
+    g.fillRect(w * 0.04, h * 0.54, w * 0.92, 5);
+    chromeBar(g, h * 0.54, w, 2);
+    // Door seams
+    g.fillStyle = "rgba(18,10,10,0.62)";
+    [0.29, 0.53, 0.77].forEach((t) => g.fillRect(xOf(t) - 1.5, h * 0.04, 3, h * 0.78));
+    // Chrome pull handles
+    g.fillStyle = "#e8edf2";
+    g.fillRect(xOf(0.49) - 6, h * 0.24, 12, 5);
+    g.fillRect(xOf(0.73) - 6, h * 0.24, 12, 5);
+    // Front fender amber side repeater
+    g.fillStyle = "#e89820";
+    g.fillRect(xOf(0.18) - 4, h * 0.42, 8, 5);
+    // Wheel well cutouts
+    g.fillStyle = "#101214";
+    [0.17, 0.82].forEach((t) => {
       g.beginPath();
-      g.ellipse(xOf(t), h - 1, w * 0.072, h * 0.5, 0, Math.PI, 0, false);
+      g.ellipse(xOf(t), h + 1, w * 0.072, h * 0.46, 0, Math.PI, 0, false);
       g.closePath();
       g.fill();
     });
     soil(g, w, h);
   }
-  function taxiGlassSide(g, w, h, body, noseAtLeft) {
-    g.fillStyle = body;
+  function taxiGlassSide(g, w, h, body, roofHex, noseAtLeft) {
+    g.fillStyle = roofHex;
     g.fillRect(0, 0, w, h);
     const xOf = (t) => (noseAtLeft ? t : 1 - t) * w;
     const span = (a, b) => {
       const p = xOf(a), q = xOf(b);
       return [Math.min(p, q), Math.abs(q - p)];
     };
-    const front = span(0.08, 0.46);
-    const rear = span(0.54, 0.92);
-    glassPane(g, front[0], h * 0.12, front[1], h * 0.7);
-    glassPane(g, rear[0], h * 0.16, rear[1], h * 0.64);
-    chromeBar(g, h * 0.9, w, 3);
+    // Chrome upper window arch trim
+    g.fillStyle = "#d8dee4";
+    g.fillRect(w * 0.05, h * 0.06, w * 0.9, h * 0.06);
+    // Front, rear, and classic Crown/Cedric C-pillar opera window
+    const fWin = span(0.09, 0.44);
+    const rWin = span(0.49, 0.81);
+    const qWin = span(0.84, 0.93);
+    glassPane(g, fWin[0], h * 0.14, fWin[1], h * 0.76);
+    glassPane(g, rWin[0], h * 0.14, rWin[1], h * 0.76);
+    glassPane(g, qWin[0], h * 0.18, qWin[1], h * 0.66);
+    // Silver C-pillar badge vent
+    g.fillStyle = "#26282a";
+    g.fillRect(xOf(0.95) - 3, h * 0.28, 6, h * 0.36);
   }
   function taxiNose(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    function lamp(cx) {
-      g.fillStyle = "#d8dee6";
-      g.fillRect(cx - w * 0.1, h * 0.2, w * 0.2, h * 0.28);
-      g.fillStyle = "#f6f1e4";
-      g.fillRect(cx - w * 0.075, h * 0.24, w * 0.15, h * 0.2);
-    }
-    lamp(w * 0.2);
-    lamp(w * 0.8);
-    g.fillStyle = "#141618";
-    g.fillRect(w * 0.33, h * 0.22, w * 0.34, h * 0.3);
-    g.strokeStyle = "#d0d6dc";
+    // Recessed chrome-framed 80s Crown grille
+    g.fillStyle = "#d8dee6";
+    g.fillRect(w * 0.22, h * 0.2, w * 0.56, h * 0.36);
+    g.fillStyle = "#121416";
+    g.fillRect(w * 0.24, h * 0.23, w * 0.52, h * 0.3);
+    g.strokeStyle = "#cfd6de";
     g.lineWidth = 2;
     for (let i = 1; i <= 4; i++) {
-      const y = h * 0.22 + h * 0.3 * i / 5;
-      g.beginPath();
-      g.moveTo(w * 0.36, y);
-      g.lineTo(w * 0.64, y);
-      g.stroke();
+      const y = h * 0.23 + h * 0.3 * (i / 5);
+      g.beginPath(); g.moveTo(w * 0.25, y); g.lineTo(w * 0.75, y); g.stroke();
     }
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.05, h * 0.52, w * 0.08, h * 0.08);
-    g.fillRect(w * 0.87, h * 0.52, w * 0.08, h * 0.08);
-    chromeBar(g, h * 0.68, w, h * 0.16);
-    g.fillStyle = "#1c1e20";
-    g.fillRect(0, h * 0.88, w, h * 0.12);
+    // Center emblem
+    g.fillStyle = "#f2d26b";
+    g.fillRect(w * 0.47, h * 0.31, w * 0.06, h * 0.14);
+    // Quad rectangular headlight housings
+    [0.06, 0.78].forEach(lx => {
+      g.fillStyle = "#d0d6dc";
+      g.fillRect(w * lx, h * 0.2, w * 0.16, h * 0.32);
+      g.fillStyle = "#f4efe0";
+      g.fillRect(w * (lx + 0.02), h * 0.24, w * 0.12, h * 0.24);
+    });
+    // Amber corner indicators
+    g.fillStyle = "#e89220";
+    g.fillRect(w * 0.04, h * 0.55, w * 0.12, h * 0.11);
+    g.fillRect(w * 0.84, h * 0.55, w * 0.12, h * 0.11);
+    // Lower valance
+    g.fillStyle = "#16181a";
+    g.fillRect(0, h * 0.82, w, h * 0.18);
     soil(g, w, h);
   }
   function taxiTail(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    g.fillStyle = "rgba(40,12,12,0.45)";
-    g.fillRect(w * 0.18, h * 0.12, w * 0.64, 2);
-    g.fillStyle = "#6a1214";
-    g.fillRect(w * 0.06, h * 0.28, w * 0.16, h * 0.22);
-    g.fillRect(w * 0.78, h * 0.28, w * 0.16, h * 0.22);
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.07, h * 0.52, w * 0.1, h * 0.06);
-    g.fillRect(w * 0.83, h * 0.52, w * 0.1, h * 0.06);
-    chromeBar(g, h * 0.66, w, h * 0.16);
-    g.fillStyle = "#1c1e20";
-    g.fillRect(0, h * 0.86, w, h * 0.14);
+    // Trunk garnish panel
+    g.fillStyle = "#221012";
+    g.fillRect(w * 0.26, h * 0.22, w * 0.48, h * 0.26);
+    chromeBar(g, h * 0.2, w, 4);
+    chromeBar(g, h * 0.48, w, 3);
+    // Wide 80s Crown multi-lens tail lamps (red + amber + reverse white)
+    [0.05, 0.74].forEach(lx => {
+      g.fillStyle = "#7e1214";
+      g.fillRect(w * lx, h * 0.2, w * 0.21, h * 0.28);
+      g.fillStyle = "#d88a1e";
+      g.fillRect(w * (lx + 0.01), h * 0.22, w * 0.06, h * 0.11);
+      g.fillStyle = "#e8ecee";
+      g.fillRect(w * (lx + 0.14), h * 0.35, w * 0.06, h * 0.1);
+    });
+    g.fillStyle = "#16181a";
+    g.fillRect(0, h * 0.82, w, h * 0.18);
     soil(g, w, h);
   }
-  function taxiScreen(g, w, h, body) {
-    g.fillStyle = body;
+  function taxiScreen(g, w, h, roofHex) {
+    g.fillStyle = roofHex;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.07, h * 0.08, w * 0.86, h * 0.78);
-    g.strokeStyle = "rgba(16,12,10,0.8)";
+    glassPane(g, w * 0.07, h * 0.1, w * 0.86, h * 0.78);
+    // Wiper blades
+    g.strokeStyle = "#101214";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(w * 0.16, h * 0.76);
-    g.lineTo(w * 0.4, h * 0.2);
-    g.moveTo(w * 0.6, h * 0.76);
-    g.lineTo(w * 0.84, h * 0.2);
+    g.moveTo(w * 0.22, h * 0.84); g.lineTo(w * 0.48, h * 0.42);
+    g.moveTo(w * 0.56, h * 0.84); g.lineTo(w * 0.82, h * 0.42);
     g.stroke();
   }
-  function taxiRearGlass(g, w, h, body) {
-    g.fillStyle = body;
+  function taxiRearGlass(g, w, h, roofHex) {
+    g.fillStyle = roofHex;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.12, h * 0.12, w * 0.76, h * 0.7);
+    glassPane(g, w * 0.1, h * 0.12, w * 0.8, h * 0.74);
+    // Defogger lines
+    g.strokeStyle = "rgba(180,140,90,0.35)";
+    g.lineWidth = 1;
+    for (let i = 1; i <= 5; i++) {
+      const y = h * (0.2 + i * 0.1);
+      g.beginPath(); g.moveTo(w * 0.14, y); g.lineTo(w * 0.86, y); g.stroke();
+    }
   }
   function buildTaxi(r, opt) {
     const body = cssColor(taxiRed);
-    const sideL = bodySkin("taxi:sideL", (g, w, h) => taxiDoorSide(g, w, h, body, true), 0.42);
-    const sideR = bodySkin("taxi:sideR", (g, w, h) => taxiDoorSide(g, w, h, body, false), 0.42);
-    const nose = bodySkin("taxi:nose", (g, w, h) => taxiNose(g, w, h, body), 0.4, [256, 256]);
-    const tail = bodySkin("taxi:tail", (g, w, h) => taxiTail(g, w, h, body), 0.4, [256, 256]);
-    const cabL = bodySkin("taxi:cabL", (g, w, h) => taxiGlassSide(g, w, h, body, true), 0.4);
-    const cabR = bodySkin("taxi:cabR", (g, w, h) => taxiGlassSide(g, w, h, body, false), 0.4);
-    const screen = bodySkin("taxi:screen", (g, w, h) => taxiScreen(g, w, h, body), 0.38, [256, 192]);
-    const back = bodySkin("taxi:back", (g, w, h) => taxiRearGlass(g, w, h, body), 0.38, [256, 192]);
-    // Long bonnet, upright cabin, short trunk. One solid body. The glass is painted on.
-    r.block(4.55, 0.62, 1.72, 0, 0.66, 0, [nose, tail, taxiRed, blackTrim, sideR, sideL]);
-    r.block(2.2, 0.48, 1.52, -0.15, 1.14, 0, [screen, back, taxiRed, taxiRed, cabR, cabL]);
-    glowPair(r, 2.32, 0.75, 0.52, headMat, 0.1, 0.24, false);
-    r.piece(0.03, 0.05, 0.1, 2.31, 0.62, 0.72, markerMat, 3);
-    r.piece(0.03, 0.05, 0.1, 2.31, 0.62, -0.72, markerMat, 3);
-    r.piece(0.025, 0.16, 0.5, 2.3, 0.72, 0, grilleMat, 3);
-    r.put(0.08, 0.1, 1.58, 2.32, 0.5, 0, chrome);
-    glowPair(r, -2.32, 0.74, 0.62, tailOff, 0.12, 0.22, true);
-    r.put(0.08, 0.1, 1.58, -2.32, 0.5, 0, chrome);
-    r.plates(2.4, -2.4, 0.4, opt && opt.reg);
+    const roofHex = cssColor(taxiRoof);
+    const sideL = bodySkin("taxi80:sideL", (g, w, h) => taxiDoorSide(g, w, h, body, true), 0.38, [512, 192]);
+    const sideR = bodySkin("taxi80:sideR", (g, w, h) => taxiDoorSide(g, w, h, body, false), 0.38, [512, 192]);
+    const nose = bodySkin("taxi80:nose", (g, w, h) => taxiNose(g, w, h, body), 0.38, [256, 192]);
+    const tail = bodySkin("taxi80:tail", (g, w, h) => taxiTail(g, w, h, body), 0.38, [256, 192]);
+    const cabL = bodySkin("taxi80:cabL", (g, w, h) => taxiGlassSide(g, w, h, body, roofHex, true), 0.34, [512, 160]);
+    const cabR = bodySkin("taxi80:cabR", (g, w, h) => taxiGlassSide(g, w, h, body, roofHex, false), 0.34, [512, 160]);
+    const screen = bodySkin("taxi80:screen", (g, w, h) => taxiScreen(g, w, h, roofHex), 0.32, [256, 192]);
+    const back = bodySkin("taxi80:back", (g, w, h) => taxiRearGlass(g, w, h, roofHex), 0.32, [256, 192]);
+
+    // 3-box 1980s Crown/Cedric hull: crimson lower body + sculpted bonnet/trunk + silver greenhouse
+    r.block(4.68, 0.58, 1.74, 0, 0.64, 0, [nose, tail, taxiRed, blackTrim, sideR, sideL]);
+    // Subtle raised bonnet center crest & trunk lid bevel
+    r.put(1.42, 0.05, 1.24, 1.54, 0.945, 0, taxiRed);
+    r.put(1.02, 0.04, 1.38, -1.72, 0.94, 0, taxiRed);
+    // Silver greenhouse (distinct 80s HK Urban Taxi red-body / silver-roof look)
+    r.block(2.14, 0.48, 1.52, -0.14, 1.15, 0, [screen, back, taxiRoof, taxiRed, cabR, cabL]);
+    // Sloped A-pillar windscreen fairing & C-pillar rear glass fairing
+    addRakedPane(r, 1.44, 0.52, 0.98, 1.14, 0, glass, 0.42);
+    addRakedPane(r, 1.42, 0.5, -1.26, 1.14, 0, glass, -0.44);
+    // Chrome A/C pillar trim & silver roof crown cap
+    r.put(2.04, 0.035, 1.44, -0.14, 1.405, 0, taxiRoof);
+    r.piece(2.14, 0.022, 0.035, -0.14, 1.39, 0.765, chrome, 3);
+    r.piece(2.14, 0.022, 0.035, -0.14, 1.39, -0.765, chrome, 3);
+    // Recessed 80s grille + quad rectangular headlamps + amber corner blinkers
+    r.piece(0.03, 0.16, 0.66, 2.35, 0.72, 0, grilleMat, 3);
+    r.piece(0.035, 0.02, 0.68, 2.355, 0.8, 0, chrome, 3);
+    r.piece(0.035, 0.02, 0.68, 2.355, 0.64, 0, chrome, 3);
+    glowPair(r, 2.36, 0.72, 0.58, headMat, 0.11, 0.24, false);
+    r.piece(0.035, 0.055, 0.11, 2.35, 0.58, 0.74, markerMat, 3);
+    r.piece(0.035, 0.055, 0.11, 2.35, 0.58, -0.74, markerMat, 3);
+    // Wrap-around chrome bumpers with black rubber overriders (front & rear)
+    r.put(0.11, 0.11, 1.72, 2.38, 0.44, 0, chrome);
+    r.put(0.13, 0.055, 1.74, 2.39, 0.44, 0, blackTrim);
+    [-0.44, 0.44].forEach(z => r.put(0.07, 0.14, 0.07, 2.43, 0.46, z, blackTrim));
+    glowPair(r, -2.36, 0.73, 0.62, tailOff, 0.12, 0.28, true);
+    r.put(0.11, 0.11, 1.72, -2.38, 0.44, 0, chrome);
+    r.put(0.13, 0.055, 1.74, -2.39, 0.44, 0, blackTrim);
+    [-0.44, 0.44].forEach(z => r.put(0.07, 0.14, 0.07, -2.43, 0.46, z, blackTrim));
+    // Exhaust pipe
+    r.bar(-2.15, 0.29, -0.52, -2.42, 0.28, -0.52, 0.026, steel);
+    r.plates(2.45, -2.45, 0.39, opt && opt.reg);
+    // Wheel arches & 4 hubcap wheels
+    addWheelArches(r, [1.5, -1.48], 0.87, 0.32);
     r.wheel(1.5, 0.84, 0.31, 0.2, false, true);
     r.wheel(1.5, -0.84, 0.31, 0.2, false, true);
     r.wheel(-1.48, 0.84, 0.31, 0.2, false, true);
     r.wheel(-1.48, -0.84, 0.31, 0.2, false, true);
-    r.bar(0.7, 1.06, 0.78, 0.76, 1.16, 0.98, 0.012, blackTrim);
-    r.put(0.1, 0.07, 0.035, 0.76, 1.16, 1.0, chrome);
-    r.bar(0.7, 1.06, -0.78, 0.76, 1.16, -0.98, 0.012, blackTrim);
-    r.put(0.1, 0.07, 0.035, 0.76, 1.16, -1.0, chrome);
-    r.piece(2.16, 0.02, 0.035, -0.15, 1.39, 0.76, chrome, 3);
-    r.piece(2.16, 0.02, 0.035, -0.15, 1.39, -0.76, chrome, 3);
-    r.bar(1.55, 0.98, 0.55, 1.55, 1.42, 0.55, 0.008, blackTrim);
-    r.blob(1.65);
+    // Iconic 1980s Japanese/HK fender-mounted chrome mirrors + whip antenna
+    addFenderMirrors(r, 1.68, 0.92, 0.72);
+    r.bar(0.86, 0.95, 0.75, 0.78, 1.56, 0.76, 0.007, chrome);
+    // Red "FOR HIRE" dash flag behind the left windscreen
+    r.piece(0.025, 0.09, 0.18, 0.94, 0.99, -0.44, hkFlagRed, 4);
+    r.blob(1.7);
+
+    // Illuminated 1980s HK TAXI roof sign box (trapezoidal housing + glowing faces)
     const sign = new THREE.Mesh(box, opt.forHire ? signOn : signOff);
-    sign.scale.set(0.64, 0.11, 0.22);
-    sign.position.set(0.02, 1.45 - 0.33, 0);
+    sign.scale.set(0.24, 0.125, 0.56);
+    sign.position.set(0.06, 1.48 - 0.33, 0);
     sign.renderOrder = 3;
     r.ride.shell.add(sign);
     r.ride.signMesh = sign;
@@ -14570,7 +14663,7 @@ const traffic = [];
         tex.needsUpdate = true;
         const mat = new THREE.MeshStandardMaterial({
           map: tex, color: 0xffffff,
-          roughness: opts && opts.rough != null ? opts.rough : 0.48,
+          roughness: opts && opts.rough != null ? opts.rough : 0.44,
           metalness: 0,
           emissive: opts && opts.emissive || 0x000000,
           emissiveIntensity: opts && opts.emI || 0,
@@ -14581,37 +14674,44 @@ const traffic = [];
         fadeSolid(mat);
         return mat;
       }
-      const paintSign = (g, w, h) => {
-        g.fillStyle = "#f7f1e2";
+      const paintRoofSign = (g, w, h) => {
+        g.fillStyle = "#faf5e8";
         g.fillRect(0, 0, w, h);
-        g.strokeStyle = "#c41218";
+        g.strokeStyle = "#c81218";
         g.lineWidth = 8;
-        g.strokeRect(5, 5, w - 10, h - 10);
-        g.fillStyle = "#c41218";
-        g.font = "700 40px sans-serif";
-        if ("letterSpacing" in g) g.letterSpacing = "4px";
+        g.strokeRect(4, 4, w - 8, h - 8);
+        g.fillStyle = "#c81218";
         g.textAlign = "center";
         g.textBaseline = "middle";
-        g.fillText("TAXI", w / 2, h / 2 + 2);
+        g.font = "700 42px sans-serif";
+        g.fillText("TAXI", w * 0.5, h * 0.52);
       };
       sedan.taxiBoards = {
         door: taxiBoard((g, w, h) => {
-          g.fillStyle = "#f6f1e6";
+          g.fillStyle = "#d6141a";
           g.fillRect(0, 0, w, h);
-          g.strokeStyle = "#a10e14";
-          g.lineWidth = 8;
-          g.strokeRect(6, 6, w - 12, h - 12);
-          g.fillStyle = "#c41218";
+          g.fillStyle = "#faf6ec";
           g.textAlign = "center";
           g.textBaseline = "middle";
-          g.font = "700 52px 'WenQuanYi Micro Hei', 'Droid Sans Fallback', sans-serif";
-          g.fillText("的士", w / 2, h * 0.36);
-          g.font = "700 36px sans-serif";
-          if ("letterSpacing" in g) g.letterSpacing = "2px";
-          g.fillText("TAXI", w / 2, h * 0.72);
+          g.font = "700 62px 'PingFang HK', 'Heiti TC', 'Microsoft JhengHei', sans-serif";
+          g.fillText("的士", w / 2, h * 0.34);
+          g.font = "700 38px sans-serif";
+          g.fillText("TAXI", w / 2, h * 0.74);
         }, 256, 160),
-        signOn: taxiBoard(paintSign, 256, 64, { rough: 0.32, emissive: 0xffe2a8, emI: 1.7, lit: true }),
-        signOff: taxiBoard(paintSign, 256, 64, { rough: 0.45 })
+        seats: taxiBoard((g, w, h) => {
+          g.fillStyle = "#faf6ec";
+          g.fillRect(0, 0, w, h);
+          g.strokeStyle = "#161616";
+          g.lineWidth = 6;
+          g.strokeRect(3, 3, w - 6, h - 6);
+          g.fillStyle = "#161616";
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.font = "700 34px sans-serif";
+          g.fillText("5 SEATS", w / 2, h / 2 + 1);
+        }, 192, 64),
+        signOn: taxiBoard(paintRoofSign, 256, 64, { rough: 0.28, emissive: 0xffe4a8, emI: 1.85, lit: true }),
+        signOff: taxiBoard(paintRoofSign, 256, 64, { rough: 0.44 })
       };
     }
     const boards = sedan.taxiBoards;
@@ -14625,12 +14725,16 @@ const traffic = [];
       r.ride.shell.add(mesh);
       return mesh;
     }
-    board(0.56, 0.26, 0.42, 0.72, 0.89, boards.door, 0, false);
-    board(0.56, 0.26, 0.42, 0.72, -0.89, boards.door, Math.PI, true);
+    // White "的士 / TAXI" lettering directly on front doors + "5 SEATS" capacity tag
+    board(0.54, 0.26, 0.36, 0.68, 0.885, boards.door, 0, false);
+    board(0.54, 0.26, 0.36, 0.68, -0.885, boards.door, Math.PI, true);
+    board(0.24, 0.08, 1.05, 0.69, 0.885, boards.seats, 0, false);
+    board(0.24, 0.08, 1.05, 0.69, -0.885, boards.seats, Math.PI, true);
+    // Front & rear glowing faces on the transverse TAXI roof box
     const faceMat = opt.forHire ? boards.signOn : boards.signOff;
     const faces = [
-      board(0.58, 0.09, 0.02, 1.45, 0.12, faceMat, 0),
-      board(0.58, 0.09, 0.02, 1.45, -0.12, faceMat, Math.PI)
+      board(0.52, 0.11, 0.19, 1.48, 0, faceMat, Math.PI / 2),
+      board(0.52, 0.11, -0.07, 1.48, 0, faceMat, -Math.PI / 2)
     ];
     r.ride.signFaces = faces;
     r.ride.signFaceOn = boards.signOn;
@@ -14638,10 +14742,12 @@ const traffic = [];
     r.finish();
     return r;
   }
+
+  // --- 2. 1980s HK PRIVATE SALOON (Toyota Corolla KE70 / Nissan Sunny B11 / W123) ---
   function carWell(g, cx, w, h) {
-    g.fillStyle = "#121416";
+    g.fillStyle = "#101214";
     g.beginPath();
-    g.ellipse(cx, h - 1, w * 0.068, h * 0.46, 0, Math.PI, 0, false);
+    g.ellipse(cx, h + 1, w * 0.072, h * 0.46, 0, Math.PI, 0, false);
     g.closePath();
     g.fill();
   }
@@ -14649,320 +14755,319 @@ const traffic = [];
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
     const xOf = (t) => (noseAtLeft ? t : 1 - t) * w;
-    g.fillStyle = "rgba(24,16,14,0.5)";
-    [0.28, 0.52, 0.76].forEach((t) => g.fillRect(xOf(t) - 1.5, h * 0.08, 3, h * 0.7));
-    chromeBar(g, h * 0.4, w, 4);
+    // Lower black sill
+    g.fillStyle = "#181a1c";
+    g.fillRect(0, h * 0.84, w, h * 0.16);
+    // 80s beltline chrome + rubber rub strip
+    chromeBar(g, h * 0.36, w, 4);
+    g.fillStyle = "#202226";
+    g.fillRect(w * 0.05, h * 0.56, w * 0.9, 5);
+    // Door seams
+    g.fillStyle = "rgba(18,14,12,0.55)";
+    [0.27, 0.52, 0.77].forEach((t) => g.fillRect(xOf(t) - 1.5, h * 0.06, 3, h * 0.76));
+    // Chrome handles + amber side marker
     g.fillStyle = "#e6eaee";
-    [0.4, 0.64].forEach((t) => g.fillRect(xOf(t), h * 0.48, w * 0.032, h * 0.06));
-    g.fillStyle = "#1a1c1e";
-    g.fillRect(0, h * 0.82, w, h * 0.18);
-    carWell(g, xOf(0.2), w, h);
-    carWell(g, xOf(0.8), w, h);
+    g.fillRect(xOf(0.47) - 5, h * 0.24, 10, 4);
+    g.fillRect(xOf(0.72) - 5, h * 0.24, 10, 4);
+    g.fillStyle = "#e29020";
+    g.fillRect(xOf(0.17) - 4, h * 0.44, 8, 5);
+    carWell(g, xOf(0.18), w, h);
+    carWell(g, xOf(0.81), w, h);
     soil(g, w, h);
   }
-  function carGlass(g, w, h, body, noseAtLeft) {
-    g.fillStyle = body;
+  function carGlass(g, w, h, body, roofHex, noseAtLeft) {
+    g.fillStyle = roofHex;
     g.fillRect(0, 0, w, h);
     const xOf = (t) => (noseAtLeft ? t : 1 - t) * w;
     const span = (a, b) => {
       const p = xOf(a), q = xOf(b);
       return [Math.min(p, q), Math.abs(q - p)];
     };
-    const front = span(0.08, 0.46);
-    const rear = span(0.54, 0.92);
-    glassPane(g, front[0], h * 0.14, front[1], h * 0.66);
-    glassPane(g, rear[0], h * 0.18, rear[1], h * 0.6);
-    chromeBar(g, h * 0.88, w, 3);
+    const fWin = span(0.1, 0.46);
+    const rWin = span(0.51, 0.86);
+    glassPane(g, fWin[0], h * 0.14, fWin[1], h * 0.74);
+    glassPane(g, rWin[0], h * 0.14, rWin[1], h * 0.74);
+    g.fillStyle = "#cfd5dc";
+    g.fillRect(w * 0.06, h * 0.08, w * 0.88, h * 0.05);
   }
   function carNose(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    function lamp(cx) {
-      g.fillStyle = "#d8dee6";
-      g.fillRect(cx - w * 0.11, h * 0.18, w * 0.22, h * 0.26);
-      g.fillStyle = "#f4efe4";
-      g.fillRect(cx - w * 0.08, h * 0.22, w * 0.16, h * 0.18);
-    }
-    lamp(w * 0.2);
-    lamp(w * 0.8);
     g.fillStyle = "#141618";
-    g.fillRect(w * 0.34, h * 0.22, w * 0.32, h * 0.26);
-    g.strokeStyle = "#d0d6dc";
+    g.fillRect(w * 0.22, h * 0.22, w * 0.56, h * 0.3);
+    g.strokeStyle = "#c8d0d8";
     g.lineWidth = 2;
     for (let i = 1; i <= 3; i++) {
-      const y = h * 0.22 + h * 0.26 * i / 4;
-      g.beginPath();
-      g.moveTo(w * 0.37, y);
-      g.lineTo(w * 0.63, y);
-      g.stroke();
+      const y = h * 0.22 + h * 0.3 * (i / 4);
+      g.beginPath(); g.moveTo(w * 0.24, y); g.lineTo(w * 0.76, y); g.stroke();
     }
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.05, h * 0.48, w * 0.08, h * 0.08);
-    g.fillRect(w * 0.87, h * 0.48, w * 0.08, h * 0.08);
-    chromeBar(g, h * 0.66, w, h * 0.16);
-    g.fillStyle = "#1c1e20";
-    g.fillRect(0, h * 0.86, w, h * 0.14);
+    [0.06, 0.78].forEach(lx => {
+      g.fillStyle = "#cfd5dc";
+      g.fillRect(w * lx, h * 0.22, w * 0.16, h * 0.28);
+      g.fillStyle = "#f4efe2";
+      g.fillRect(w * (lx + 0.02), h * 0.25, w * 0.12, h * 0.22);
+    });
+    g.fillStyle = "#e49222";
+    g.fillRect(w * 0.05, h * 0.56, w * 0.12, h * 0.1);
+    g.fillRect(w * 0.83, h * 0.56, w * 0.12, h * 0.1);
+    g.fillStyle = "#181a1c";
+    g.fillRect(0, h * 0.82, w, h * 0.18);
     soil(g, w, h);
   }
   function carTail(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    g.fillStyle = "#6a1214";
-    g.fillRect(w * 0.06, h * 0.26, w * 0.16, h * 0.2);
-    g.fillRect(w * 0.78, h * 0.26, w * 0.16, h * 0.2);
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.07, h * 0.5, w * 0.1, h * 0.06);
-    g.fillRect(w * 0.83, h * 0.5, w * 0.1, h * 0.06);
-    chromeBar(g, h * 0.64, w, h * 0.16);
-    g.fillStyle = "#1c1e20";
-    g.fillRect(0, h * 0.84, w, h * 0.16);
+    chromeBar(g, h * 0.22, w, 3);
+    [0.06, 0.73].forEach(lx => {
+      g.fillStyle = "#881618";
+      g.fillRect(w * lx, h * 0.24, w * 0.21, h * 0.26);
+      g.fillStyle = "#d88a20";
+      g.fillRect(w * (lx + 0.01), h * 0.26, w * 0.06, h * 0.11);
+      g.fillStyle = "#e6eaec";
+      g.fillRect(w * (lx + 0.14), h * 0.38, w * 0.05, h * 0.1);
+    });
+    g.fillStyle = "#181a1c";
+    g.fillRect(0, h * 0.82, w, h * 0.18);
     soil(g, w, h);
   }
-  function carScreen(g, w, h, body) {
-    g.fillStyle = body;
+  function carScreen(g, w, h, roofHex) {
+    g.fillStyle = roofHex;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.08, h * 0.1, w * 0.84, h * 0.74);
-    g.strokeStyle = "rgba(16,12,10,0.8)";
+    glassPane(g, w * 0.08, h * 0.12, w * 0.84, h * 0.76);
+    g.strokeStyle = "#101214";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(w * 0.18, h * 0.74);
-    g.lineTo(w * 0.4, h * 0.22);
-    g.moveTo(w * 0.6, h * 0.74);
-    g.lineTo(w * 0.82, h * 0.22);
+    g.moveTo(w * 0.2, h * 0.84); g.lineTo(w * 0.44, h * 0.42);
+    g.moveTo(w * 0.56, h * 0.84); g.lineTo(w * 0.8, h * 0.42);
     g.stroke();
   }
-  function carRearGlass(g, w, h, body) {
-    g.fillStyle = body;
+  function carRearGlass(g, w, h, roofHex) {
+    g.fillStyle = roofHex;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.14, h * 0.16, w * 0.72, h * 0.64);
+    glassPane(g, w * 0.12, h * 0.14, w * 0.76, h * 0.72);
   }
   function sedan(paint, opt) {
     const taxi = opt && opt.taxi;
-    const r = rig(taxi ? 4.85 : 4.45, 0.33);
+    const r = rig(taxi ? 4.95 : 4.45, 0.33);
     if (taxi) return buildTaxi(r, opt);
     const roofMat = opt && opt.vinyl ? blackTrim : paint;
     const body = cssColor(paint);
-    const key = "car:" + body + ":" + cssColor(roofMat);
-    const sideL = bodySkin(key + ":sideL", (g, w, h) => carSide(g, w, h, body, true), 0.42);
-    const sideR = bodySkin(key + ":sideR", (g, w, h) => carSide(g, w, h, body, false), 0.42);
-    const nose = bodySkin(key + ":nose", (g, w, h) => carNose(g, w, h, body), 0.4, [256, 256]);
-    const tail = bodySkin(key + ":tail", (g, w, h) => carTail(g, w, h, body), 0.4, [256, 256]);
-    const cabL = bodySkin(key + ":cabL", (g, w, h) => carGlass(g, w, h, body, true), 0.4);
-    const cabR = bodySkin(key + ":cabR", (g, w, h) => carGlass(g, w, h, body, false), 0.4);
-    const screen = bodySkin(key + ":screen", (g, w, h) => carScreen(g, w, h, body), 0.38, [256, 192]);
-    const back = bodySkin(key + ":back", (g, w, h) => carRearGlass(g, w, h, body), 0.38, [256, 192]);
-    // A smaller sedan than the Crown cab: long enough for four doors, still a box.
-    // The glass is painted on. Some of these kept a black vinyl roof.
-    r.block(4.15, 0.58, 1.64, 0, 0.64, 0, [nose, tail, paint, blackTrim, sideR, sideL]);
-    r.block(2.0, 0.44, 1.44, -0.02, 1.08, 0, [screen, back, roofMat, paint, cabR, cabL]);
-    glowPair(r, 2.12, 0.72, 0.48, headMat, 0.1, 0.24, false);
-    r.piece(0.03, 0.05, 0.09, 2.1, 0.58, 0.68, markerMat, 3);
-    r.piece(0.03, 0.05, 0.09, 2.1, 0.58, -0.68, markerMat, 3);
-    r.piece(0.025, 0.14, 0.42, 2.1, 0.68, 0, grilleMat, 3);
-    r.put(0.08, 0.1, 1.5, 2.14, 0.46, 0, chrome);
-    glowPair(r, -2.12, 0.7, 0.56, tailOff, 0.12, 0.2, true);
-    r.put(0.08, 0.1, 1.5, -2.14, 0.46, 0, chrome);
-    r.plates(2.2, -2.2, 0.4, opt && opt.reg);
+    const roofHex = cssColor(roofMat);
+    const key = "car80:" + body + ":" + roofHex;
+    const sideL = bodySkin(key + ":sideL", (g, w, h) => carSide(g, w, h, body, true), 0.4, [512, 192]);
+    const sideR = bodySkin(key + ":sideR", (g, w, h) => carSide(g, w, h, body, false), 0.4, [512, 192]);
+    const nose = bodySkin(key + ":nose", (g, w, h) => carNose(g, w, h, body), 0.38, [256, 192]);
+    const tail = bodySkin(key + ":tail", (g, w, h) => carTail(g, w, h, body), 0.38, [256, 192]);
+    const cabL = bodySkin(key + ":cabL", (g, w, h) => carGlass(g, w, h, body, roofHex, true), 0.38, [512, 160]);
+    const cabR = bodySkin(key + ":cabR", (g, w, h) => carGlass(g, w, h, body, roofHex, false), 0.38, [512, 160]);
+    const screen = bodySkin(key + ":screen", (g, w, h) => carScreen(g, w, h, roofHex), 0.36, [256, 192]);
+    const back = bodySkin(key + ":back", (g, w, h) => carRearGlass(g, w, h, roofHex), 0.36, [256, 192]);
+
+    r.block(4.24, 0.54, 1.64, 0, 0.62, 0, [nose, tail, paint, blackTrim, sideR, sideL]);
+    r.put(1.24, 0.045, 1.18, 1.38, 0.9, 0, paint);
+    r.put(0.88, 0.035, 1.3, -1.56, 0.895, 0, paint);
+    r.block(1.94, 0.44, 1.44, -0.06, 1.09, 0, [screen, back, roofMat, paint, cabR, cabL]);
+    addRakedPane(r, 1.36, 0.48, 0.96, 1.08, 0, glass, 0.44);
+    addRakedPane(r, 1.34, 0.46, -1.08, 1.08, 0, glass, -0.46);
+    r.put(1.86, 0.03, 1.36, -0.06, 1.32, 0, roofMat);
+    r.piece(1.94, 0.018, 0.03, -0.06, 1.31, 0.725, chrome, 3);
+    r.piece(1.94, 0.018, 0.03, -0.06, 1.31, -0.725, chrome, 3);
+    // Front grille, twin rectangular headlamps, chrome/rubber bumpers
+    r.piece(0.025, 0.14, 0.56, 2.13, 0.69, 0, grilleMat, 3);
+    glowPair(r, 2.14, 0.69, 0.52, headMat, 0.1, 0.22, false);
+    r.piece(0.03, 0.05, 0.09, 2.13, 0.56, 0.68, markerMat, 3);
+    r.piece(0.03, 0.05, 0.09, 2.13, 0.56, -0.68, markerMat, 3);
+    r.put(0.1, 0.1, 1.62, 2.16, 0.44, 0, chrome);
+    r.put(0.12, 0.05, 1.64, 2.17, 0.44, 0, blackTrim);
+    glowPair(r, -2.14, 0.68, 0.56, tailOff, 0.11, 0.24, true);
+    r.put(0.1, 0.1, 1.62, -2.16, 0.44, 0, chrome);
+    r.put(0.12, 0.05, 1.64, -2.17, 0.44, 0, blackTrim);
+    r.bar(-1.95, 0.28, -0.46, -2.2, 0.27, -0.46, 0.022, steel);
+    r.plates(2.23, -2.23, 0.39, opt && opt.reg);
+    addWheelArches(r, [1.28, -1.28], 0.82, 0.31);
     r.wheel(1.28, 0.8, 0.3, 0.18, false, true);
     r.wheel(1.28, -0.8, 0.3, 0.18, false, true);
     r.wheel(-1.28, 0.8, 0.3, 0.18, false, true);
     r.wheel(-1.28, -0.8, 0.3, 0.18, false, true);
-    r.bar(0.62, 1.0, 0.74, 0.68, 1.1, 0.92, 0.012, blackTrim);
-    r.put(0.09, 0.06, 0.03, 0.68, 1.1, 0.94, chrome);
-    r.bar(0.62, 1.0, -0.74, 0.68, 1.1, -0.92, 0.012, blackTrim);
-    r.put(0.09, 0.06, 0.03, 0.68, 1.1, -0.94, chrome);
-    r.piece(1.96, 0.018, 0.03, -0.02, 1.3, 0.72, chrome, 3);
-    r.piece(1.96, 0.018, 0.03, -0.02, 1.3, -0.72, chrome, 3);
-    r.bar(1.45, 0.94, 0.42, 1.45, 1.28, 0.42, 0.008, blackTrim);
+    if (opt && opt.vinyl) addFenderMirrors(r, 1.48, 0.88, 0.66);
+    else {
+      r.bar(0.62, 0.96, 0.74, 0.68, 1.06, 0.92, 0.012, blackTrim);
+      r.put(0.08, 0.06, 0.035, 0.68, 1.06, 0.94, blackTrim);
+      r.bar(0.62, 0.96, -0.74, 0.68, 1.06, -0.92, 0.012, blackTrim);
+      r.put(0.08, 0.06, 0.035, 0.68, 1.06, -0.94, blackTrim);
+    }
+    r.bar(0.72, 0.9, 0.7, 0.66, 1.4, 0.71, 0.006, chrome);
     r.blob(1.65);
     r.ride.cruise = 8.4;
     r.finish();
     return r;
   }
+
+  // --- 3. 1980s HONG KONG RED MINIBUS (Toyota Coaster BB20 "紅Van", 14-Seat PLB) ---
   function miniWell(g, cx, w, h) {
-    g.fillStyle = "#121416";
+    g.fillStyle = "#101214";
     g.beginPath();
-    g.ellipse(cx, h + 1, w * 0.072, h * 0.22, 0, Math.PI, Math.PI * 2);
+    g.ellipse(cx, h + 2, w * 0.072, h * 0.24, 0, Math.PI, Math.PI * 2);
     g.closePath();
     g.fill();
   }
-  // noseAtLeft follows the box face: the left side reads nose-to-tail left to
-  // right, and the right side reads the other way, so one layout still has
-  // the door behind the front wheel.
   function miniSide(g, w, h, body, red, noseAtLeft) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
+    // Iconic 1980s HK Red Minibus red roof-line band + red waist stripe
+    g.fillStyle = red;
+    g.fillRect(0, 0, w, h * 0.11);
+    g.fillRect(0, h * 0.56, w, h * 0.12);
     const xOf = (t) => (noseAtLeft ? t : 1 - t) * w;
     const span = (t0, t1) => {
       const a = xOf(t0), b = xOf(t1);
       return [Math.min(a, b), Math.abs(b - a)];
     };
     const panes = noseAtLeft
-      ? [[0.045, 0.13], [0.16, 0.33], [0.38, 0.51], [0.54, 0.67], [0.70, 0.83]]
-      : [[0.04, 0.15], [0.19, 0.33], [0.37, 0.50], [0.53, 0.66], [0.69, 0.82]];
-    const door = noseAtLeft ? 1 : -1;
-    const y0 = h * 0.1, hh = h * 0.32;
-    for (let i = 0; i < panes.length; i++) {
-      const box = span(panes[i][0], panes[i][1]);
-      if (i === door) {
-        const frame = span(panes[i][0] - 0.01, panes[i][1] + 0.012);
-        g.fillStyle = "rgba(22,16,12,0.28)";
-        g.fillRect(frame[0], h * 0.075, frame[1], h * 0.74);
-      }
-      glassPane(g, box[0], y0, box[1], hh);
-      if (i === door) {
-        g.fillStyle = "#d8dee4";
-        const hx = noseAtLeft ? box[0] + box[1] + w * 0.006 : box[0] - w * 0.016;
-        g.fillRect(hx, y0 + hh * 0.62, w * 0.01, h * 0.028);
-      }
+      ? [[0.03, 0.14], [0.27, 0.42], [0.44, 0.59], [0.61, 0.76], [0.78, 0.94]]
+      : [[0.03, 0.15], [0.17, 0.34], [0.36, 0.53], [0.55, 0.72], [0.74, 0.94]];
+    panes.forEach((p) => {
+      const box = span(p[0], p[1]);
+      glassPane(g, box[0], h * 0.15, box[1], h * 0.37);
+      // Aluminum sliding window divider
+      g.fillStyle = "#cfd5dc";
+      g.fillRect(box[0] + box[1] * 0.5 - 1.5, h * 0.15, 3, h * 0.37);
+    });
+    if (noseAtLeft) {
+      // Bi-fold passenger door behind front wheel
+      const door = span(0.155, 0.255);
+      g.fillStyle = body;
+      g.fillRect(door[0], h * 0.14, door[1], h * 0.74);
+      g.fillStyle = red;
+      g.fillRect(door[0], h * 0.56, door[1], h * 0.12);
+      g.strokeStyle = "#181a1c";
+      g.lineWidth = 3;
+      g.strokeRect(door[0], h * 0.14, door[1], h * 0.74);
+      g.beginPath();
+      g.moveTo(door[0] + door[1] * 0.5, h * 0.14);
+      g.lineTo(door[0] + door[1] * 0.5, h * 0.88);
+      g.stroke();
+      glassPane(g, door[0] + 4, h * 0.17, door[1] * 0.42, h * 0.34);
+      glassPane(g, door[0] + door[1] * 0.53, h * 0.17, door[1] * 0.4, h * 0.34);
     }
-    g.fillStyle = red;
-    g.fillRect(0, h * 0.44, w, h * 0.085);
-    g.fillStyle = "rgba(255,255,255,0.22)";
-    g.fillRect(0, h * 0.44, w, Math.max(2, h * 0.012));
-    g.fillStyle = "#1a1c1e";
-    g.fillRect(0, h * 0.84, w, h * 0.16);
-    miniWell(g, xOf(0.17), w, h);
-    miniWell(g, xOf(0.83), w, h);
+    g.fillStyle = "#181a1c";
+    g.fillRect(0, h * 0.88, w, h * 0.12);
+    miniWell(g, xOf(0.18), w, h);
+    miniWell(g, xOf(0.81), w, h);
     soil(g, w, h);
   }
   function miniNose(g, w, h, body, red) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.07, h * 0.1, w * 0.39, h * 0.32);
-    glassPane(g, w * 0.54, h * 0.1, w * 0.39, h * 0.32);
-    g.strokeStyle = "rgba(16,12,10,0.8)";
+    g.fillStyle = red;
+    g.fillRect(0, 0, w, h * 0.11);
+    g.fillRect(0, h * 0.56, w, h * 0.12);
+    glassPane(g, w * 0.06, h * 0.15, w * 0.88, h * 0.37);
+    // Wiper blades
+    g.strokeStyle = "#101214";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(w * 0.12, h * 0.39);
-    g.lineTo(w * 0.4, h * 0.15);
-    g.moveTo(w * 0.6, h * 0.39);
-    g.lineTo(w * 0.88, h * 0.15);
+    g.moveTo(w * 0.22, h * 0.5); g.lineTo(w * 0.46, h * 0.22);
+    g.moveTo(w * 0.58, h * 0.5); g.lineTo(w * 0.82, h * 0.22);
     g.stroke();
-    g.fillStyle = "rgba(244,240,230,0.9)";
-    g.fillRect(w * 0.15, h * 0.27, w * 0.1, h * 0.08);
-    g.fillStyle = "#1a1a1a";
-    g.font = "700 " + Math.round(h * 0.05) + "px sans-serif";
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.fillText("14", w * 0.2, h * 0.31);
-    g.fillStyle = red;
-    g.fillRect(0, h * 0.44, w, h * 0.085);
-    g.fillStyle = "rgba(255,255,255,0.2)";
-    g.fillRect(0, h * 0.44, w, Math.max(2, h * 0.012));
-    g.fillStyle = "#121416";
-    g.fillRect(w * 0.3, h * 0.6, w * 0.4, h * 0.15);
-    g.strokeStyle = "#c5ccd2";
+    // Coaster front radiator grille + quad round lamp bezels
+    g.fillStyle = "#16181a";
+    g.fillRect(w * 0.24, h * 0.69, w * 0.52, h * 0.14);
+    g.strokeStyle = "#cfd5dc";
     g.lineWidth = 2;
-    for (let i = 1; i <= 4; i++) {
-      const y = h * 0.6 + h * 0.15 * i / 5;
-      g.beginPath();
-      g.moveTo(w * 0.33, y);
-      g.lineTo(w * 0.67, y);
-      g.stroke();
+    for (let i = 1; i <= 3; i++) {
+      const y = h * 0.69 + h * 0.14 * (i / 4);
+      g.beginPath(); g.moveTo(w * 0.26, y); g.lineTo(w * 0.74, y); g.stroke();
     }
-    function bezel(cx) {
-      g.fillStyle = "#d8dee6";
-      g.beginPath();
-      g.arc(cx, h * 0.655, w * 0.052, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = "#2a2418";
-      g.beginPath();
-      g.arc(cx, h * 0.655, w * 0.034, 0, Math.PI * 2);
-      g.fill();
-    }
-    bezel(w * 0.15);
-    bezel(w * 0.85);
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.045, h * 0.75, w * 0.07, h * 0.04);
-    g.fillRect(w * 0.885, h * 0.75, w * 0.07, h * 0.04);
-    g.fillStyle = "#1c1e20";
-    g.fillRect(0, h * 0.86, w, h * 0.14);
+    g.fillStyle = "#1a1c1e";
+    g.fillRect(w * 0.05, h * 0.69, w * 0.17, h * 0.13);
+    g.fillRect(w * 0.78, h * 0.69, w * 0.17, h * 0.13);
+    g.fillStyle = "#181a1c";
+    g.fillRect(0, h * 0.88, w, h * 0.12);
     soil(g, w, h);
   }
   function miniTail(g, w, h, body, red) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.18, h * 0.12, w * 0.64, h * 0.28);
     g.fillStyle = red;
-    g.fillRect(0, h * 0.44, w, h * 0.085);
-    g.fillStyle = "rgba(255,255,255,0.18)";
-    g.fillRect(0, h * 0.44, w, Math.max(2, h * 0.012));
-    g.fillStyle = "#5a1214";
-    g.fillRect(w * 0.06, h * 0.58, w * 0.14, h * 0.12);
-    g.fillRect(w * 0.8, h * 0.58, w * 0.14, h * 0.12);
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.08, h * 0.71, w * 0.1, h * 0.035);
-    g.fillRect(w * 0.82, h * 0.71, w * 0.1, h * 0.035);
-    g.fillStyle = "#c8ced4";
-    g.fillRect(0, h * 0.8, w, h * 0.045);
-    g.fillStyle = "#1c1e20";
-    g.fillRect(0, h * 0.86, w, h * 0.14);
+    g.fillRect(0, 0, w, h * 0.11);
+    g.fillRect(0, h * 0.56, w, h * 0.12);
+    glassPane(g, w * 0.1, h * 0.16, w * 0.37, h * 0.34);
+    glassPane(g, w * 0.53, h * 0.16, w * 0.37, h * 0.34);
+    g.fillStyle = "rgba(18,14,12,0.6)";
+    g.fillRect(w * 0.5 - 1.5, h * 0.14, 3, h * 0.72);
+    g.fillStyle = "#181a1c";
+    g.fillRect(0, h * 0.88, w, h * 0.12);
     soil(g, w, h);
   }
   function minibus() {
     const r = rig(7.05, 0.4);
     const body = cssColor(miniCream);
     const red = cssColor(busRed);
-    const sideL = bodySkin("mini:sideL", (g, w, h) => miniSide(g, w, h, body, red, true), 0.44, [512, 256]);
-    const sideR = bodySkin("mini:sideR", (g, w, h) => miniSide(g, w, h, body, red, false), 0.44, [512, 256]);
-    const nose = bodySkin("mini:nose", (g, w, h) => miniNose(g, w, h, body, red), 0.44, [256, 256]);
-    const tail = bodySkin("mini:tail", (g, w, h) => miniTail(g, w, h, body, red), 0.44, [256, 256]);
-    const roof = bodySkin("mini:roof", (g, w, h) => {
-      g.fillStyle = body;
-      g.fillRect(0, 0, w, h);
-      g.fillStyle = "rgba(40,28,16,0.16)";
-      g.fillRect(w * 0.48, 0, w * 0.04, h);
-    }, 0.5, [256, 64]);
-    // One solid body. The panes are painted on it.
-    r.block(6.35, 1.82, 2.02, -0.05, 1.34, 0, [nose, tail, roof, blackTrim, sideR, sideL]);
+    const sideL = bodySkin("mini80:sideL", (g, w, h) => miniSide(g, w, h, body, red, true), 0.42, [512, 256]);
+    const sideR = bodySkin("mini80:sideR", (g, w, h) => miniSide(g, w, h, body, red, false), 0.42, [512, 256]);
+    const nose = bodySkin("mini80:nose", (g, w, h) => miniNose(g, w, h, body, red), 0.42, [256, 256]);
+    const tail = bodySkin("mini80:tail", (g, w, h) => miniTail(g, w, h, body, red), 0.42, [256, 256]);
+
+    // Main Coaster body with iconic RED roof
+    r.block(6.36, 1.82, 2.02, -0.04, 1.34, 0, [nose, tail, busRed, blackTrim, sideR, sideL]);
+    // Sculpted red beveled roof cap + roof AC / ventilation pod
+    r.put(6.14, 0.12, 1.86, -0.06, 2.31, 0, busRed);
+    r.put(1.48, 0.14, 1.18, -0.35, 2.43, 0, miniCream);
+    r.put(1.26, 0.05, 0.92, -0.35, 2.51, 0, blackTrim);
+    // Slight Coaster front windshield visor overhang
+    r.put(0.14, 0.08, 1.9, 3.14, 2.26, 0, busRed);
     if (!minibus.boards) {
       minibus.boards = {
         plb: minibusBoard((g, w, h) => {
           g.fillStyle = "#c81018";
           g.fillRect(0, 0, w, h);
-          g.fillStyle = "#f7f4ee";
-          g.font = "700 34px 'Arial Narrow', 'Nimbus Sans Narrow', sans-serif";
-          if ("letterSpacing" in g) g.letterSpacing = "2px";
+          g.fillStyle = "#faf6ec";
+          g.font = "700 32px 'Arial Narrow', 'Nimbus Sans Narrow', sans-serif";
           g.textAlign = "center";
           g.textBaseline = "middle";
-          g.fillText("PUBLIC LIGHT BUS", w / 2, h / 2 + 1);
+          g.fillText("PUBLIC LIGHT BUS  公共小型巴士", w / 2, h / 2 + 1);
         }, 512, 64),
         route: minibusBoard((g, w, h) => {
-          g.fillStyle = "#f4f1e8";
+          g.fillStyle = "#f7f3e8";
           g.fillRect(0, 0, w, h);
           g.strokeStyle = "#161616";
           g.lineWidth = 10;
-          g.strokeRect(7, 7, w - 14, h - 14);
-          smearSign(g, 18, (sg) => {
-            sg.fillStyle = "#141414";
-            sg.font = "700 86px sans-serif";
-            sg.textAlign = "center";
-            sg.textBaseline = "middle";
-            sg.fillText("14", w / 2, h / 2 + 4);
-          });
-        }, 128, 128, { rough: 0.55 }),
+          g.strokeRect(6, 6, w - 12, h - 12);
+          g.fillStyle = "#141414";
+          g.font = "700 80px sans-serif";
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.fillText("14", w / 2, h / 2 + 4);
+        }, 128, 128, { rough: 0.48 }),
         dest: minibusBoard((g, w, h) => {
-          g.fillStyle = "#100e0c";
+          // Iconic 80s HK Red Minibus white acrylic board with red & blue lettering
+          g.fillStyle = "#faf6ec";
           g.fillRect(0, 0, w, h);
-          smearSign(g, 8, (sg) => {
-            sg.fillStyle = "#f6f1e4";
-            sg.font = "700 72px 'WenQuanYi Micro Hei', 'Droid Sans Fallback', sans-serif";
-            sg.textAlign = "center";
-            sg.textBaseline = "middle";
-            sg.fillText("土瓜灣", w / 2, h / 2 + 2);
-          });
-        }, 320, 96, { rough: 0.38, emissive: 0xffe2b0, emI: 0.55, lit: true }),
+          g.strokeStyle = "#c81018";
+          g.lineWidth = 8;
+          g.strokeRect(4, 4, w - 8, h - 8);
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.fillStyle = "#c81018";
+          g.font = "700 58px 'PingFang HK', 'Heiti TC', 'Microsoft JhengHei', sans-serif";
+          g.fillText("旺角", w * 0.25, h * 0.52);
+          g.fillStyle = "#14428a";
+          g.font = "700 44px sans-serif";
+          g.fillText("⇄", w * 0.5, h * 0.5);
+          g.fillStyle = "#14428a";
+          g.font = "700 54px 'PingFang HK', 'Heiti TC', 'Microsoft JhengHei', sans-serif";
+          g.fillText("九龍城", w * 0.76, h * 0.52);
+        }, 384, 96, { rough: 0.34, emissive: 0xffe8c0, emI: 0.9, lit: true }),
         badge: minibusBoard((g, w, h) => {
-          g.fillStyle = "#f4e4c4";
+          g.fillStyle = "#c81018";
           g.fillRect(0, 0, w, h);
-          g.fillStyle = "#2c2e30";
-          g.font = "700 36px sans-serif";
-          if ("letterSpacing" in g) g.letterSpacing = "5px";
+          g.fillStyle = "#faf6ec";
+          g.font = "700 34px sans-serif";
           g.textAlign = "center";
           g.textBaseline = "middle";
           g.fillText("TOYOTA", w / 2, h / 2 + 1);
-        }, 256, 64, { rough: 0.4, metal: 0.25 })
+        }, 256, 64, { rough: 0.38, metal: 0.2 })
       };
     }
     const boards = minibus.boards;
@@ -14974,40 +15079,42 @@ const traffic = [];
       mesh.renderOrder = 4;
       r.ride.shell.add(mesh);
     }
-    const stripeY = 1.37;
-    board(1.7, 0.12, -0.35, stripeY, 1.04, boards.plb, 0, false);
-    board(1.7, 0.12, -0.35, stripeY, -1.04, boards.plb, Math.PI, true);
-    board(0.24, 0.22, 2.36, 1.5, 1.04, boards.route, 0, false);
-    board(0.24, 0.22, 2.36, 1.5, -1.04, boards.route, Math.PI, true);
-    // Small destination box on the header, just proud of the roof.
-    r.put(0.12, 0.17, 0.78, 3.16, 2.27, 0, blackTrim);
-    board(0.68, 0.12, 3.23, 2.27, 0, boards.dest, -Math.PI / 2);
-    board(0.46, 0.08, 3.18, 1.22, 0, boards.badge, -Math.PI / 2);
-    r.pairLamps(3.2, 1.06, 0.71, headMat, true, 0.15);
-    r.piece(0.03, 0.055, 0.1, 3.19, 0.88, 0.86, markerMat, 3);
-    r.piece(0.03, 0.055, 0.1, 3.19, 0.88, -0.86, markerMat, 3);
-    r.put(0.07, 0.1, 1.86, 3.18, 0.64, 0, blackTrim);
-    r.put(0.04, 0.035, 1.7, 3.2, 0.72, 0, chrome);
-    glowPair(r, -3.22, 1.16, 0.74, tailOff, 0.16, 0.22, true);
-    r.piece(0.03, 0.05, 0.1, -3.2, 0.92, 0.78, markerMat, 3);
-    r.piece(0.03, 0.05, 0.1, -3.2, 0.92, -0.78, markerMat, 3);
-    r.put(0.07, 0.1, 1.86, -3.2, 0.62, 0, blackTrim);
-    r.put(6.1, 0.025, 0.03, -0.05, 2.26, 0.98, blackTrim);
-    r.put(6.1, 0.025, 0.03, -0.05, 2.26, -0.98, blackTrim);
-    r.bar(2.85, 1.78, 0.92, 2.55, 1.86, 1.18, 0.012, blackTrim);
-    r.put(0.1, 0.07, 0.03, 2.52, 1.86, 1.2, chrome);
-    r.bar(2.85, 1.78, -0.92, 2.55, 1.86, -1.18, 0.012, blackTrim);
-    r.put(0.1, 0.07, 0.03, 2.52, 1.86, -1.2, chrome);
-    r.plates(3.28, -3.32, 0.56, minibus.reg);
-    r.wheelBox(2.02, 1.08, 0.4, 0.22);
-    r.wheelBox(2.02, -1.08, 0.4, 0.22);
-    r.wheelBox(-2.12, 1.08, 0.4, 0.22);
-    r.wheelBox(-2.12, -1.08, 0.4, 0.22);
+    board(2.4, 0.16, -0.35, 1.12, 1.03, boards.plb, 0, false);
+    board(2.4, 0.16, -0.35, 1.12, -1.03, boards.plb, Math.PI, true);
+    board(0.24, 0.22, 2.38, 1.48, 1.03, boards.route, 0, false);
+    board(0.24, 0.22, 2.38, 1.48, -1.03, boards.route, Math.PI, true);
+    // Front roof destination lightbox
+    r.put(0.18, 0.2, 0.96, 3.16, 2.41, 0, blackTrim);
+    board(0.88, 0.16, 3.26, 2.41, 0, boards.dest, Math.PI / 2);
+    board(0.52, 0.09, 3.16, 1.12, 0, boards.badge, Math.PI / 2);
+    // Quad Coaster round headlamps (inner & outer pair) + amber blinkers + chrome bumper
+    r.pairLamps(3.17, 0.91, 0.78, headMat, true, 0.14);
+    r.pairLamps(3.17, 0.91, 0.6, headMat, true, 0.12);
+    r.piece(0.035, 0.06, 0.11, 3.17, 0.76, 0.88, markerMat, 3);
+    r.piece(0.035, 0.06, 0.11, 3.17, 0.76, -0.88, markerMat, 3);
+    r.put(0.1, 0.13, 1.98, 3.2, 0.56, 0, blackTrim);
+    r.put(0.06, 0.045, 1.84, 3.23, 0.61, 0, chrome);
+    glowPair(r, -3.24, 1.04, 0.76, tailOff, 0.18, 0.22, true);
+    r.piece(0.035, 0.06, 0.1, -3.24, 0.84, 0.78, markerMat, 3);
+    r.piece(0.035, 0.06, 0.1, -3.24, 0.84, -0.78, markerMat, 3);
+    r.put(0.1, 0.13, 1.98, -3.24, 0.56, 0, blackTrim);
+    // Rain gutters & Coaster mirrors
+    r.put(6.18, 0.03, 0.035, -0.04, 2.25, 1.0, chrome);
+    r.put(6.18, 0.03, 0.035, -0.04, 2.25, -1.0, chrome);
+    addTruckMirrors(r, 2.86, 1.46, 1.86, 0.98, 1.2);
+    r.plates(3.28, -3.32, 0.54, minibus.reg);
+    addWheelArches(r, [2.02, -2.12], 1.02, 0.42);
+    r.wheel(2.02, 1.02, 0.4, 0.22, false, true);
+    r.wheel(2.02, -1.02, 0.4, 0.22, false, true);
+    r.dual(-2.12, 0.92, 0.4, 0.18);
+    r.dual(-2.12, -0.92, 0.4, 0.18);
     r.ride.cruise = 8.3;
     r.blob(2.02);
     r.finish();
     return r;
   }
+
+  // --- 4. 1980s HONG KONG GOODS VAN (Toyota HiAce H50 / Nissan Urvan E23) ---
   function vanSide(g, w, h, body, noseAtLeft) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
@@ -15016,32 +15123,32 @@ const traffic = [];
       const p = xOf(a), q = xOf(b);
       return [Math.min(p, q), Math.abs(q - p)];
     };
-    const cab = span(0.05, 0.2);
-    glassPane(g, cab[0], h * 0.16, cab[1], h * 0.32);
-    g.fillStyle = "rgba(20,16,12,0.45)";
-    g.fillRect(xOf(0.24) - 2, h * 0.1, 4, h * 0.72);
+    const cab = span(0.05, 0.26);
+    glassPane(g, cab[0], h * 0.14, cab[1], h * 0.36);
+    const mid = span(0.32, 0.62);
+    const rear = span(0.66, 0.92);
+    glassPane(g, mid[0], h * 0.15, mid[1], h * 0.33);
+    glassPane(g, rear[0], h * 0.15, rear[1], h * 0.33);
+    // Horizontal body swage line + ribbed lower cargo panel
+    g.fillStyle = "rgba(28,24,20,0.22)";
+    g.fillRect(0, h * 0.56, w, 4);
+    g.fillRect(0, h * 0.68, w, 3);
+    // Sliding cargo door seam & aluminum track on left side
     if (noseAtLeft) {
-      const door = span(0.34, 0.66);
-      g.strokeStyle = "rgba(28,22,16,0.55)";
+      const door = span(0.3, 0.64);
+      g.strokeStyle = "rgba(20,16,14,0.58)";
       g.lineWidth = 3;
-      g.strokeRect(door[0], h * 0.12, door[1], h * 0.68);
-      g.fillStyle = "#c5ccd2";
-      g.fillRect(door[0], h * 0.18, door[1], 3);
-      glassPane(g, door[0] + w * 0.02, h * 0.24, door[1] * 0.72, h * 0.22);
-      g.fillStyle = "#d8dee4";
-      g.fillRect(door[0] + door[1] - w * 0.03, h * 0.48, w * 0.012, h * 0.04);
-    } else {
-      g.fillStyle = "#d8dee4";
-      g.fillRect(xOf(0.42), h * 0.48, w * 0.02, h * 0.035);
+      g.strokeRect(door[0], h * 0.1, door[1], h * 0.74);
+      const track = span(0.64, 0.95);
+      g.fillStyle = "#222428";
+      g.fillRect(track[0], h * 0.54, track[1], 5);
     }
-    g.fillStyle = "rgba(20,16,12,0.28)";
-    g.fillRect(0, h * 0.62, w, 3);
-    g.fillStyle = "#1a1c1e";
+    g.fillStyle = "#181a1c";
     g.fillRect(0, h * 0.86, w, h * 0.14);
-    g.fillStyle = "#121416";
-    [0.185, 0.82].forEach((t) => {
+    g.fillStyle = "#101214";
+    [0.2, 0.8].forEach(t => {
       g.beginPath();
-      g.ellipse(xOf(t), h - 1, w * 0.055, h * 0.22, 0, Math.PI, 0, false);
+      g.ellipse(xOf(t), h + 1, w * 0.08, h * 0.26, 0, Math.PI, Math.PI * 2);
       g.closePath();
       g.fill();
     });
@@ -15050,95 +15157,93 @@ const traffic = [];
   function vanNose(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.08, h * 0.1, w * 0.38, h * 0.32);
-    glassPane(g, w * 0.54, h * 0.1, w * 0.38, h * 0.32);
-    g.strokeStyle = "rgba(16,12,10,0.75)";
+    glassPane(g, w * 0.08, h * 0.1, w * 0.84, h * 0.36);
+    g.strokeStyle = "#101214";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(w * 0.14, h * 0.38);
-    g.lineTo(w * 0.38, h * 0.16);
-    g.moveTo(w * 0.62, h * 0.38);
-    g.lineTo(w * 0.86, h * 0.16);
+    g.moveTo(w * 0.2, h * 0.44); g.lineTo(w * 0.44, h * 0.2);
+    g.moveTo(w * 0.56, h * 0.44); g.lineTo(w * 0.8, h * 0.2);
     g.stroke();
+    // Recessed black HiAce/Urvan grille
     g.fillStyle = "#141618";
-    g.fillRect(w * 0.32, h * 0.5, w * 0.36, h * 0.12);
-    g.strokeStyle = "#c5ccd2";
+    g.fillRect(w * 0.16, h * 0.54, w * 0.68, h * 0.18);
+    g.strokeStyle = "#9aa2a8";
     g.lineWidth = 2;
     for (let i = 1; i <= 3; i++) {
-      const y = h * 0.5 + h * 0.12 * i / 4;
-      g.beginPath();
-      g.moveTo(w * 0.35, y);
-      g.lineTo(w * 0.65, y);
-      g.stroke();
+      const y = h * 0.54 + h * 0.18 * (i / 4);
+      g.beginPath(); g.moveTo(w * 0.18, y); g.lineTo(w * 0.82, y); g.stroke();
     }
-    function lamp(cx) {
-      g.fillStyle = "#d8dee6";
-      g.fillRect(cx - w * 0.08, h * 0.66, w * 0.16, h * 0.1);
-      g.fillStyle = "#f4efe4";
-      g.fillRect(cx - w * 0.055, h * 0.675, w * 0.11, h * 0.07);
-    }
-    lamp(w * 0.16);
-    lamp(w * 0.84);
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.05, h * 0.78, w * 0.07, h * 0.035);
-    g.fillRect(w * 0.88, h * 0.78, w * 0.07, h * 0.035);
-    g.fillStyle = "#1c1e20";
+    g.fillStyle = "#181a1c";
     g.fillRect(0, h * 0.86, w, h * 0.14);
     soil(g, w, h);
   }
   function vanTail(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    g.fillStyle = "rgba(20,16,12,0.55)";
-    g.fillRect(w * 0.5 - 2, h * 0.08, 4, h * 0.74);
-    glassPane(g, w * 0.12, h * 0.1, w * 0.28, h * 0.14);
-    glassPane(g, w * 0.6, h * 0.1, w * 0.28, h * 0.14);
-    g.fillStyle = "#c8ced2";
-    g.fillRect(w * 0.18, h * 0.55, w * 0.08, 4);
-    g.fillRect(w * 0.74, h * 0.55, w * 0.08, 4);
-    g.fillStyle = "#6a1214";
-    g.fillRect(w * 0.06, h * 0.66, w * 0.12, h * 0.1);
-    g.fillRect(w * 0.82, h * 0.66, w * 0.12, h * 0.1);
-    g.fillStyle = "#1c1e20";
+    glassPane(g, w * 0.12, h * 0.14, w * 0.76, h * 0.34);
+    g.strokeStyle = "rgba(20,16,14,0.45)";
+    g.lineWidth = 3;
+    g.strokeRect(w * 0.06, h * 0.08, w * 0.88, h * 0.76);
+    g.fillStyle = "#181a1c";
     g.fillRect(0, h * 0.86, w, h * 0.14);
     soil(g, w, h);
   }
   function van(paint) {
     const r = rig(4.95, 0.34);
     const body = cssColor(paint);
-    const key = "van:" + body;
-    const sideL = bodySkin(key + ":sideL", (g, w, h) => vanSide(g, w, h, body, true), 0.48, [512, 256]);
-    const sideR = bodySkin(key + ":sideR", (g, w, h) => vanSide(g, w, h, body, false), 0.48, [512, 256]);
-    const nose = bodySkin(key + ":nose", (g, w, h) => vanNose(g, w, h, body), 0.46, [256, 256]);
-    const tail = bodySkin(key + ":tail", (g, w, h) => vanTail(g, w, h, body), 0.46, [256, 256]);
+    const key = "van80:" + body;
+    const sideL = bodySkin(key + ":sideL", (g, w, h) => vanSide(g, w, h, body, true), 0.46, [512, 256]);
+    const sideR = bodySkin(key + ":sideR", (g, w, h) => vanSide(g, w, h, body, false), 0.46, [512, 256]);
+    const nose = bodySkin(key + ":nose", (g, w, h) => vanNose(g, w, h, body), 0.44, [256, 256]);
+    const tail = bodySkin(key + ":tail", (g, w, h) => vanTail(g, w, h, body), 0.44, [256, 256]);
     const roof = bodySkin(key + ":roof", (g, w, h) => {
       g.fillStyle = body;
       g.fillRect(0, 0, w, h);
-    }, 0.55, [256, 64]);
-    // One box, the short-nose goods van. The sliding door is on the left only.
-    // Windows are painted. Nothing is inside.
-    r.block(4.5, 1.68, 1.8, 0, 1.2, 0, [nose, tail, roof, blackTrim, sideR, sideL]);
-    glowPair(r, 2.3, 0.95, 0.62, headMat, 0.12, 0.22, false);
-    r.piece(0.03, 0.05, 0.1, 2.28, 0.78, 0.74, markerMat, 3);
-    r.piece(0.03, 0.05, 0.1, 2.28, 0.78, -0.74, markerMat, 3);
-    r.put(0.1, 0.16, 1.68, 2.32, 0.52, 0, blackTrim);
-    glowPair(r, -2.3, 1.05, 0.64, tailOff, 0.14, 0.2, true);
-    r.put(0.08, 0.14, 1.68, -2.3, 0.52, 0, blackTrim);
-    r.piece(0.08, 0.05, 0.12, 1.4, 2.08, 0, markerMat, 3);
-    r.plates(2.38, -2.38, 0.42, van.reg);
-    r.bar(1.55, 1.55, 0.82, 1.35, 1.62, 1.02, 0.012, blackTrim);
-    r.put(0.1, 0.07, 0.03, 1.32, 1.62, 1.04, chrome);
-    r.bar(1.55, 1.55, -0.82, 1.35, 1.62, -1.02, 0.012, blackTrim);
-    r.put(0.1, 0.07, 0.03, 1.32, 1.62, -1.04, chrome);
-    r.wheelBox(1.42, 0.98, 0.34, 0.2);
-    r.wheelBox(1.42, -0.98, 0.34, 0.2);
-    r.wheelBox(-1.48, 0.98, 0.34, 0.2);
-    r.wheelBox(-1.48, -0.98, 0.34, 0.2);
+      g.fillStyle = "rgba(20,20,20,0.12)";
+      for (let i = 1; i <= 5; i++) g.fillRect(w * i / 6, 0, 4, h);
+    }, 0.52, [256, 64]);
+
+    r.block(4.52, 1.66, 1.78, 0, 1.19, 0, [nose, tail, roof, blackTrim, sideR, sideL]);
+    // Slightly sloped cab-over windscreen fairing & rain gutters
+    r.put(4.36, 0.07, 1.66, -0.02, 2.05, 0, paint);
+    r.put(4.44, 0.025, 0.03, 0, 2.02, 0.9, blackTrim);
+    r.put(4.44, 0.025, 0.03, 0, 2.02, -0.9, blackTrim);
+    // Classic 80s HK contractor galvanized steel roof rack with ladder/pipes
+    [-1.4, -0.4, 0.6].forEach(rx => {
+      r.put(0.04, 0.12, 0.04, rx, 2.13, 0.78, roofRackMat);
+      r.put(0.04, 0.12, 0.04, rx, 2.13, -0.78, roofRackMat);
+      r.put(0.04, 0.035, 1.6, rx, 2.19, 0, roofRackMat);
+    });
+    r.put(2.6, 0.035, 0.035, -0.4, 2.21, 0.78, roofRackMat);
+    r.put(2.6, 0.035, 0.035, -0.4, 2.21, -0.78, roofRackMat);
+    // Tied pipes on roof rack
+    r.bar(-1.75, 2.25, 0.36, 0.95, 2.25, 0.36, 0.035, steel);
+    r.bar(-1.75, 2.25, 0.24, 0.95, 2.25, 0.24, 0.03, steel);
+    r.put(0.75, 0.22, 0.62, -0.95, 2.31, -0.26, crateMat);
+    // Headlights, amber signals, heavy matte-black steel bumpers
+    r.pairLamps(2.28, 0.92, 0.62, headMat, true, 0.16);
+    r.piece(0.035, 0.055, 0.11, 2.27, 0.76, 0.74, markerMat, 3);
+    r.piece(0.035, 0.055, 0.11, 2.27, 0.76, -0.74, markerMat, 3);
+    r.put(0.12, 0.15, 1.76, 2.32, 0.52, 0, blackTrim);
+    glowPair(r, -2.29, 0.98, 0.68, tailOff, 0.22, 0.14, true);
+    r.put(0.1, 0.14, 1.76, -2.31, 0.52, 0, blackTrim);
+    // Rear rubber mudflaps
+    r.piece(0.03, 0.22, 0.24, -1.86, 0.34, 0.82, blackTrim, 2);
+    r.piece(0.03, 0.22, 0.24, -1.86, 0.34, -0.82, blackTrim, 2);
+    r.plates(2.39, -2.38, 0.44, van.reg);
+    addTruckMirrors(r, 1.78, 1.28, 1.62, 0.88, 1.06);
+    addWheelArches(r, [1.42, -1.48], 0.9, 0.36);
+    r.wheel(1.42, 0.89, 0.34, 0.2, false, true);
+    r.wheel(1.42, -0.89, 0.34, 0.2, false, true);
+    r.wheel(-1.48, 0.89, 0.34, 0.2, false, true);
+    r.wheel(-1.48, -0.89, 0.34, 0.2, false, true);
     r.ride.cruise = 7.6;
     r.blob(1.9);
     r.finish();
     return r;
   }
+
+  // --- 5. 1980s HONG KONG LORRY (Isuzu Elf / Hino Ranger / Canter "貨車") ---
   function lorryCabSide(g, w, h, body, noseAtLeft) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
@@ -15147,142 +15252,188 @@ const traffic = [];
       const p = xOf(a), q = xOf(b);
       return [Math.min(p, q), Math.abs(q - p)];
     };
-    const win = span(0.22, 0.78);
-    glassPane(g, win[0], h * 0.1, win[1], h * 0.4);
-    g.fillStyle = "rgba(16,12,10,0.45)";
-    g.fillRect(xOf(0.14) - 2, h * 0.08, 3, h * 0.7);
-    g.fillRect(xOf(0.86) - 2, h * 0.08, 3, h * 0.7);
+    const win = span(0.18, 0.78);
+    glassPane(g, win[0], h * 0.1, win[1], h * 0.38);
+    // Quarter vent bar
+    g.fillStyle = "#141618";
+    g.fillRect(xOf(0.32) - 1.5, h * 0.1, 3, h * 0.38);
+    // Door seams & step recess
+    g.fillStyle = "rgba(14,10,8,0.58)";
+    g.fillRect(xOf(0.12) - 2, h * 0.08, 3, h * 0.74);
+    g.fillRect(xOf(0.84) - 2, h * 0.08, 3, h * 0.74);
     g.fillStyle = "#d8dee4";
-    g.fillRect(xOf(0.7), h * 0.55, w * 0.05, h * 0.05);
-    g.fillStyle = "#1a1c1e";
+    g.fillRect(xOf(0.72), h * 0.56, w * 0.06, h * 0.05);
+    g.fillStyle = "#16181a";
     g.fillRect(0, h * 0.82, w, h * 0.18);
     soil(g, w, h);
   }
   function lorryNose(g, w, h, body) {
     g.fillStyle = body;
     g.fillRect(0, 0, w, h);
-    glassPane(g, w * 0.08, h * 0.08, w * 0.84, h * 0.34);
-    g.strokeStyle = "rgba(16,12,10,0.75)";
+    glassPane(g, w * 0.07, h * 0.08, w * 0.86, h * 0.36);
+    g.strokeStyle = "#101214";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(w * 0.16, h * 0.38);
-    g.lineTo(w * 0.4, h * 0.14);
-    g.moveTo(w * 0.6, h * 0.38);
-    g.lineTo(w * 0.84, h * 0.14);
+    g.moveTo(w * 0.18, h * 0.4); g.lineTo(w * 0.42, h * 0.16);
+    g.moveTo(w * 0.58, h * 0.4); g.lineTo(w * 0.82, h * 0.16);
     g.stroke();
+    // Recessed 80s Japanese truck grille
     g.fillStyle = "#101214";
-    g.fillRect(w * 0.22, h * 0.48, w * 0.56, h * 0.18);
-    g.strokeStyle = "#c5ccd0";
-    g.lineWidth = 2;
+    g.fillRect(w * 0.18, h * 0.5, w * 0.64, h * 0.19);
+    g.strokeStyle = "#d0d6dc";
+    g.lineWidth = 2.5;
     for (let i = 1; i <= 3; i++) {
-      const y = h * 0.48 + h * 0.18 * i / 4;
-      g.beginPath();
-      g.moveTo(w * 0.26, y);
-      g.lineTo(w * 0.74, y);
-      g.stroke();
+      const y = h * 0.5 + h * 0.19 * (i / 4);
+      g.beginPath(); g.moveTo(w * 0.21, y); g.lineTo(w * 0.79, y); g.stroke();
     }
-    g.fillStyle = "#e0a030";
-    g.fillRect(w * 0.06, h * 0.5, w * 0.08, h * 0.07);
-    g.fillRect(w * 0.86, h * 0.5, w * 0.08, h * 0.07);
-    chromeBar(g, h * 0.72, w, h * 0.1);
-    g.fillStyle = "#1c1e20";
+    g.fillStyle = "#e69c24";
+    g.fillRect(w * 0.05, h * 0.52, w * 0.1, h * 0.08);
+    g.fillRect(w * 0.85, h * 0.52, w * 0.1, h * 0.08);
+    chromeBar(g, h * 0.74, w, h * 0.08);
+    g.fillStyle = "#181a1c";
     g.fillRect(0, h * 0.86, w, h * 0.14);
     soil(g, w, h);
   }
   function lorry(paint, covered) {
-    const r = rig(6.5, 0.42);
+    const r = rig(6.6, 0.42);
     const body = cssColor(paint);
-    const key = "lorry:" + body + (covered ? ":c" : ":o");
-    const cabL = bodySkin(key + ":cabL", (g, w, h) => lorryCabSide(g, w, h, body, true), 0.5, [256, 192]);
-    const cabR = bodySkin(key + ":cabR", (g, w, h) => lorryCabSide(g, w, h, body, false), 0.5, [256, 192]);
-    const screen = bodySkin(key + ":screen", (g, w, h) => lorryNose(g, w, h, body), 0.48, [256, 256]);
+    const key = "lorry80:" + body + (covered ? ":c" : ":o");
+    const cabL = bodySkin(key + ":cabL", (g, w, h) => lorryCabSide(g, w, h, body, true), 0.46, [256, 192]);
+    const cabR = bodySkin(key + ":cabR", (g, w, h) => lorryCabSide(g, w, h, body, false), 0.46, [256, 192]);
+    const screen = bodySkin(key + ":screen", (g, w, h) => lorryNose(g, w, h, body), 0.44, [256, 256]);
     const plain = bodySkin(key + ":plain", (g, w, h) => { g.fillStyle = body; g.fillRect(0, 0, w, h); });
     const wood = cssColor(bedWood);
-    const bed = bodySkin("bed:" + wood, (g, w, h) => plankFace(g, w, h, wood));
+    const bed = bodySkin("bed80:" + wood, (g, w, h) => plankFace(g, w, h, wood));
     const canvas = cssColor(canvasMat);
-    const tarp = bodySkin("tarp:" + canvas, (g, w, h) => {
+    const tarp = bodySkin("tarp80:" + canvas, (g, w, h) => {
       g.fillStyle = canvas;
       g.fillRect(0, 0, w, h);
-      g.strokeStyle = "rgba(18,22,16,0.4)";
+      g.strokeStyle = "rgba(18,22,16,0.45)";
+      g.lineWidth = 3;
+      for (let i = 1; i <= 5; i++) {
+        g.beginPath(); g.moveTo(w * i / 6, 0); g.lineTo(w * i / 6, h); g.stroke();
+      }
+      g.strokeStyle = "rgba(215,205,175,0.45)";
       g.lineWidth = 2;
-      for (let i = 1; i <= 4; i++) {
+      for (let i = 0; i < 6; i++) {
         g.beginPath();
-        g.moveTo(0, h * i / 5);
-        g.lineTo(w, h * i / 5);
+        g.moveTo(w * (i + 0.2) / 6, h * 0.8);
+        g.lineTo(w * (i + 0.5) / 6, h * 0.96);
+        g.lineTo(w * (i + 0.8) / 6, h * 0.8);
         g.stroke();
       }
-      g.strokeStyle = "rgba(210,200,170,0.35)";
-      g.beginPath();
-      g.moveTo(w * 0.08, h * 0.15);
-      g.lineTo(w * 0.5, h * 0.55);
-      g.lineTo(w * 0.92, h * 0.12);
-      g.stroke();
-      g.fillStyle = "rgba(16,18,14,0.2)";
-      g.fillRect(0, h * 0.86, w, h * 0.14);
-    });
-    // Forward-control cab, wooden dropside or a canvas tilt. The cab glass is paint.
-    r.block(1.85, 1.15, 2.0, 1.85, 1.15, 0, [screen, plain, paint, blackTrim, cabR, cabL]);
-    r.block(3.7, 0.28, 1.9, -1.0, 0.95, 0, [bed, bed, bedWood, blackTrim, bed, bed]);
-    if (covered) r.block(3.15, 0.7, 1.86, -1.15, 1.42, 0, [tarp, tarp, canvasMat, canvasMat, tarp, tarp]);
-    else {
-      r.piece(3.4, 0.32, 0.06, -1.05, 1.22, 0.9, bedWood, 2);
-      r.piece(3.4, 0.32, 0.06, -1.05, 1.22, -0.9, bedWood, 2);
-      r.piece(0.06, 0.32, 1.72, -2.72, 1.22, 0, bedWood, 2);
-      r.block(0.7, 0.5, 0.7, -0.55, 1.32, 0.15, [crateMat, crateMat, crateMat, crateDark, crateMat, crateMat]);
-      r.block(0.6, 0.42, 0.55, -1.45, 1.28, -0.2, [crateDark, crateDark, crateDark, crateMat, crateDark, crateDark]);
-      r.block(0.55, 0.36, 0.5, -2.15, 1.26, 0.18, [crateMat, crateMat, crateDark, crateMat, crateMat, crateMat]);
+      g.fillStyle = "rgba(14,16,12,0.28)";
+      g.fillRect(0, h * 0.84, w, h * 0.16);
+    }, 0.86, [256, 128]);
+
+    // Forward-control cab + sun visor + 3 roof clearance markers + intake snorkel
+    r.block(1.9, 1.38, 2.02, 1.88, 1.34, 0, [screen, plain, paint, blackTrim, cabR, cabL]);
+    r.put(1.76, 0.08, 1.88, 1.86, 2.06, 0, paint);
+    r.put(0.22, 0.06, 1.84, 2.86, 1.98, 0, blackTrim);
+    [-0.42, 0, 0.42].forEach(z => r.piece(0.05, 0.045, 0.07, 2.74, 2.12, z, markerMat, 3));
+    // Vertical air-intake snorkel behind right cab corner
+    r.bar(0.86, 0.95, 0.86, 0.86, 2.16, 0.86, 0.04, blackTrim);
+    r.put(0.14, 0.1, 0.14, 0.86, 2.18, 0.86, blackTrim);
+    // Steel ladder-frame chassis rails + side fuel tank + battery box
+    r.put(4.6, 0.18, 0.14, -0.5, 0.72, 0.56, blackTrim);
+    r.put(4.6, 0.18, 0.14, -0.5, 0.72, -0.56, blackTrim);
+    r.put(0.85, 0.34, 0.38, 0.15, 0.66, 0.82, blackTrim);
+    r.put(0.48, 0.28, 0.32, 0.18, 0.68, -0.82, blackTrim);
+    // Timber flatbed deck
+    r.block(3.86, 0.24, 2.04, -1.04, 0.98, 0, [bed, bed, bedWood, blackTrim, bed, bed]);
+    if (covered) {
+      // Classic HK "帆布貨車" arched canvas tilt canopy with external hoop ribs
+      r.block(3.68, 1.18, 1.98, -1.06, 1.68, 0, [tarp, tarp, canvasMat, canvasMat, tarp, tarp]);
+      r.put(3.66, 0.16, 1.72, -1.06, 2.32, 0, canvasMat);
+      [-2.5, -1.55, -0.6, 0.35].forEach(hx => {
+        r.put(0.04, 1.22, 2.02, hx, 1.7, 0, blackTrim);
+      });
+    } else {
+      // Open wooden dropside bed + steel headache rack + HK market crates & baskets
+      r.piece(3.8, 0.44, 0.07, -1.04, 1.31, 0.98, bedWood, 2);
+      r.piece(3.8, 0.44, 0.07, -1.04, 1.31, -0.98, bedWood, 2);
+      r.piece(0.07, 0.44, 1.9, -2.92, 1.31, 0, bedWood, 2);
+      // Steel headache rack behind cab
+      r.put(0.06, 1.18, 1.94, 0.84, 1.66, 0, blackTrim);
+      [-0.6, 0, 0.6].forEach(z => r.put(0.04, 1.1, 0.04, 0.84, 1.66, z, steel));
+      // Mixed HK cargo: timber crates + blue/red plastic market baskets
+      r.block(0.84, 0.62, 0.82, -0.25, 1.42, 0.25, [crateMat, crateMat, crateMat, crateDark, crateMat, crateMat]);
+      r.block(0.72, 0.52, 0.68, -1.25, 1.37, -0.22, [crateDark, crateDark, crateDark, crateMat, crateDark, crateDark]);
+      r.block(0.64, 0.44, 0.56, -2.18, 1.33, 0.22, [crateBlue, crateBlue, crateBlue, crateBlue, crateBlue, crateBlue]);
+      r.block(0.58, 0.38, 0.54, -2.18, 1.72, 0.22, [crateRed, crateRed, crateRed, crateRed, crateRed, crateRed]);
+      r.block(0.56, 0.42, 0.58, -1.35, 1.32, 0.46, [crateBlue, crateBlue, crateBlue, crateBlue, crateBlue, crateBlue]);
     }
-    r.put(0.16, 0.05, 1.7, 2.86, 1.62, 0, blackTrim);
-    glowPair(r, 2.82, 0.78, 0.62, headMat, 0.14, 0.26, false);
-    r.put(0.08, 0.12, 1.85, 2.84, 0.55, 0, chrome);
-    r.piece(0.04, 0.22, 0.16, 1.15, 0.58, 1.02, blackTrim, 2);
-    r.piece(0.04, 0.22, 0.16, 1.15, 0.58, -1.02, blackTrim, 2);
-    glowPair(r, -2.88, 0.72, 0.72, tailOff, 0.12, 0.22, true);
-    r.piece(0.04, 0.32, 0.22, -1.95, 0.52, 1.12, blackTrim, 2);
-    r.piece(0.04, 0.32, 0.22, -1.95, 0.52, -1.12, blackTrim, 2);
-    r.plates(2.9, -2.92, 0.46, lorry.reg);
-    r.wheelBox(1.7, 1.08, 0.42, 0.22);
-    r.wheelBox(1.7, -1.08, 0.42, 0.22);
-    r.dual(-1.45, 0.95, 0.42, 0.18);
-    r.dual(-1.45, -0.95, 0.42, 0.18);
+    // Quad headlamps, chrome front bumper, dual-arm truck mirrors, rear lights & mudflaps
+    r.pairLamps(2.86, 0.92, 0.72, headMat, true, 0.15);
+    r.pairLamps(2.86, 0.92, 0.54, headMat, true, 0.13);
+    r.put(0.11, 0.15, 2.02, 2.89, 0.56, 0, chrome);
+    r.put(0.13, 0.06, 2.04, 2.9, 0.56, 0, blackTrim);
+    addTruckMirrors(r, 2.66, 1.44, 1.88, 0.98, 1.24);
+    glowPair(r, -2.98, 0.76, 0.76, tailOff, 0.14, 0.24, true);
+    r.put(0.08, 0.1, 1.94, -2.98, 0.54, 0, blackTrim);
+    r.piece(0.04, 0.36, 0.28, -2.02, 0.44, 1.04, blackTrim, 2);
+    r.piece(0.04, 0.36, 0.28, -2.02, 0.44, -1.04, blackTrim, 2);
+    r.plates(2.97, -3.03, 0.48, lorry.reg);
+    addWheelArches(r, [1.74], 1.04, 0.44);
+    r.wheel(1.74, 1.02, 0.42, 0.22, false, true);
+    r.wheel(1.74, -1.02, 0.42, 0.22, false, true);
+    r.dual(-1.52, 0.92, 0.42, 0.19);
+    r.dual(-1.52, -0.92, 0.42, 0.19);
     r.ride.cruise = 6.7;
     r.blob(2.1);
     r.finish();
     return r;
   }
+
+  // --- 6. 1980s KMB DOUBLE-DECKER BUS (Leyland Victory Mk 2 / Dennis Jubilant "雞車/鴨車") ---
   function busLower(g, w, h, noseAtLeft) {
     const cream = cssColor(kmbCream);
     const red = cssColor(kmbOrange);
     g.fillStyle = cream;
     g.fillRect(0, 0, w, h);
     g.fillStyle = red;
-    g.fillRect(0, h * 0.56, w, h * 0.44);
+    g.fillRect(0, h * 0.54, w, h * 0.46);
+    // Crisp cream waist stripe separating upper and lower tones
+    g.fillStyle = cream;
+    g.fillRect(0, h * 0.56, w, h * 0.05);
     const xOf = (t) => (noseAtLeft ? t : 1 - t) * w;
     const span = (a, b) => {
       const p = xOf(a), q = xOf(b);
       return [Math.min(p, q), Math.abs(q - p)];
     };
-    const panes = [[0.2, 0.32], [0.35, 0.47], [0.5, 0.62], [0.65, 0.77], [0.8, 0.92]];
+    const panes = noseAtLeft
+      ? [[0.2, 0.32], [0.34, 0.46], [0.64, 0.76], [0.78, 0.92]]
+      : [[0.06, 0.18], [0.2, 0.34], [0.36, 0.5], [0.52, 0.66], [0.68, 0.82], [0.84, 0.94]];
     panes.forEach((pair) => {
       const box = span(pair[0], pair[1]);
-      glassPane(g, box[0], h * 0.1, box[1], h * 0.4);
+      glassPane(g, box[0], h * 0.1, box[1], h * 0.38);
+      // 1980s non-AC "熱狗" sliding hopper bar
+      g.fillStyle = "#c8cfd6";
+      g.fillRect(box[0], h * 0.21, box[1], 3);
     });
     if (noseAtLeft) {
-      const door = span(0.03, 0.16);
-      g.strokeStyle = "rgba(40,16,14,0.7)";
-      g.lineWidth = 3;
-      g.strokeRect(door[0], h * 0.08, door[1], h * 0.62);
-      g.beginPath();
-      g.moveTo(door[0] + door[1] * 0.5, h * 0.08);
-      g.lineTo(door[0] + door[1] * 0.5, h * 0.7);
-      g.stroke();
-      glassPane(g, door[0] + 4, h * 0.14, door[1] * 0.4, h * 0.26);
-      glassPane(g, door[0] + door[1] * 0.54, h * 0.14, door[1] * 0.38, h * 0.26);
+      // Authentic HK KMB front boarding + mid exit bi-fold doors
+      [[0.03, 0.16], [0.49, 0.61]].forEach(pair => {
+        const door = span(pair[0], pair[1]);
+        g.fillStyle = red;
+        g.fillRect(door[0], h * 0.08, door[1], h * 0.8);
+        g.fillStyle = cream;
+        g.fillRect(door[0], h * 0.08, door[1], h * 0.46);
+        g.strokeStyle = "#181414";
+        g.lineWidth = 3;
+        g.strokeRect(door[0], h * 0.08, door[1], h * 0.8);
+        g.beginPath();
+        g.moveTo(door[0] + door[1] * 0.5, h * 0.08);
+        g.lineTo(door[0] + door[1] * 0.5, h * 0.88);
+        g.stroke();
+        glassPane(g, door[0] + 4, h * 0.12, door[1] * 0.4, h * 0.32);
+        glassPane(g, door[0] + door[1] * 0.54, h * 0.12, door[1] * 0.38, h * 0.32);
+      });
     }
-    g.fillStyle = "#121416";
-    [0.175, 0.82].forEach((t) => {
+    g.fillStyle = "#101214";
+    [0.18, 0.82].forEach((t) => {
       g.beginPath();
-      g.ellipse(xOf(t), h - 1, w * 0.045, h * 0.28, 0, Math.PI, 0, false);
+      g.ellipse(xOf(t), h + 1, w * 0.048, h * 0.3, 0, Math.PI, 0, false);
       g.closePath();
       g.fill();
     });
@@ -15291,12 +15442,21 @@ const traffic = [];
   function busUpper(g, w, h) {
     g.fillStyle = cssColor(kmbCream);
     g.fillRect(0, 0, w, h);
-    const n = 7;
-    const gap = w * 0.02;
-    const pane = (w - gap * 2) / n;
-    for (let i = 0; i < n; i++) glassPane(g, gap + i * pane + pane * 0.12, h * 0.14, pane * 0.76, h * 0.62);
+    // Red upper-deck roofline band & inter-deck waist band
     g.fillStyle = cssColor(kmbOrange);
-    g.fillRect(0, h * 0.9, w, h * 0.1);
+    g.fillRect(0, 0, w, h * 0.1);
+    g.fillRect(0, h * 0.86, w, h * 0.14);
+    const n = 7;
+    const gap = w * 0.025;
+    const pane = (w - gap * 2) / n;
+    for (let i = 0; i < n; i++) {
+      const px = gap + i * pane + pane * 0.1;
+      const pw = pane * 0.8;
+      glassPane(g, px, h * 0.16, pw, h * 0.62);
+      // Sliding top vent transom (non-AC "熱狗" bus signature)
+      g.fillStyle = "#cfd6dc";
+      g.fillRect(px, h * 0.32, pw, 3);
+    }
   }
   function busFront(g, w, h) {
     const cream = cssColor(kmbCream);
@@ -15304,26 +15464,28 @@ const traffic = [];
     g.fillStyle = cream;
     g.fillRect(0, 0, w, h);
     g.fillStyle = red;
-    g.fillRect(0, h * 0.58, w, h * 0.42);
-    glassPane(g, w * 0.08, h * 0.08, w * 0.38, h * 0.4);
-    glassPane(g, w * 0.54, h * 0.08, w * 0.38, h * 0.4);
-    g.strokeStyle = "rgba(16,12,10,0.7)";
+    g.fillRect(0, h * 0.56, w, h * 0.44);
+    g.fillStyle = cream;
+    g.fillRect(0, h * 0.58, w, h * 0.04);
+    // Split 2-pane driver windscreen
+    glassPane(g, w * 0.07, h * 0.08, w * 0.4, h * 0.42);
+    glassPane(g, w * 0.53, h * 0.08, w * 0.4, h * 0.42);
+    g.strokeStyle = "#101214";
     g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(w * 0.14, h * 0.44);
-    g.lineTo(w * 0.38, h * 0.16);
-    g.moveTo(w * 0.62, h * 0.44);
-    g.lineTo(w * 0.86, h * 0.16);
+    g.moveTo(w * 0.14, h * 0.46); g.lineTo(w * 0.38, h * 0.16);
+    g.moveTo(w * 0.62, h * 0.46); g.lineTo(w * 0.86, h * 0.16);
     g.stroke();
-    function lamp(cx) {
-      g.fillStyle = "#d8dee6";
-      g.fillRect(cx - w * 0.07, h * 0.68, w * 0.14, h * 0.12);
-      g.fillStyle = "#f4efe4";
-      g.fillRect(cx - w * 0.045, h * 0.7, w * 0.09, h * 0.08);
+    // Front-engined Victory Mk 2 / Jubilant radiator grille
+    g.fillStyle = "#141618";
+    g.fillRect(w * 0.3, h * 0.64, w * 0.4, h * 0.22);
+    g.strokeStyle = "#cfd6de";
+    g.lineWidth = 2;
+    for (let i = 1; i <= 4; i++) {
+      const y = h * 0.64 + h * 0.22 * (i / 5);
+      g.beginPath(); g.moveTo(w * 0.32, y); g.lineTo(w * 0.68, y); g.stroke();
     }
-    lamp(w * 0.18);
-    lamp(w * 0.82);
-    g.fillStyle = "#1c1e20";
+    g.fillStyle = "#181a1c";
     g.fillRect(0, h * 0.88, w, h * 0.12);
     soil(g, w, h);
   }
@@ -15333,98 +15495,82 @@ const traffic = [];
     g.fillStyle = cream;
     g.fillRect(0, 0, w, h);
     g.fillStyle = red;
-    g.fillRect(0, h * 0.58, w, h * 0.42);
-    glassPane(g, w * 0.16, h * 0.12, w * 0.68, h * 0.34);
-    g.fillStyle = "#3a2a22";
-    g.fillRect(w * 0.3, h * 0.64, w * 0.4, h * 0.16);
+    g.fillRect(0, h * 0.56, w, h * 0.44);
+    g.fillStyle = cream;
+    g.fillRect(0, h * 0.58, w, h * 0.04);
+    glassPane(g, w * 0.14, h * 0.12, w * 0.72, h * 0.36);
+    g.fillStyle = "#26201c";
+    g.fillRect(w * 0.28, h * 0.65, w * 0.44, h * 0.18);
     g.strokeStyle = "#c5ccd2";
     g.lineWidth = 2;
-    for (let i = 1; i <= 3; i++) {
-      const y = h * 0.64 + h * 0.16 * i / 4;
-      g.beginPath();
-      g.moveTo(w * 0.33, y);
-      g.lineTo(w * 0.67, y);
-      g.stroke();
+    for (let i = 1; i <= 4; i++) {
+      const y = h * 0.65 + h * 0.18 * (i / 5);
+      g.beginPath(); g.moveTo(w * 0.3, y); g.lineTo(w * 0.7, y); g.stroke();
     }
-    g.fillStyle = "#6a1214";
-    g.fillRect(w * 0.05, h * 0.66, w * 0.12, h * 0.12);
-    g.fillRect(w * 0.83, h * 0.66, w * 0.12, h * 0.12);
-    g.fillStyle = "#1c1e20";
+    g.fillStyle = "#181a1c";
     g.fillRect(0, h * 0.88, w, h * 0.12);
     soil(g, w, h);
   }
   function bus() {
-    const r = rig(10.7, 0.48);
-    const lowL = bodySkin("kmb:lowL", (g, w, h) => busLower(g, w, h, true), 0.46, [512, 256]);
-    const lowR = bodySkin("kmb:lowR", (g, w, h) => busLower(g, w, h, false), 0.46, [512, 256]);
-    const upSide = bodySkin("kmb:up2", (g, w, h) => busUpper(g, w, h), 0.46, [512, 192]);
-    const nose = bodySkin("kmb:nose2", (g, w, h) => busFront(g, w, h), 0.44, [256, 256]);
-    const tail = bodySkin("kmb:tail2", (g, w, h) => busRear(g, w, h), 0.44, [256, 256]);
-    const upNose = bodySkin("kmb:unose2", (g, w, h) => {
+    const r = rig(10.8, 0.48);
+    const lowL = bodySkin("kmb80:lowL", (g, w, h) => busLower(g, w, h, true), 0.44, [512, 256]);
+    const lowR = bodySkin("kmb80:lowR", (g, w, h) => busLower(g, w, h, false), 0.44, [512, 256]);
+    const upSide = bodySkin("kmb80:up", (g, w, h) => busUpper(g, w, h), 0.44, [512, 192]);
+    const nose = bodySkin("kmb80:nose", (g, w, h) => busFront(g, w, h), 0.42, [256, 256]);
+    const tail = bodySkin("kmb80:tail", (g, w, h) => busRear(g, w, h), 0.42, [256, 256]);
+    const upNose = bodySkin("kmb80:unose", (g, w, h) => {
       g.fillStyle = cssColor(kmbCream);
       g.fillRect(0, 0, w, h);
-      glassPane(g, w * 0.1, h * 0.16, w * 0.8, h * 0.62);
+      g.fillStyle = cssColor(kmbOrange);
+      g.fillRect(0, 0, w, h * 0.1);
+      g.fillRect(0, h * 0.86, w, h * 0.14);
+      glassPane(g, w * 0.08, h * 0.16, w * 0.39, h * 0.62);
+      glassPane(g, w * 0.53, h * 0.16, w * 0.39, h * 0.62);
+    }, 0.42, [256, 192]);
+
+    // Lower deck + Upper deck + sculpted KMB red roof crown + front-engine radiator nose
+    r.block(9.72, 1.7, 2.46, -0.08, 1.28, 0, [nose, tail, kmbCream, blackTrim, lowR, lowL]);
+    r.block(9.38, 1.56, 2.38, -0.1, 2.91, 0, [upNose, upNose, kmbOrange, kmbCream, upSide, upSide]);
+    // Sculpted beveled red roof cap + 4 non-AC ventilation cowls
+    r.put(9.12, 0.14, 2.18, -0.1, 3.76, 0, kmbOrange);
+    [-3.1, -1.1, 0.9, 2.9].forEach(vx => {
+      r.put(0.44, 0.1, 0.52, vx, 3.86, 0, kmbCream);
+      r.put(0.48, 0.035, 0.56, vx, 3.92, 0, kmbOrange);
     });
-    // Cream over red, the 1980s Kowloon Motor Bus deck. Both windscreens are paint.
-    r.block(9.7, 1.7, 2.46, -0.1, 1.28, 0, [nose, tail, kmbCream, blackTrim, lowR, lowL]);
-    r.block(9.15, 1.5, 2.28, -0.15, 2.88, 0, [upNose, upNose, kmbOrange, kmbCream, upSide, upSide]);
-    r.piece(9.5, 0.05, 0.05, -0.12, 2.14, 1.18, blackTrim, 2);
-    r.piece(9.5, 0.05, 0.05, -0.12, 2.14, -1.18, blackTrim, 2);
+    // Protruding front-engine Victory Mk 2 / Jubilant radiator housing & inter-deck moulding
+    r.put(0.14, 0.42, 0.96, 4.82, 0.96, 0, grilleMat);
+    r.put(0.16, 0.04, 1.0, 4.83, 1.18, 0, chrome);
+    r.piece(9.64, 0.07, 0.06, -0.08, 2.13, 1.24, kmbOrange, 2);
+    r.piece(9.64, 0.07, 0.06, -0.08, 2.13, -1.24, kmbOrange, 2);
+    // Front destination blind recessed housing between decks
+    r.put(0.16, 0.44, 1.88, 4.74, 2.2, 0, blackTrim);
     if (!bus.boards) {
       bus.boards = {
         dest: busBoard((g, w, h) => {
-          g.fillStyle = "#14120e";
+          g.fillStyle = "#12100c";
           g.fillRect(0, 0, w, h);
           g.fillStyle = "#3a3832";
-          g.fillRect(Math.floor(w * 0.69), 12, 3, h - 24);
-          smearSign(g, 28, (sg) => {
-            sg.fillStyle = "#f6f1e6";
-            sg.strokeStyle = "#f6f1e6";
-            sg.lineWidth = 8;
-            sg.textAlign = "center";
-            sg.textBaseline = "middle";
-            sg.font = "700 72px 'WenQuanYi Micro Hei', 'Droid Sans Fallback', sans-serif";
-            sg.strokeText("尖沙咀碼頭", w * 0.345, h * 0.36);
-            sg.fillText("尖沙咀碼頭", w * 0.345, h * 0.36);
-            sg.font = "700 34px sans-serif";
-            if ("letterSpacing" in sg) sg.letterSpacing = "3px";
-            sg.fillText("STAR FERRY", w * 0.345, h * 0.74);
-          });
-          smearSign(g, 42, (sg) => {
-            sg.fillStyle = "#f6f1e6";
-            sg.strokeStyle = "#f6f1e6";
-            sg.lineWidth = 10;
-            sg.textAlign = "center";
-            sg.textBaseline = "middle";
-            sg.font = "700 108px sans-serif";
-            sg.strokeText("5C", w * 0.845, h * 0.54);
-            sg.fillText("5C", w * 0.845, h * 0.54);
-          });
-        }, 900, 180, { rough: 0.42, emissive: 0xffe6c4, emI: 0.35, lit: true }),
+          g.fillRect(Math.floor(w * 0.69), 10, 4, h - 20);
+          g.fillStyle = "#faf5ea";
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.font = "700 68px 'PingFang HK', 'Heiti TC', 'Microsoft JhengHei', sans-serif";
+          g.fillText("尖沙咀碼頭", w * 0.345, h * 0.36);
+          g.font = "700 32px sans-serif";
+          g.fillText("STAR FERRY", w * 0.345, h * 0.74);
+          g.fillStyle = "#ffe47a";
+          g.font = "700 104px sans-serif";
+          g.fillText("5C", w * 0.845, h * 0.53);
+        }, 900, 180, { rough: 0.38, emissive: 0xffe6c0, emI: 0.68, lit: true }),
         fleet: busBoard((g, w, h) => {
           g.fillStyle = "#f3e6c4";
           g.fillRect(0, 0, w, h);
-          smearSign(g, 20, (sg) => {
-            sg.fillStyle = "#1a1a1a";
-            sg.font = "700 46px sans-serif";
-            sg.textAlign = "center";
-            sg.textBaseline = "middle";
-            sg.fillText("N5", w / 2, h / 2 + 1);
-          });
-        }, 160, 72),
-        plate: busBoard((g, w, h) => {
-          g.fillStyle = "#f7f4ea";
-          g.fillRect(0, 0, w, h);
-          g.strokeStyle = "#1a1a1a";
-          g.lineWidth = 8;
-          g.strokeRect(5, 5, w - 10, h - 10);
           g.fillStyle = "#141414";
-          g.font = "700 40px sans-serif";
-          if ("letterSpacing" in g) g.letterSpacing = "2px";
+          g.font = "700 46px sans-serif";
           g.textAlign = "center";
           g.textBaseline = "middle";
-          g.fillText("BY6592", w / 2, h / 2 + 2);
-        }, 320, 80, { rough: 0.5 }),
+          g.fillText("G312", w / 2, h / 2 + 1);
+        }, 180, 72),
         sideL: busBoard((g, w, h) => busSideMark(g, w, h, false), 768, 192),
         sideR: busBoard((g, w, h) => busSideMark(g, w, h, true), 768, 192)
       };
@@ -15437,19 +15583,26 @@ const traffic = [];
       mesh.renderOrder = 4;
       r.ride.shell.add(mesh);
     }
-    board(3.4, 0.28, -0.15, 0.66, 1.26, boards.sideR, 0);
-    board(3.4, 0.28, -0.15, 0.66, -1.26, boards.sideL, Math.PI);
-    board(1.7, 0.36, 4.9, 2.15, 0, boards.dest, Math.PI / 2);
-    board(0.42, 0.14, 4.9, 3.15, 0, boards.fleet, Math.PI / 2);
-    glowPair(r, 4.92, 0.88, 0.82, headMat, 0.16, 0.28, false);
-    r.put(0.1, 0.16, 2.2, 4.88, 0.58, 0, blackTrim);
-    glowPair(r, -4.98, 0.88, 0.82, tailOff, 0.16, 0.28, true);
-    r.put(0.1, 0.16, 2.2, -4.95, 0.58, 0, blackTrim);
-    r.plates(5.02, -5.08, 0.48, bus.reg);
-    r.wheelBox(3.05, 1.28, 0.48, 0.24);
-    r.wheelBox(3.05, -1.28, 0.48, 0.24);
-    r.dual(-3.2, 1.12, 0.48, 0.2);
-    r.dual(-3.2, -1.12, 0.48, 0.2);
+    board(3.4, 0.3, -0.15, 0.72, 1.255, boards.sideR, 0);
+    board(3.4, 0.3, -0.15, 0.72, -1.255, boards.sideL, Math.PI);
+    board(1.76, 0.36, 4.83, 2.2, 0, boards.dest, Math.PI / 2);
+    board(0.46, 0.14, 4.66, 3.55, 0, boards.fleet, Math.PI / 2);
+    // Twin round headlamps + amber blinkers + heavy rubber bumpers + bus mirrors
+    r.pairLamps(4.82, 0.9, 0.86, headMat, true, 0.18);
+    r.piece(0.04, 0.08, 0.12, 4.81, 0.74, 1.06, markerMat, 3);
+    r.piece(0.04, 0.08, 0.12, 4.81, 0.74, -1.06, markerMat, 3);
+    r.put(0.14, 0.18, 2.44, 4.84, 0.56, 0, blackTrim);
+    glowPair(r, -4.96, 0.92, 0.88, tailOff, 0.18, 0.26, true);
+    r.piece(0.04, 0.08, 0.12, -4.96, 0.72, 0.92, markerMat, 3);
+    r.piece(0.04, 0.08, 0.12, -4.96, 0.72, -0.92, markerMat, 3);
+    r.put(0.12, 0.18, 2.44, -4.95, 0.56, 0, blackTrim);
+    addTruckMirrors(r, 4.62, 1.54, 2.02, 1.2, 1.48);
+    r.plates(4.93, -5.03, 0.48, bus.reg);
+    addWheelArches(r, [3.05, -3.2], 1.24, 0.5);
+    r.wheel(3.05, 1.22, 0.48, 0.24, false, true);
+    r.wheel(3.05, -1.22, 0.48, 0.24, false, true);
+    r.dual(-3.2, 1.08, 0.48, 0.2);
+    r.dual(-3.2, -1.08, 0.48, 0.2);
     r.ride.cruise = 6.5;
     r.ride.amp = 0.02;
     r.blob(2.5);
@@ -15459,29 +15612,30 @@ const traffic = [];
   function busSideMark(g, w, h, noseRight) {
     g.fillStyle = "#c4161c";
     g.fillRect(0, 0, w, h);
-    const routeX = noseRight ? w * 0.8 : w * 0.2;
+    const routeX = noseRight ? w * 0.82 : w * 0.18;
     const markX = noseRight ? w * 0.46 : w * 0.54;
     const wing = noseRight ? -1 : 1;
-    g.fillStyle = "#f6f1e4";
-    g.font = "700 64px sans-serif";
+    g.fillStyle = "#faf5ea";
+    g.font = "700 66px sans-serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("5C", routeX, h * 0.4);
+    g.fillText("5C", routeX, h * 0.42);
+    // Classic KMB winged crest
     g.fillStyle = "#f3e6c4";
-    g.fillRect(markX - 96, h * 0.38 - 8, 192, 16);
+    g.fillRect(markX - 104, h * 0.38 - 10, 208, 20);
     g.beginPath();
-    g.arc(markX, h * 0.38, 46, 0, Math.PI * 2);
+    g.arc(markX, h * 0.38, 48, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = "#c4161c";
     g.beginPath();
-    g.arc(markX, h * 0.38, 36, 0, Math.PI * 2);
+    g.arc(markX, h * 0.38, 38, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = "#fffaf2";
-    g.font = "700 26px sans-serif";
+    g.font = "700 28px sans-serif";
     g.fillText("KMB", markX, h * 0.4);
-    g.fillStyle = "#f6f1e4";
-    g.font = "700 24px 'WenQuanYi Micro Hei', 'Droid Sans Fallback', sans-serif";
-    g.fillText("九巴服務  日日進步", markX + wing * 6, h * 0.78);
+    g.fillStyle = "#faf5ea";
+    g.font = "700 28px 'PingFang HK', 'Heiti TC', 'Microsoft JhengHei', sans-serif";
+    g.fillText("九龍巴士  日日進步", markX + wing * 6, h * 0.8);
   }
 
   function bike() {
