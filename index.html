@@ -167,6 +167,24 @@
   }
   #wx-purse { display: block; max-width: 100%; white-space: nowrap; line-height: 1.35; }
   #wx-purse:empty { display: none; }
+  #wx-purse.up { animation: purse-up 0.85s ease-out; }
+  #wx-purse.down { animation: purse-down 0.85s ease-out; }
+  @keyframes purse-up {
+    0% { color: #fffaf2; }
+    28% {
+      color: #fff4d2;
+      text-shadow: 0 0 6px #fff, 0 0 16px #ffc56a, 0 0 28px #ffb020;
+    }
+    100% { color: #ffc56a; }
+  }
+  @keyframes purse-down {
+    0% { color: #fffaf2; }
+    28% {
+      color: #ffd4cc;
+      text-shadow: 0 0 6px #fff, 0 0 16px #ff4a38, 0 0 28px #ff2418;
+    }
+    100% { color: #ff4a38; }
+  }
   #run-clock {
     position: fixed;
     left: 50%;
@@ -221,6 +239,102 @@
       0 0 12px #14e06a,
       0 0 22px rgba(61, 255, 136, 0.95);
     animation: none;
+  }
+  #run-clock.gain {
+    animation: run-clock-gain 0.85s ease-out;
+  }
+  @keyframes run-clock-gain {
+    0%, 100% {
+      box-shadow:
+        0 0 12px rgba(61, 255, 136, 0.7),
+        inset 0 0 10px rgba(61, 255, 136, 0.2);
+    }
+    35% {
+      box-shadow:
+        0 0 26px rgba(61, 255, 136, 1),
+        inset 0 0 18px rgba(61, 255, 136, 0.7);
+    }
+  }
+  #run-fx {
+    position: fixed;
+    left: 50%;
+    top: calc(var(--inset-t) + 120px);
+    transform: translateX(-50%);
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: max-content;
+    max-width: calc(100vw - var(--inset-x) - var(--inset-r) - 16px);
+    pointer-events: none;
+  }
+  #run-fx:empty { display: none; }
+  body:has(#boot) #run-fx { display: none; }
+  #run-cash {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: max-content;
+    pointer-events: none;
+    font-size: 11px;
+  }
+  #run-cash:empty { display: none; }
+  body:has(#boot) #run-cash { display: none; }
+  #run-cash .run-pop { align-items: flex-start; animation-name: run-pop-cash; }
+  #run-cash .run-pop em { font-size: 1em; letter-spacing: 0.12em; }
+  #run-cash .run-pop span { font-size: 2.15em; }
+  .run-pop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    animation: run-pop 1.7s ease-out forwards;
+  }
+  .run-pop em {
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    line-height: 1.2;
+  }
+  .run-pop span {
+    font-size: clamp(22px, 5vw, 36px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .run-pop.time { color: #3dff88; }
+  .run-pop.time span {
+    text-shadow: 0 0 1px #eaffea, 0 0 8px #3dff88, 0 0 18px #14e06a;
+  }
+  .run-pop.cash.up { color: #ffc56a; }
+  .run-pop.cash.up span {
+    text-shadow: 0 0 1px #fff4d2, 0 0 8px #ffc56a, 0 0 18px #ffb020;
+  }
+  .run-pop.cash.down { color: #ff4a38; }
+  .run-pop.cash.down span {
+    text-shadow: 0 0 1px #ffd4cc, 0 0 8px #ff4a38, 0 0 18px #ff2418;
+  }
+  @keyframes run-pop {
+    0% { opacity: 1; transform: translateY(8px) scale(0.82); }
+    16% { opacity: 1; transform: translateY(0) scale(1.1); }
+    30% { opacity: 1; transform: translateY(0) scale(1); }
+    72% { opacity: 1; transform: translateY(-6px) scale(1); }
+    100% { opacity: 0; transform: translateY(-28px) scale(0.98); }
+  }
+  @keyframes run-pop-cash {
+    0% { opacity: 1; transform: translateY(4px) scale(0.86); }
+    16% { opacity: 1; transform: translateY(0) scale(1.06); }
+    30% { opacity: 1; transform: translateY(0) scale(1); }
+    72% { opacity: 1; transform: translateY(4px) scale(1); }
+    100% { opacity: 0; transform: translateY(16px) scale(0.98); }
   }
   @keyframes run-clock-low {
     0%, 100% {
@@ -1290,6 +1404,8 @@ applyBoot();
 <canvas id="c"></canvas>
 <div id="ui">
   <div id="run-clock" hidden></div>
+  <div id="run-fx" aria-live="polite"></div>
+  <div id="run-cash" aria-live="polite"></div>
   <div id="col-left">
   <header class="panel">
     <h1><span class="when"><span id="wx-read"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span><span id="wx-purse"></span></span></span></h1>
@@ -29234,8 +29350,9 @@ function syncRoofButton() {
   }
 }
 // Runner. A parcel is taken at a counter and handed to a person who is waiting
-// at a door or on that building's roof. Fees are paid at 22:00. A loss comes
-// out of the purse at once. See the city-delivery note for the numbers.
+// at a door or on that building's roof. A finished fare pays its fee and adds
+// the seconds still on that fare to the shift. A failed fare takes the goods'
+// cost off the purse at once.
 const RUN_ITEM = {
   grocery: { slots: 1, cost: 7, drop: "keep", rain: false, zh: "雜貨", en: "groceries", ja: "雑貨" },
   rice: { slots: 2, cost: 14, drop: "keep", rain: true, zh: "米袋", en: "a sack of rice", ja: "米袋" },
@@ -29277,6 +29394,7 @@ const RUN_COPY = {
     sheet: "這一班", over: "這一班完了", survived: "撐了", earn: "收入",
     done: "已交到", none: "沒有單", day: "日", days: "日", hour: "小時", hours: "小時",
     on: "收到", late: "遲到", fail: "未交到",
+    plusTime: "追加時間", plusCash: "追加金額", minusCash: "金額減少",
     bonus: "一併送達", net: "本班", close: "重新開始",
     green: "短程", yellow: "過舖", red: "上天台",
     first: "第一單", ground: "在地上", roof: "天台", door: "門",
@@ -29289,6 +29407,7 @@ const RUN_COPY = {
     sheet: "This shift", over: "Game over", survived: "Time survived", earn: "Earnings",
     done: "Completed", none: "No orders", day: "day", days: "days", hour: "hour", hours: "hours",
     on: "Paid", late: "Late", fail: "Failed",
+    plusTime: "Additional time", plusCash: "Additional amount", minusCash: "Amount down",
     bonus: "Together", net: "Shift", close: "Restart",
     green: "Short", yellow: "Counter", red: "Roof",
     first: "First job", ground: "On the ground", roof: "Roof", door: "door",
@@ -29301,6 +29420,7 @@ const RUN_COPY = {
     sheet: "この回", over: "この回は終わり", survived: "生き残った", earn: "収入",
     done: "届けた", none: "荷物はない", day: "日", days: "日", hour: "時間", hours: "時間",
     on: "入金", late: "遅れ", fail: "届かず",
+    plusTime: "追加時間", plusCash: "追加金額", minusCash: "金額減少",
     bonus: "まとめて", net: "この回", close: "やり直す",
     green: "近い", yellow: "店", red: "屋上",
     first: "最初の一件", ground: "地面", roof: "屋上", door: "扉",
@@ -29315,7 +29435,8 @@ const run = {
   jobs: [], slips: [], runs: [], openRun: null, shops: null,
   seq: 1, speed: 0, wasFast: false, fastAt: -10, dropCool: 0,
   boxMat: null, layAt: 0,
-  shift: SHIFT_SECS, earned: 0, log: [], flash: 0, flashN: 0
+  shift: SHIFT_SECS, earned: 0, log: [], timeFlash: 0, cashFlash: 0, cashDown: false,
+  notices: [], bursts: [], noteSeq: 1
 };
 function runText(key) {
   const pack = RUN_COPY[lang] || RUN_COPY.zh;
@@ -29983,8 +30104,10 @@ function runOpenDay(now, restart) {
   run.log = [];
   run.t0 = now;
   run.survivedAt = now;
-  run.flash = 0;
-  run.flashN = 0;
+  run.timeFlash = 0;
+  run.cashFlash = 0;
+  run.cashDown = false;
+  runClearFx();
   if (restart) {
     run.purse = START_PURSE;
     run.slips = [];
@@ -30045,11 +30168,182 @@ function runLogOf(id) {
   for (let i = 0; i < log.length; i++) if (log[i].id === id) return log[i];
   return null;
 }
+function runDeltaClock(sec) {
+  const sign = sec < 0 ? "−" : "+";
+  const s = Math.abs(Math.round(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return sign + m + ":" + (r < 10 ? "0" : "") + r;
+}
+function runDeltaCash(n) {
+  const sign = n < 0 ? "−" : "+";
+  return sign + "$" + Math.abs(Math.round(n));
+}
+function runNotice(kind, delta, now) {
+  if (!delta) return;
+  run.notices.push({ id: run.noteSeq++, kind: kind, delta: delta, t0: now, life: 1.7 });
+}
+function runBurst(x, y, z, hex, now, scale0) {
+  if (!runBurst.geo) {
+    runBurst.geo = new THREE.RingGeometry(0.42, 0.58, 28);
+    runBurst.geo.rotateX(-Math.PI / 2);
+  }
+  const mat = runGlowMat(hex);
+  const mesh = new THREE.Mesh(runBurst.geo, mat);
+  mesh.position.set(x, y + 0.06, z);
+  mesh.scale.setScalar(scale0 || 1);
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.renderOrder = 4;
+  scene.add(mesh);
+  run.bursts.push({ mesh: mesh, mat: mat, t0: now, life: 0.9, scale0: scale0 || 1 });
+}
+function runPayoff(now, timeDelta, cashDelta, job) {
+  if (timeDelta) {
+    run.shift += timeDelta;
+    run.timeFlash = now + 0.9;
+    runNotice("time", timeDelta, now);
+  }
+  if (cashDelta) {
+    run.purse += cashDelta;
+    if (cashDelta > 0) run.earned += cashDelta;
+    run.cashFlash = now + 0.9;
+    run.cashDown = cashDelta < 0;
+    runNotice("cash", cashDelta, now);
+  }
+  const y = job && job.roof ? (job.y || GROUND_Y) : GROUND_Y;
+  const x = job && job.x != null ? job.x : walkX;
+  const z = job && job.z != null ? job.z : walkZ;
+  if (timeDelta) runBurst(x, y, z, 0x3dff88, now, 1);
+  if (cashDelta > 0) runBurst(x, y, z, 0xffc56a, now, 1.4);
+  if (cashDelta < 0) runBurst(x, y, z, 0xff3a2a, now, 1);
+}
+function runStepBursts(now) {
+  const list = run.bursts || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const b = list[i];
+    const u = b.life > 0 ? (now - b.t0) / b.life : 1;
+    if (u >= 1) {
+      scene.remove(b.mesh);
+      b.mat.dispose();
+      list.splice(i, 1);
+      continue;
+    }
+    b.mesh.scale.setScalar(b.scale0 * (1 + u * 5.5));
+    b.mat.opacity = (1 - u) * (1 - u);
+  }
+}
+function runPlaceFx() {
+  const root = document.getElementById("run-fx");
+  if (!root) return;
+  const clock = document.getElementById("run-clock");
+  const arrows = document.getElementById("run-arrows");
+  let top = 96;
+  if (clock && !clock.hidden) {
+    const cr = clock.getBoundingClientRect();
+    if (cr.height > 1) top = cr.bottom + 10;
+  }
+  if (arrows && !arrows.hidden && getComputedStyle(arrows).display !== "none") {
+    const ar = arrows.getBoundingClientRect();
+    if (ar.height > 1) top = Math.max(top, ar.bottom + 8);
+  }
+  root.style.top = Math.round(top) + "px";
+}
+function runPlaceCash() {
+  const root = document.getElementById("run-cash");
+  if (!root) return;
+  const purse = document.getElementById("wx-purse");
+  if (!purse || !purse.textContent || getComputedStyle(purse).display === "none") return;
+  const pr = purse.getBoundingClientRect();
+  if (pr.height < 1) return;
+  const plate = purse.closest("header.panel");
+  const below = plate ? plate.getBoundingClientRect().bottom : pr.bottom;
+  root.style.left = Math.round(pr.left) + "px";
+  root.style.top = Math.round(below + 8) + "px";
+  root.style.fontSize = "";
+  root.style.maxWidth = "";
+  let room = window.innerWidth - pr.left - 16;
+  const clock = document.getElementById("run-clock");
+  if (clock && !clock.hidden && getComputedStyle(clock).display !== "none") {
+    const cr = clock.getBoundingClientRect();
+    if (cr.width > 1 && cr.left > pr.left) room = Math.min(room, cr.left - pr.left - 12);
+  }
+  if (!(room > 32)) return;
+  let need = 0;
+  for (let i = 0; i < root.children.length; i++) need = Math.max(need, root.children[i].scrollWidth);
+  if (need > room + 1) root.style.fontSize = Math.max(7, 11 * room / need).toFixed(2) + "px";
+  root.style.maxWidth = Math.floor(room) + "px";
+}
+function runSyncFx(now) {
+  const timeRoot = document.getElementById("run-fx");
+  const cashRoot = document.getElementById("run-cash");
+  if (!timeRoot && !cashRoot) return;
+  const keep = [];
+  const seen = {};
+  const notes = run.notices || [];
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    if (now >= n.t0 + n.life) continue;
+    keep.push(n);
+    seen[n.id] = true;
+    const root = n.kind === "cash" ? cashRoot : timeRoot;
+    if (!root || root.querySelector('[data-id="' + n.id + '"]')) continue;
+    const el = document.createElement("b");
+    const down = n.delta < 0;
+    el.className = "run-pop " + n.kind + (down ? " down" : " up");
+    el.dataset.id = String(n.id);
+    const label = n.kind === "time" ? runText("plusTime") : (down ? runText("minusCash") : runText("plusCash"));
+    const value = n.kind === "time" ? runDeltaClock(n.delta) : runDeltaCash(n.delta);
+    el.innerHTML = "<em>" + runEsc(label) + "</em><span>" + runEsc(value) + "</span>";
+    root.appendChild(el);
+  }
+  run.notices = keep;
+  const roots = [timeRoot, cashRoot];
+  for (let r = 0; r < roots.length; r++) {
+    const root = roots[r];
+    if (!root) continue;
+    const kids = root.children;
+    for (let i = kids.length - 1; i >= 0; i--) {
+      if (!seen[kids[i].dataset.id]) root.removeChild(kids[i]);
+    }
+  }
+  runPlaceFx();
+  runPlaceCash();
+}
+function runClearFx() {
+  run.notices = [];
+  run.timeFlash = 0;
+  run.cashFlash = 0;
+  run.cashDown = false;
+  const root = document.getElementById("run-fx");
+  if (root) root.textContent = "";
+  const cash = document.getElementById("run-cash");
+  if (cash) cash.textContent = "";
+  const purse = document.getElementById("wx-purse");
+  if (purse) {
+    purse.classList.remove("up", "down");
+    purse.dataset.flash = "";
+  }
+  const clock = document.getElementById("run-clock");
+  if (clock) {
+    clock.classList.remove("gain");
+    clock.dataset.flash = "";
+  }
+  const list = run.bursts || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    scene.remove(list[i].mesh);
+    list[i].mat.dispose();
+  }
+  run.bursts = [];
+}
 function runFail(job) {
   if (!job || job.state === "failed" || job.state === "done") return;
   job.state = "failed";
   const row = runLogOf(job.id);
   if (row) { row.status = "failed"; row.fee = 0; }
+  const loss = job.cost || 0;
+  if (loss) runPayoff(performance.now() * 0.001, 0, -loss, job);
   runRemoveBody(job);
   if (run.intro === 1 && job.first) run.intro = 2;
   if (job.second) run.intro = 3;
@@ -30058,11 +30352,9 @@ function runDeliver(job, now) {
   const left = runFareLeft(job, now);
   if (left <= 0) { runFail(job); return; }
   job.state = "done";
-  job.fee = (job.base || FARE_BASE.green) + Math.max(0, Math.floor(left));
-  run.purse += job.fee;
-  run.earned += job.fee;
-  run.flash = now + 1.5;
-  run.flashN = job.fee;
+  const extra = Math.max(0, Math.floor(left));
+  job.fee = (job.base || FARE_BASE.green) + extra;
+  runPayoff(now, extra, job.fee, job);
   const row = runLogOf(job.id);
   if (row) { row.status = "done"; row.fee = job.fee; }
   if (job.box) { city.remove(job.box); job.box = null; }
@@ -30869,12 +31161,23 @@ function runPaint() {
   const show = walkMode;
   const now = performance.now() * 0.001;
   if (purse) {
-    if (!show) purse.textContent = "";
+    if (!show) {
+      purse.textContent = "";
+      purse.classList.remove("up", "down");
+    }
     else {
       const n = run.purse;
-      let line = n < 0 ? "−$" + (-n) : "$" + n;
-      if (run.flash > now) line += "  +$" + run.flashN;
-      purse.textContent = line;
+      purse.textContent = n < 0 ? "−$" + (-n) : "$" + n;
+      const cashOn = run.cashFlash > now;
+      const cashMark = cashOn ? (run.cashDown ? "down" : "up") : "";
+      if (purse.dataset.flash !== cashMark + run.cashFlash) {
+        purse.dataset.flash = cashMark + run.cashFlash;
+        purse.classList.remove("up", "down");
+        if (cashMark) {
+          void purse.offsetWidth;
+          purse.classList.add(cashMark);
+        }
+      }
     }
   }
   if (clock) {
@@ -30882,15 +31185,25 @@ function runPaint() {
     clock.hidden = !on;
     if (on) {
       clock.textContent = runClockText(run.shift);
-      const bonus = run.flash > now;
+      const timeOn = run.timeFlash > now;
       const left = run.shift;
-      clock.classList.toggle("bonus", bonus);
-      clock.classList.toggle("mid", !bonus && left <= 60 && left > 20);
-      clock.classList.toggle("low", !bonus && left <= 20);
-      clock.classList.toggle("late", !bonus && left <= 10);
-    } else clock.classList.remove("bonus", "mid", "low", "late", "warn");
+      clock.classList.toggle("bonus", timeOn);
+      clock.classList.toggle("mid", !timeOn && left <= 60 && left > 20);
+      clock.classList.toggle("low", !timeOn && left <= 20);
+      clock.classList.toggle("late", !timeOn && left <= 10);
+      const timeMark = timeOn ? "gain" : "";
+      if (clock.dataset.flash !== timeMark + run.timeFlash) {
+        clock.dataset.flash = timeMark + run.timeFlash;
+        clock.classList.remove("gain");
+        if (timeMark) {
+          void clock.offsetWidth;
+          clock.classList.add("gain");
+        }
+      }
+    } else clock.classList.remove("bonus", "gain", "mid", "low", "late", "warn");
     fitPurseRoom();
   }
+  runSyncFx(now);
   if (list) {
     let html = "";
     for (let i = 0; i < run.jobs.length; i++) {
@@ -31123,6 +31436,7 @@ function stepRun(now, dt) {
   runPosePeople(now, dt);
   runSpotHolos(now);
   runWaves();
+  runStepBursts(now);
   runPaint();
   runGuides(now);
 }
@@ -33719,11 +34033,17 @@ function stepAirliner(now) {
   for (let i = 0; i < strobes.length; i++) strobes[i].visible = strobe;
   airliner.userData.cabin.emissiveIntensity = 0.06 + lightAmount() * 0.95;
 }
-// Children on the roofs, from the Kai Tak years: the roof was the playground.
-// Several roofs at once. A group plays, chases, or stops for the eastbound
-// pass. The pose is written from scratch each frame: the old idle pose kept
-// adding to the neck and, while they were still crouched, to the hips, so a
-// child spun and rose off the tar. Nobody sits. There is no chair up here.
+// Children on the roofs, from the Kai Tak years: the roof was the playground
+// from 1 pm until 6 pm. Several roofs at once. A group plays, chases, or
+// stops for the eastbound pass. The pose is written from scratch each frame:
+// the old idle pose kept adding to the neck and, while they were still
+// crouched, to the hips, so a child spun and rose off the tar. Nobody sits.
+// There is no chair up here.
+function roofKidsOut() {
+  const hour = clockHour();
+  // 13/24 does not land on 13 in binary, so 1:00 pm needs a little slack.
+  return hour + 1e-4 >= 13 && hour < 18;
+}
 const roofKids = [];
 const roofGroups = [];
 function raiseRoofChildren() {
@@ -33965,6 +34285,8 @@ function clearRoofVisit() {
 function spawnRoofVisit() {
   clearRoofVisit();
   if (!roofStay) return;
+  roofStay.kidsOut = roofKidsOut();
+  if (!roofStay.kidsOut) return;
   const n = 2 + ((Math.random() * 3) | 0);
   const x0 = roofStay.x0, x1 = roofStay.x1, z0 = roofStay.z0, z1 = roofStay.z1;
   if (!(x1 - x0 > 1.2) || !(z1 - z0 > 1.2)) return;
@@ -34085,13 +34407,20 @@ function stepRoofKids(now) {
     if (roofVisit.length) clearRoofVisit();
     return;
   }
-  stepRoofVisit(now);
+  const out = roofKidsOut();
+  if (roofStay.kidsOut !== out) {
+    if (out) spawnRoofVisit();
+    else {
+      roofStay.kidsOut = false;
+      if (roofVisit.length) clearRoofVisit();
+    }
+  }
+  if (roofVisit.length) stepRoofVisit(now);
   return;
   if (stepRoofKids.prev == null) stepRoofKids.prev = now;
   const dt = Math.min(0.05, Math.max(0, now - stepRoofKids.prev));
   stepRoofKids.prev = now;
-  const day = 1 - THREE.MathUtils.smoothstep(darkness, 0.26, 0.48);
-  const show = day > 0.06;
+  const show = roofKidsOut();
   const plane = !!(airliner.visible);
   const px = airliner.position.x, py = airliner.position.y, pz = airliner.position.z;
   for (let g = 0; g < roofGroups.length; g++) {
