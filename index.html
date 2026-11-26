@@ -22912,6 +22912,16 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
     const breath = Math.sin(t * 1.5) * 0.012;
     pack.spine.rotation.x = breath;
     pack.pelvis.position.y = pack.basePelvisY + breath * 0.4;
+  } else if (clip === "idle_sit") {
+    const h = pack.hScale || 1;
+    const breath = Math.sin(t * 1.4) * 0.014;
+    if (pack.stool) pack.stool.visible = true;
+    pack.pelvis.position.set(0, 0.48 * h, -0.02);
+    pack.lHip.rotation.set(-1.45, 0.12, 0.1); pack.lKnee.rotation.x = 1.45;
+    pack.rHip.rotation.set(-1.45, -0.12, -0.1); pack.rKnee.rotation.x = 1.45;
+    pack.spine.rotation.x = 0.04 + breath;
+    pack.lShoulder.rotation.set(-0.42, 0.12, 0.14); pack.lElbow.rotation.x = -0.58;
+    pack.rShoulder.rotation.set(-0.42, -0.12, -0.14); pack.rElbow.rotation.x = -0.58;
   }
   if (clip === "carry_load" && pack.showCargo !== true) {
     pack.cargoHolder.visible = false;
@@ -24621,12 +24631,12 @@ const STUDIO = {
   fai: { studioId: "cyclist_ah_fai",  top: 0xb45309, sleeve: "short", pants: 0x1e293b, hair: "short", skin: 4, shoes: 0x111827, gait: "walk" },
   skeung: { studioId: "cyclist_siu_keung",  top: 0x15803d, sleeve: "short", pants: 0x1e3a8a, hair: "short", skin: 1, shoes: 0xf8fafc, glasses: 1, gait: "walk" }
 };
-const STUDIO_STREET = ["chan", "wong", "keung", "biao", "may", "lung", "kwok", "fong", "ho", "leung", "fei", "wah", "wai", "hung", "cheung", "fook", "gan", "tat", "lin", "piu", "kwan", "choi"];
+// Everyday civilian pedestrians (excludes triad bosses/enforcers and blood-stained specialists).
+const STUDIO_STREET = ["keung", "may", "kwok", "fong", "ho", "leung", "cheung", "fook", "gan", "tat", "lin", "piu", "kwan", "choi"];
 
 function playerWear() {
   if (!playerWear.picked) {
-    const key = STUDIO_STREET[(Math.random() * STUDIO_STREET.length) | 0];
-    playerWear.picked = wearCopy(STUDIO[key], { gait: "walk", role: null, prop: null });
+    playerWear.picked = wearCopy(STUDIO.kwok, { gait: "walk", role: null, prop: null });
   }
   return playerWear.picked;
 }
@@ -24741,7 +24751,7 @@ const KEEPER_LOOK = {
   barber:     STUDIO.fook,
   electrical: STUDIO.ho,
   hardware:   STUDIO.ho,
-  mahjong:    STUDIO.leung,
+  mahjong:    STUDIO.fei,
   paikau:     STUDIO.hung,
   dogmeat:    STUDIO.biao,
   fishball:   STUDIO.keung,
@@ -26020,13 +26030,18 @@ const GANG_WEAR = [STUDIO.fei, STUDIO.wah, STUDIO.wai, STUDIO.hung, STUDIO.lung,
 // The hall door is at z 25.42 and the iron gate at z 26.47. The open court
 // in front of 天后廟 runs south of that gate to about z 29.7. Pairs stand
 // in that court at their own angle and their own count, not on two lines.
+const GANG_PLAZAS = [
+  { x0: 124.25, x1: 128.75, z0: 27.45, z1: 29.50 }, // Tin Hau Temple court
+  { x0: 93.80,  x1: 100.20, z0: 85.10, z1: 86.70 }, // Yamen gatehouse south plaza
+  { x0: 135.80, x1: 141.20, z0: 92.80, z1: 95.80 }  // Kwong Ming St / Lung Chun Ave junction
+];
 const GANG_X0 = 124.25, GANG_X1 = 128.75;
 const GANG_Z0 = 27.45, GANG_Z1 = 29.5;
 const gangFight = [];
-const gang = { nights: 0, prev: null, rolled: false, count: 0, leaving: false, t: 0 };
+const gang = { nights: 0, prev: null, rolled: false, count: 0, leaving: false, t: 0, plaza: GANG_PLAZAS[0] };
 function gangHour() {
   const hour = clockHour();
-  return hour >= 1 && hour < 4;
+  return hour >= 20 || hour < 5;
 }
 function startGangFlee(rec) {
   if (rec.flee) return;
@@ -26068,12 +26083,14 @@ function gangSeatPath(seat) {
   };
 }
 function gangClamp(x, z) {
+  const p = gang.plaza || GANG_PLAZAS[0];
   return {
-    x: Math.max(GANG_X0, Math.min(GANG_X1, x)),
-    z: Math.max(GANG_Z0, Math.min(GANG_Z1, z))
+    x: Math.max(p.x0, Math.min(p.x1, x)),
+    z: Math.max(p.z0, Math.min(p.z1, z))
   };
 }
 function gangSpots(count) {
+  const p = gang.plaza || GANG_PLAZAS[0];
   const bouts = count >= 8 ? 4 : count >= 6 ? 3 : 2;
   const span = GANG_PHRASE * 2;
   const spots = [];
@@ -26081,8 +26098,8 @@ function gangSpots(count) {
     const u = (i + 0.5) / bouts;
     const jx = (heatUnit(gang.nights * 17 + i * 2 + 1) - 0.5) * 0.32;
     const jz = (heatUnit(gang.nights * 17 + i * 2 + 2) - 0.5) * 0.4;
-    const cx = GANG_X0 + (GANG_X1 - GANG_X0) * u + jx;
-    const cz = 28.25 + jz;
+    const cx = p.x0 + (p.x1 - p.x0) * u + jx;
+    const cz = (p.z0 + p.z1) * 0.5 + jz;
     const ang = (heatUnit(gang.nights * 17 + i * 2 + 7) - 0.5) * 0.85;
     const gap = 1.02 + heatUnit(gang.nights * 17 + i * 2 + 8) * 0.28;
     const dx = Math.sin(ang) * gap * 0.5;
@@ -26189,6 +26206,7 @@ function attachGang(rec) {
 }
 function beginGang() {
   gangFight.length = 0;
+  gang.plaza = GANG_PLAZAS[Math.abs(gang.nights) % GANG_PLAZAS.length];
   gang.count = 5 + Math.floor(heatUnit(gang.nights * 5 + 11) * 4);
   gang.t = 0;
   const spots = gangSpots(gang.count);
@@ -26336,7 +26354,8 @@ function sleepWear(n) {
   return wearCopy((n & 1) ? STUDIO.leung : STUDIO.choi, { gait: "walk", role: null });
 }
 function sleepNight() {
-  return clockHour() < 8;
+  const h = clockHour();
+  return h < 8.5 || h >= 23.5;
 }
 // The void rectangle is wider than the walls you walk between. A body placed
 // from that rectangle ends up in the lane. This ray is the face beside the spot.
@@ -26642,8 +26661,6 @@ function dropSleepMeshes() {
   for (let i = 0; i < alleySleep.length; i++) dropSleep(alleySleep[i]);
 }
 function stepAlleySleep(now) {
-  // The before-eight sleepers are gone. The night crowd is the drunk walk and the chase.
-  return;
   const want = walkMode && sleepNight();
   if (!alleySleep) {
     if (!want) return;
@@ -26667,6 +26684,39 @@ function stepAlleySleep(now) {
   }
   if (offer.a >= 0) attachSleep(alleySleep[offer.a]);
   if (budget > 1 && offer.b >= 0) attachSleep(alleySleep[offer.b]);
+}
+const studioCyclists = [];
+function initStudioCyclists() {
+  if (studioCyclists.length) return;
+  const specs = [
+    { key: "fai",    x: 162, z: -4.9,        dir: -1, speed: 3.1, x0: -12, x1: SITE_W + 12 },
+    { key: "skeung", x: 54,  z: SITE_D + 3.4, dir:  1, speed: 2.9, x0: -12, x1: SITE_W + 12 }
+  ];
+  for (let i = 0; i < specs.length; i++) {
+    const s = specs[i];
+    const wear = wearCopy(STUDIO[s.key], { gait: "walk", role: null, prop: null });
+    const fig = makeCitizen(wear);
+    fig.userData.live = 1;
+    fig.position.set(s.x, 0.085, s.z);
+    fig.rotation.y = s.dir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+    vfx.add(fig);
+    studioCyclists.push({
+      fig: fig, x: s.x, z: s.z, dir: s.dir, speed: s.speed, x0: s.x0, x1: s.x1
+    });
+  }
+}
+function stepStudioCyclists(now, dt) {
+  if (!studioCyclists.length) initStudioCyclists();
+  const d = Math.min(0.05, Math.max(0, dt || 0.016));
+  for (let i = 0; i < studioCyclists.length; i++) {
+    const c = studioCyclists[i];
+    c.x += c.dir * c.speed * d;
+    if (c.dir < 0 && c.x < c.x0) c.x = c.x1;
+    else if (c.dir > 0 && c.x > c.x1) c.x = c.x0;
+    c.fig.position.set(c.x - SHEAR_K * c.z, 0.085, c.z);
+    c.fig.rotation.y = c.dir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+    updateCharacterAnimation(c.fig, "ride_bike", now, d);
+  }
 }
 function dropHeatMeshes() {
   let any = false;
@@ -28853,6 +28903,107 @@ function seatRoofDoors() {
     d.live = found;
   }
 }
+function roofSameDeck(door) {
+  if (!roofStay || !door) return false;
+  if (roofStay.door === door) return true;
+  return !!(roofStay.deck && door.deck && roofStay.deck === door.deck);
+}
+function buildRoofLinks() {
+  for (let i = 0; i < roofDecks.length; i++) {
+    roofDecks[i].links = [];
+    roofDecks[i].doors = [];
+    roofDecks[i].cluster = -1;
+    roofDecks[i].clusterSize = 1;
+  }
+  for (let i = 0; i < roofDoors.length; i++) {
+    const d = roofDoors[i];
+    if (d.live && d.deck) d.deck.doors.push(d);
+  }
+  const bridgeMat = new THREE.MeshStandardMaterial({
+    color: 0x5c4632, roughness: 0.92, metalness: 0.08, clippingPlanes: clips
+  });
+  for (let i = 0; i < roofDecks.length; i++) {
+    const a = roofDecks[i];
+    for (let j = i + 1; j < roofDecks.length; j++) {
+      const b = roofDecks[j];
+      if (Math.abs(a.y - b.y) > 3.0) continue;
+      const gx = Math.max(0, Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w)));
+      const gz = Math.max(0, Math.max(a.z - (b.z + b.d), b.z - (a.z + a.d)));
+      const ovX0 = Math.max(a.x + 0.45, b.x + 0.45), ovX1 = Math.min(a.x + a.w - 0.45, b.x + b.w - 0.45);
+      const ovZ0 = Math.max(a.z + 0.45, b.z + 0.45), ovZ1 = Math.min(a.z + a.d - 0.45, b.z + b.d - 0.45);
+      let linkA = null, linkB = null;
+      if (gx <= 2.2 && gz === 0 && ovZ1 - ovZ0 >= 1.1) {
+        const aLeft = (a.x + a.w * 0.5) < (b.x + b.w * 0.5);
+        const midZ = (ovZ0 + ovZ1) * 0.5;
+        const xA = aLeft ? a.x + a.w : a.x;
+        const xB = aLeft ? b.x : b.x + b.w;
+        linkA = { to: b, axis: "x", edge: xA, span0: ovZ0, span1: ovZ1, landX: aLeft ? b.x + 0.55 : b.x + b.w - 0.55, landZ: midZ };
+        linkB = { to: a, axis: "x", edge: xB, span0: ovZ0, span1: ovZ1, landX: aLeft ? a.x + a.w - 0.55 : a.x + 0.55, landZ: midZ };
+        if (gx > 0.35) {
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(gx + 0.6, 0.08, 0.95), bridgeMat);
+          plank.position.set((xA + xB) * 0.5, (a.y + b.y) * 0.5, midZ);
+          plank.rotation.z = Math.atan2(aLeft ? (b.y - a.y) : (a.y - b.y), Math.max(0.4, gx));
+          city.add(plank);
+        }
+      } else if (gz <= 2.2 && gx === 0 && ovX1 - ovX0 >= 1.1) {
+        const aNorth = (a.z + a.d * 0.5) < (b.z + b.d * 0.5);
+        const midX = (ovX0 + ovX1) * 0.5;
+        const zA = aNorth ? a.z + a.d : a.z;
+        const zB = aNorth ? b.z : b.z + b.d;
+        linkA = { to: b, axis: "z", edge: zA, span0: ovX0, span1: ovX1, landX: midX, landZ: aNorth ? b.z + 0.55 : b.z + b.d - 0.55 };
+        linkB = { to: a, axis: "z", edge: zB, span0: ovX0, span1: ovX1, landX: midX, landZ: aNorth ? a.z + a.d - 0.55 : a.z + 0.55 };
+        if (gz > 0.35) {
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, gz + 0.6), bridgeMat);
+          plank.position.set(midX, (a.y + b.y) * 0.5, (zA + zB) * 0.5);
+          plank.rotation.x = Math.atan2(aNorth ? (a.y - b.y) : (b.y - a.y), Math.max(0.4, gz));
+          city.add(plank);
+        }
+      }
+      if (linkA && linkB) { a.links.push(linkA); b.links.push(linkB); }
+    }
+  }
+  let cid = 0;
+  for (let i = 0; i < roofDecks.length; i++) {
+    if (roofDecks[i].cluster >= 0) continue;
+    const comp = [], q = [roofDecks[i]];
+    roofDecks[i].cluster = cid;
+    while (q.length) {
+      const cur = q.pop();
+      comp.push(cur);
+      for (let k = 0; k < cur.links.length; k++) {
+        const nb = cur.links[k].to;
+        if (nb.cluster < 0) { nb.cluster = cid; q.push(nb); }
+      }
+    }
+    for (let k = 0; k < comp.length; k++) comp[k].clusterSize = comp.length;
+    cid++;
+  }
+}
+function tryRoofCross(nx, nz) {
+  if (!roofStay || !roofStay.deck || !roofStay.deck.links) return false;
+  const links = roofStay.deck.links;
+  for (let i = 0; i < links.length; i++) {
+    const lk = links[i];
+    const hitX = lk.axis === "x" && Math.abs(nx - lk.edge) < 0.55 && nz >= lk.span0 && nz <= lk.span1;
+    const hitZ = lk.axis === "z" && Math.abs(nz - lk.edge) < 0.55 && nx >= lk.span0 && nx <= lk.span1;
+    if (!hitX && !hitZ) continue;
+    const prevCluster = roofStay.deck ? roofStay.deck.cluster : -1;
+    const next = lk.to;
+    const exitDoor = (next.doors && next.doors.length) ? next.doors[0] : roofStay.door;
+    roofStay = {
+      deck: next, door: exitDoor, y: next.y, blocks: next.blocks,
+      x0: next.x + 0.42, z0: next.z + 0.42,
+      x1: next.x + next.w - 0.42, z1: next.z + next.d - 0.42
+    };
+    walkX = lk.landX;
+    walkZ = lk.landZ;
+    const need = next.y + 4.5;
+    if (floorPlane.constant < need) floorPlane.constant = need;
+    if (prevCluster < 0 || prevCluster !== next.cluster || !roofVisit.length) spawnRoofVisit();
+    return true;
+  }
+  return false;
+}
 function roofDoorNear() {
   if (!walkMode || roofStay || walkGlide) return null;
   let best = null, bestD = Infinity;
@@ -29324,7 +29475,7 @@ function runPlaceRider(dt, moving, travel, ux, uz) {
 function enterRoof(door) {
   if (!door || !door.live || roofStay) return;
   roofStay = {
-    door: door, y: door.deck.y, blocks: door.deck.blocks,
+    deck: door.deck, door: door, y: door.deck.y, blocks: door.deck.blocks,
     x0: door.deck.x + 0.42, z0: door.deck.z + 0.42,
     x1: door.deck.x + door.deck.w - 0.42, z1: door.deck.z + door.deck.d - 0.42
   };
@@ -29743,7 +29894,7 @@ function runRoofSpot(door) {
           if (x > box.x - 0.4 && x < box.x2 + 0.4 && z > box.z - 0.4 && z < box.z2 + 0.4) { hit = true; break; }
         }
         if (hit) continue;
-        if (roofStay && roofStay.door === door && roofBlocked(x, z)) continue;
+        if (roofSameDeck(door) && roofBlocked(x, z)) continue;
         const edge = Math.min(x - deck.x, deck.x + deck.w - x, z - deck.z, deck.z + deck.d - z);
         const score = stair * 0.35 - edge;
         if (score > bestScore) {
@@ -29867,11 +30018,68 @@ function runStandOffShop(shop) {
   }
   return seek(false) || seek(true);
 }
-function runPickKeeper(shop, maxDist) {
-  const cap = maxDist || 90;
-  const minD = 12;
+const RUN_TIERS = {
+  green:  { minD: 16, maxD: 58,  targetD: 34, baseMin: 12, baseMax: 18 },
+  yellow: { minD: 38, maxD: 118, targetD: 72, baseMin: 22, baseMax: 34 },
+  red:    { minD: 45, maxD: 165, targetD: 96, baseMin: 36, baseMax: 56 }
+};
+function runSector(x, z) {
+  const col = x < 70 ? 0 : x < 140 ? 1 : 2;
+  const row = z < 60 ? 0 : 1;
+  return row * 3 + col;
+}
+function runIsAlley(x, z) {
+  if (x < 8 || x > SITE_W - 8 || z < 8 || z > SITE_D - 8) return false;
+  const zId = zoneAt(x, z);
+  if (zId === "lane" || zId === "core") return true;
+  for (let i = 0; i < VOIDS.length; i++) {
+    const v = VOIDS[i];
+    if (!v || v.court || v.notch) continue;
+    if (x > v.x && x < v.x2 && z > v.z && z < v.z2) {
+      return Math.min(v.x2 - v.x, v.z2 - v.z) <= 1.85;
+    }
+  }
+  return false;
+}
+function runNoteHistory(dest) {
+  if (!run.recentStreets) run.recentStreets = [];
+  if (!run.recentDoors) run.recentDoors = [];
+  if (!run.recentSectors) run.recentSectors = [];
+  if (dest.street) {
+    run.recentStreets.push(dest.street);
+    if (run.recentStreets.length > 5) run.recentStreets.shift();
+  }
+  if (dest.door >= 0) {
+    run.recentDoors.push(dest.door);
+    if (run.recentDoors.length > 5) run.recentDoors.shift();
+  }
+  run.recentSectors.push(runSector(dest.x, dest.z));
+  if (run.recentSectors.length > 4) run.recentSectors.shift();
+}
+function runPickFromPool(pool, salt) {
+  if (!pool.length) return null;
+  pool.sort(function (a, b) { return b.score - a.score; });
+  const top = Math.min(5, pool.length);
+  const idx = Math.abs(((salt || 1) * 2654435761) | 0) % top;
+  return pool[idx].dest;
+}
+function runFareValue(cls, dest) {
+  const cfg = RUN_TIERS[cls] || RUN_TIERS.green;
+  const span = Math.max(1, cfg.maxD - cfg.minD);
+  const t = Math.max(0, Math.min(1, ((dest.dist || cfg.minD) - cfg.minD) / span));
+  let fee = Math.round(cfg.baseMin + (cfg.baseMax - cfg.baseMin) * t);
+  if (dest.alley) fee += 3;
+  if (dest.crossSector) fee += 4;
+  if (dest.roof && (dest.clusterSize || 1) >= 3) fee += 4;
+  return fee;
+}
+function runPickKeeper(shop, maxDist, salt) {
+  const cfg = RUN_TIERS.yellow;
+  const cap = maxDist || cfg.maxD;
+  const minD = cfg.minD;
+  const srcSec = runSector(shop.x, shop.z);
   const shops = runShops();
-  let best = null, bestD = cap;
+  const pool = [];
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
     if (s === shop || s.slip) continue;
@@ -29884,23 +30092,34 @@ function runPickKeeper(shop, maxDist) {
     if (runSpotTaken(s.x, s.z)) continue;
     const post = runKeeperPost(s);
     if (!post || runInClosedShop(post.x, post.z)) continue;
-    if (d < bestD) {
-      bestD = d;
-      best = {
+    const sec = runSector(s.x, s.z);
+    const alley = runIsAlley(s.x, s.z);
+    let score = 40 - Math.abs(d - cfg.targetD) * 0.45;
+    if (s.street !== shop.street) score += 18;
+    if (sec !== srcSec) score += 22;
+    if (alley) score += 14;
+    if (run.recentStreets && run.recentStreets.indexOf(s.street) >= 0) score -= 24;
+    if (run.recentSectors && run.recentSectors.indexOf(sec) >= 0) score -= 14;
+    pool.push({
+      score: score,
+      dest: {
         roof: false, keeper: true, post: post.i, sit: post.stance === "sit",
         x: s.x, z: s.z, y: GROUND_Y, yaw: post.rot,
-        street: s.street, mark: runWord(s.kind), dist: d, door: -1
-      };
-    }
+        street: s.street, mark: runWord(s.kind), dist: d, door: -1,
+        alley: alley, crossSector: sec !== srcSec
+      }
+    });
   }
-  return best;
+  return runPickFromPool(pool, (salt || run.seq) + 7);
 }
-function runPickDest(shop, mode, maxDist) {
-  if (mode === "keeper") return runPickKeeper(shop, maxDist);
+function runPickDest(shop, mode, maxDist, salt) {
+  if (mode === "keeper") return runPickKeeper(shop, maxDist, salt);
   const wantRoof = mode === "roof";
-  const cap = maxDist || (wantRoof ? 110 : 90);
-  const minD = mode === "near" ? 8 : 18;
-  let best = null, bestD = cap;
+  const cfg = wantRoof ? RUN_TIERS.red : RUN_TIERS.green;
+  const cap = maxDist || cfg.maxD;
+  const minD = mode === "near" ? 10 : cfg.minD;
+  const srcSec = runSector(shop.x, shop.z);
+  const pool = [];
   if (!wantRoof) {
     const shops = runShops();
     for (let i = 0; i < shops.length; i++) {
@@ -29908,20 +30127,28 @@ function runPickDest(shop, mode, maxDist) {
       if (s === shop || !runShopTrading(s.kind)) continue;
       const d = Math.hypot(s.x - shop.x, s.z - shop.z);
       if (d < minD || d > cap) continue;
-      if (mode === "near" && s.street !== shop.street) continue;
       const stand = runStandOffShop(s);
       if (!stand) continue;
-      if (d < bestD) {
-        bestD = d;
-        best = {
+      const alley = runIsAlley(stand.x, stand.z);
+      const sec = runSector(stand.x, stand.z);
+      let score = 36 - Math.abs(d - cfg.targetD) * 0.55;
+      if (alley) score += 24;
+      if (s.street !== shop.street) score += 14;
+      if (sec !== srcSec) score += 10;
+      if (run.recentStreets && run.recentStreets.indexOf(s.street) >= 0) score -= 18;
+      if (run.recentSectors && run.recentSectors.indexOf(sec) >= 0) score -= 10;
+      pool.push({
+        score: score,
+        dest: {
           roof: false, keeper: false, sit: !!stand.sit,
           x: stand.x, z: stand.z, y: GROUND_Y, yaw: stand.yaw,
-          street: s.street, mark: runMark(stand.x, stand.z, s.kind), dist: d, door: -1
-        };
-      }
+          street: s.street, mark: runMark(stand.x, stand.z, s.kind), dist: d, door: -1,
+          alley: alley, crossSector: sec !== srcSec
+        }
+      });
     }
   }
-  if (wantRoof || mode === "either") {
+  if (wantRoof || (mode === "either" && !pool.length)) {
     for (let i = 0; i < roofDoors.length; i++) {
       const door = roofDoors[i];
       if (!door.live || runSameLot(shop, door)) continue;
@@ -29929,21 +30156,31 @@ function runPickDest(shop, mode, maxDist) {
       if (d < minD || d > cap) continue;
       const spot = runRoofSpot(door);
       if (!spot || runSpotTaken(spot.x, spot.z)) continue;
-      if (mode === "roof" ? d < bestD : (mode === "either" && !best && d < bestD)) {
-        const zone = zoneAt(door.x, door.z);
-        bestD = d;
-        best = {
+      const zone = zoneAt(door.x, door.z);
+      const street = (ZONES[zone] && ZONES[zone].street) || "";
+      const sec = runSector(door.x, door.z);
+      const clusterSize = (door.deck && door.deck.clusterSize) || 1;
+      let score = 42 - Math.abs(d - cfg.targetD) * 0.38;
+      if (clusterSize >= 3) score += 22;
+      else if (clusterSize === 2) score += 12;
+      if (sec !== srcSec) score += 20;
+      if (street !== shop.street) score += 12;
+      if (run.recentDoors && run.recentDoors.indexOf(i) >= 0) score -= 35;
+      if (run.recentSectors && run.recentSectors.indexOf(sec) >= 0) score -= 12;
+      pool.push({
+        score: score,
+        dest: {
           roof: true, keeper: false, sit: !!spot.sit,
           x: spot.x, z: spot.z, y: spot.y,
           yaw: runFaceOpen(spot.x, spot.z, Math.atan2(spot.x - door.upX, spot.z - door.upZ), door),
-          street: (ZONES[zone] && ZONES[zone].street) || "",
+          street: street,
           mark: runMark(door.x, door.z, shop.kind),
-          dist: d, door: i
-        };
-      }
+          dist: d, door: i, clusterSize: clusterSize, crossSector: sec !== srcSec
+        }
+      });
     }
   }
-  return best;
+  return runPickFromPool(pool, (salt || run.seq) + 13);
 }
 function runSecondsLeft(kind) {
   const span = SHOP_HOURS[kind];
@@ -30009,11 +30246,17 @@ function runLay(shop, itemKey, dest, now, cls) {
 }
 function runLayFare(shop, cls, now, salt) {
   let dest = null;
-  if (cls === "red") dest = runPickDest(shop, "roof", 150);
-  else if (cls === "yellow") dest = runPickDest(shop, "keeper", 110);
-  else dest = runPickDest(shop, "near", 48) || runPickDest(shop, "ground", 55);
+  if (cls === "red") {
+    dest = runPickDest(shop, "roof", RUN_TIERS.red.maxD, salt) || runPickDest(shop, "roof", 220, salt);
+  } else if (cls === "yellow") {
+    dest = runPickDest(shop, "keeper", RUN_TIERS.yellow.maxD, salt) || runPickDest(shop, "keeper", 160, salt);
+  } else {
+    dest = runPickDest(shop, "alley", RUN_TIERS.green.maxD, salt) || runPickDest(shop, "near", 48, salt);
+  }
   if (!dest) return false;
   runLay(shop, runChooseItem(shop.kind, salt), dest, now, cls);
+  shop.slip.base = runFareValue(cls, dest);
+  runNoteHistory(dest);
   return true;
 }
 function runSlipCount() {
@@ -30027,36 +30270,55 @@ function runOffer(now) {
   const shops = runShops();
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
-    if (s.slip && Math.hypot(walkX - s.x, walkZ - s.z) > 62) s.slip = null;
+    if (s.slip && Math.hypot(walkX - s.x, walkZ - s.z) > 115) s.slip = null;
     if (s.slip && runDestClosed(s.slip.dest)) s.slip = null;
   }
-  if (runSlipCount() >= 3) return;
+  const activeCount = runSlipCount();
+  if (activeCount >= 4) return;
   if (now < run.layAt) return;
   run.layAt = now + 0.25;
   const have = { green: 0, yellow: 0, red: 0 };
+  const slipSectors = new Set();
+  const slipStreets = new Set();
   for (let i = 0; i < shops.length; i++) {
-    const cls = shops[i].slip && shops[i].slip.class;
-    if (cls && have[cls] != null) have[cls]++;
+    const sl = shops[i].slip;
+    if (!sl) continue;
+    if (sl.class && have[sl.class] != null) have[sl.class]++;
+    slipSectors.add(runSector(shops[i].x, shops[i].z));
+    if (shops[i].street) slipStreets.add(shops[i].street);
   }
   const order = [];
   if (!have.green) order.push("green");
   if (!have.yellow) order.push("yellow");
   if (!have.red) order.push("red");
-  if (!order.length) order.push("green", "yellow", "red");
-  const reach = [42, 60, 280];
-  for (let r = 0; r < reach.length; r++) {
+  if (!order.length) order.push((run.seq % 2) ? "red" : "yellow", "green");
+  const playerSec = runSector(walkX, walkZ);
+  // First 2 slips stay reachable locally; slips 3-4 pull the player deeper into other sectors/alleys.
+  const bands = activeCount < 2
+    ? [{ min: 4, max: 52, preferFar: false }, { min: 0, max: 95, preferFar: false }, { min: 0, max: 280, preferFar: false }]
+    : [{ min: 28, max: 110, preferFar: true }, { min: 10, max: 140, preferFar: true }, { min: 0, max: 280, preferFar: false }];
+  for (let b = 0; b < bands.length; b++) {
+    const band = bands[b];
     const candidates = [];
     for (let i = 0; i < shops.length; i++) {
       const s = shops[i];
       if (s.slip || !runCanPost(s, now)) continue;
       const d = Math.hypot(walkX - s.x, walkZ - s.z);
-      if (d < reach[r]) candidates.push({ s: s, d: d });
+      if (d < band.min || d > band.max) continue;
+      const sec = runSector(s.x, s.z);
+      let score = band.preferFar ? (32 - Math.abs(d - 64) * 0.35) : (40 - d * 0.55);
+      if (runIsAlley(s.x, s.z)) score += 16;
+      if (band.preferFar && sec !== playerSec) score += 20;
+      if (!slipSectors.has(sec)) score += 18;
+      if (s.street && !slipStreets.has(s.street)) score += 14;
+      candidates.push({ s: s, d: d, score: score });
     }
-    candidates.sort(function (a, b) { return a.d - b.d; });
+    candidates.sort(function (x, y) { return y.score - x.score; });
     for (let c = 0; c < order.length; c++) {
-      const cap = Math.min(6, candidates.length);
+      const cap = Math.min(8, candidates.length);
       for (let i = 0; i < cap; i++) {
-        if (runLayFare(candidates[i].s, order[c], now, run.seq + i + c)) return;
+        const pick = candidates[(i + run.seq + c) % cap];
+        if (runLayFare(pick.s, order[c], now, run.seq + i + c)) return;
       }
     }
   }
@@ -30161,6 +30423,9 @@ function runOpenDay(now, restart) {
     run.openRun = null;
     run.layAt = 0;
     run.seq = 1;
+    run.recentStreets = [];
+    run.recentDoors = [];
+    run.recentSectors = [];
     runForgetJobs();
   }
   const shops = run.shops || [];
@@ -30463,8 +30728,9 @@ function runTake(slip, now) {
     first: false, second: false,
     fig: null, box: null
   };
-  const pathM = Math.max(18, job.dist * 1.35);
-  job.window = pathM / 3.2 * 1.35 + 16 + (job.class === "red" ? 18 : 0);
+  const detour = job.roof ? 1.45 : (slip.dest.alley ? 1.42 : 1.32);
+  const pathM = Math.max(18, job.dist * detour);
+  job.window = (pathM / 3.2) * 1.32 + 16 + (job.roof ? 22 : 0) + (slip.dest.alley ? 5 : 0);
   run.jobs.push(job);
   slip.shop.slip = null;
   if (run.intro === 0) run.intro = 1;
@@ -30499,7 +30765,7 @@ function runPerson(job) {
   if (job.fig || job.state !== "carried" && job.state !== "dropped") return;
   if (!job.roof && runInClosedShop(job.x, job.z)) return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
-  const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
+  const onDeck = job.roof && job.door >= 0 && roofSameDeck(roofDoors[job.door]);
   const foot = job.roof ? job.y : GROUND_Y;
   const viewed = figurePlaying(job.x, foot + 0.85, job.z);
   if (!walkMode || (here > NPC_AWAY && !onDeck && !viewed)) return;
@@ -30804,7 +31070,7 @@ function runPosePeople(now, dt) {
     runPerson(job);
     if (!job.fig) continue;
     const here = Math.hypot(walkX - job.x, walkZ - job.z);
-    const onDeck = job.roof && roofStay && job.door >= 0 && roofStay.door === roofDoors[job.door];
+    const onDeck = job.roof && job.door >= 0 && roofSameDeck(roofDoors[job.door]);
     job.fig.visible = here <= NPC_AWAY || onDeck || figurePlaying(job.x, (job.roof ? job.y : GROUND_Y) + 0.85, job.z);
     if (!job.fig.visible) continue;
     const ud = job.fig.userData;
@@ -30956,7 +31222,7 @@ function runNearJob() {
     for (let i = 0; i < run.jobs.length; i++) {
       const j = run.jobs[i];
       if (j.state !== "carried" || !j.roof || j.door < 0) continue;
-      if (roofStay.door !== roofDoors[j.door]) continue;
+      if (!roofSameDeck(roofDoors[j.door])) continue;
       if (Math.hypot(walkX - j.x, walkZ - j.z) < 1.3) return j;
     }
     return null;
@@ -30974,7 +31240,7 @@ function runNearDrop() {
     const j = run.jobs[i];
     if (j.state !== "dropped") continue;
     if (j.onRoof) {
-      if (!roofStay || roofStay.door !== j.roofDoor) continue;
+      if (!roofSameDeck(j.roofDoor)) continue;
     } else if (roofStay) continue;
     const d = Math.hypot(walkX - j.dx, walkZ - j.dz);
     if (d < bestD) { bestD = d; best = j; }
@@ -30986,7 +31252,7 @@ function runPoint(now) {
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried") continue;
-    if (j.roof && !(roofStay && j.door >= 0 && roofStay.door === roofDoors[j.door])) continue;
+    if (j.roof && !(j.door >= 0 && roofSameDeck(roofDoors[j.door]))) continue;
     if (!j.roof && roofStay) continue;
     const d = Math.hypot(walkX - j.x, walkZ - j.z);
     if (d < bestD) { bestD = d; best = j; }
@@ -31012,7 +31278,7 @@ function runPromptTarget() {
     const j = jobs[i];
     if (j.state !== "dropped") continue;
     if (j.onRoof) {
-      if (!roofStay || roofStay.door !== j.roofDoor) continue;
+      if (!roofSameDeck(j.roofDoor)) continue;
     } else if (roofStay) continue;
     const d = Math.hypot(walkX - j.dx, walkZ - j.dz);
     if (d >= 0.8) continue;
@@ -31024,7 +31290,7 @@ function runPromptTarget() {
     const j = jobs[i];
     if (j.state !== "carried") continue;
     if (roofStay) {
-      if (!j.roof || j.door < 0 || !roofDoors[j.door] || roofStay.door !== roofDoors[j.door]) continue;
+      if (!j.roof || j.door < 0 || !roofDoors[j.door] || !roofSameDeck(roofDoors[j.door])) continue;
     } else if (j.roof) continue;
     const d = Math.hypot(walkX - j.x, walkZ - j.z);
     if (d >= 1.3) continue;
@@ -31397,14 +31663,16 @@ function runWaves() {
 }
 function runAim(job) {
   if (job.state === "dropped") {
-    if (job.onRoof && job.roofDoor && (!roofStay || roofStay.door !== job.roofDoor)) {
+    if (job.onRoof && job.roofDoor && !roofSameDeck(job.roofDoor)) {
       return { x: job.roofDoor.x, z: job.roofDoor.z };
     }
     return { x: job.dx, z: job.dz };
   }
   if (job.roof && job.door >= 0 && roofDoors[job.door]) {
-    const on = roofStay && roofStay.door === roofDoors[job.door];
-    if (!on) return { x: roofDoors[job.door].x, z: roofDoors[job.door].z };
+    const targetDoor = roofDoors[job.door];
+    const onDeck = roofSameDeck(targetDoor);
+    const sameCluster = !!(roofStay && roofStay.deck && targetDoor.deck && roofStay.deck.cluster >= 0 && roofStay.deck.cluster === targetDoor.deck.cluster);
+    if (!onDeck && !sameCluster) return { x: targetDoor.x, z: targetDoor.z };
   }
   return { x: job.x, z: job.z };
 }
@@ -31800,8 +32068,11 @@ function stepWalk(dt) {
       const nx = walkX + ux * s;
       const nz = walkZ + uz * s;
       if (roofStay) {
-        if (!roofBlocked(nx, walkZ)) walkX = nx;
-        if (!roofBlocked(walkX, nz)) walkZ = nz;
+        const hitX = roofBlocked(nx, walkZ);
+        if (!hitX) walkX = nx;
+        const hitZ = roofBlocked(walkX, nz);
+        if (!hitZ) walkZ = nz;
+        if ((hitX || hitZ) && tryRoofCross(nx, nz)) break;
       } else {
         if (walkInside(nx, walkZ) && !walkBlocked(nx, walkZ)) walkX = nx;
         if (walkInside(walkX, nz) && !walkBlocked(walkX, nz)) walkZ = nz;
@@ -32110,6 +32381,7 @@ function bakeWalk() {
 }
 bakeWalk();
 seatRoofDoors();
+buildRoofLinks();
 if (streetLamps.posts) {
   streetLamps.posts.forEach(p => {
     const wx = p.x + SHEAR_K * p.z;
@@ -34363,7 +34635,7 @@ function spawnRoofVisit() {
     }
     fig.userData.roof = { x: x, z: z, y: roofStay.y, group: group, goalX: x, goalZ: z };
     fig.userData.offset = i * 0.85;
-    fig.userData.play = i % 2 ? "wave" : "work";
+    fig.userData.play = spec.play || (i % 2 ? "wave" : "work");
     fig.position.set(x, roofStay.y, z);
     vfx.add(fig);
     roofKids.push(fig);
@@ -35920,6 +36192,7 @@ function flushFigure(fig) {
   stepAlleyHeat(now, dt);
   stepGangFight(now, dt);
   stepAlleySleep(now);
+  stepStudioCyclists(now, dt);
   syncKeepers(now);
   syncShopFronts();
   syncAlleyStreams();
