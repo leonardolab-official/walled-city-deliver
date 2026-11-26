@@ -2121,7 +2121,7 @@ function meshMips(canvas) {
 // Outdoor ground, from the 1987 alley photographs: cracked pours, damp patches,
 // grit and repair slabs. Not a sealed floor. Marks wrap so a repeat has no seam.
 function wornFloorTexture(mode) {
-  const S = 512;
+  const S = 256;
   const c = document.createElement("canvas");
   c.width = S; c.height = S;
   const g = c.getContext("2d");
@@ -2129,6 +2129,19 @@ function wornFloorTexture(mode) {
   const base = mode === "alley" ? [46, 42, 36] : [50, 44, 36];
   g.fillStyle = `rgb(${base[0]},${base[1]},${base[2]})`;
   g.fillRect(0, 0, S, S);
+  function softSpot(x, y, rad, r, gc, b, a) {
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let ox = -1; ox <= 1; ox++) {
+        const cx = x + ox * S, cy = y + oy * S;
+        if (cx + rad < 0 || cx - rad > S || cy + rad < 0 || cy - rad > S) continue;
+        const grd = g.createRadialGradient(cx, cy, rad * 0.12, cx, cy, rad);
+        grd.addColorStop(0, `rgba(${r},${gc},${b},${a})`);
+        grd.addColorStop(1, `rgba(${r},${gc},${b},0)`);
+        g.fillStyle = grd;
+        g.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+      }
+    }
+  }
   function tile(draw) {
     for (let oy = -1; oy <= 1; oy++) {
       for (let ox = -1; ox <= 1; ox++) {
@@ -2139,54 +2152,40 @@ function wornFloorTexture(mode) {
       }
     }
   }
-  // Alley stains are one worn pour. Hard rectangles read as separate slabs.
-  if (mode === "alley") g.filter = "blur(11px)";
-  for (let i = 0; i < 36; i++) {
-    const k = 0.42 + rng() * 0.85;
-    const x = rng() * S, y = rng() * S, w = 36 + rng() * 200, h = 18 + rng() * 140;
-    const a = 0.22 + rng() * 0.38;
-    g.fillStyle = `rgba(${base[0] * k | 0},${base[1] * k | 0},${base[2] * k | 0},${a})`;
-    tile(() => g.fillRect(x, y, w, h));
+  for (let i = 0; i < 24; i++) {
+    const k = 0.45 + rng() * 0.8;
+    softSpot(rng() * S, rng() * S, 18 + rng() * 68, (base[0] * k) | 0, (base[1] * k) | 0, (base[2] * k) | 0, 0.22 + rng() * 0.34);
   }
-  if (mode === "alley") g.filter = "blur(8px)";
-  for (let i = 0; i < 7; i++) {
-    const x = rng() * S, y = rng() * S, w = 48 + rng() * 110, h = 28 + rng() * 70;
+  for (let i = 0; i < 6; i++) {
+    const x = rng() * S, y = rng() * S, w = 24 + rng() * 56, h = 14 + rng() * 36;
     const lift = rng() > 0.5 ? 18 : -16;
-    g.fillStyle = `rgba(${base[0] + lift},${base[1] + lift - 2},${base[2] + lift - 4},0.55)`;
-    g.strokeStyle = "rgba(24,20,16,0.45)";
-    g.lineWidth = 2;
+    g.fillStyle = `rgba(${base[0] + lift},${base[1] + lift - 2},${base[2] + lift - 4},0.46)`;
+    g.strokeStyle = "rgba(24,20,16,0.35)";
+    g.lineWidth = 1;
     tile(() => {
       g.fillRect(x, y, w, h);
       g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     });
   }
-  g.filter = "none";
-  for (let i = 0; i < 2200; i++) {
+  for (let i = 0; i < 680; i++) {
     const lit = rng() > 0.78;
-    const n = lit ? 78 + rng() * 28 : 16 + rng() * 22;
-    const x = rng() * S, y = rng() * S, w = 1 + rng() * 2.2, h = 1 + rng() * 2;
-    g.fillStyle = `rgba(${n},${n - 2},${n - 6},${lit ? 0.35 : 0.28})`;
-    tile(() => g.fillRect(x, y, w, h));
+    const n = (lit ? 78 + rng() * 28 : 16 + rng() * 22) | 0;
+    const x = rng() * S, y = rng() * S, w = 1 + rng() * 1.6, h = 1 + rng() * 1.4;
+    g.fillStyle = `rgba(${n},${n - 2},${Math.max(0, n - 6)},${lit ? 0.34 : 0.26})`;
+    g.fillRect(x, y, w, h);
   }
-  for (let i = 0; i < 9; i++) {
-    const x = rng() * S, y = rng() * S, rx = 18 + rng() * 70, ry = 10 + rng() * 36, rot = rng() * 3;
-    g.fillStyle = `rgba(16,22,24,${0.16 + rng() * 0.22})`;
-    tile(() => {
-      g.beginPath();
-      g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
-      g.fill();
-    });
-  }
-  g.lineWidth = 1.25;
   for (let i = 0; i < 8; i++) {
+    softSpot(rng() * S, rng() * S, 10 + rng() * 32, 16, 22, 24, 0.18 + rng() * 0.2);
+  }
+  g.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
     const pts = [[rng() * S, rng() * S]];
-    const steps = 5 + (rng() * 6 | 0);
+    const steps = 4 + (rng() * 5 | 0);
     for (let s = 0; s < steps; s++) {
       const prev = pts[pts.length - 1];
-      pts.push([prev[0] + (rng() - 0.48) * 64, prev[1] + 14 + rng() * 40]);
-      if (rng() > 0.72) pts.push([pts[pts.length - 1][0] + (rng() - 0.5) * 28, pts[pts.length - 1][1] + 8]);
+      pts.push([prev[0] + (rng() - 0.48) * 34, prev[1] + 8 + rng() * 22]);
     }
-    g.strokeStyle = `rgba(16,14,12,${0.35 + rng() * 0.35})`;
+    g.strokeStyle = `rgba(16,14,12,${0.32 + rng() * 0.32})`;
     tile(() => {
       g.beginPath();
       g.moveTo(pts[0][0], pts[0][1]);
@@ -2194,42 +2193,14 @@ function wornFloorTexture(mode) {
       g.stroke();
     });
   }
-  for (let i = 0; i < 5; i++) {
-    const x = rng() * S, y = rng() * S, rx = 8 + rng() * 22, ry = 5 + rng() * 12, rot = rng();
-    g.fillStyle = `rgba(12,10,8,${0.18 + rng() * 0.2})`;
-    tile(() => {
-      g.beginPath();
-      g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
-      g.fill();
-    });
-  }
-  // Alley concrete holds soot, damp and a little moss. The blotches stay soft
-  // so the pour still reads as one slab.
   if (mode === "alley") {
-    g.filter = "blur(16px)";
-    for (let i = 0; i < 18; i++) {
-      const x = rng() * S, y = rng() * S, rx = 36 + rng() * 130, ry = 22 + rng() * 80, rot = rng() * 3;
+    for (let i = 0; i < 14; i++) {
       const moss = rng() > 0.62;
-      g.fillStyle = moss
-        ? `rgba(28,36,22,${0.22 + rng() * 0.28})`
-        : `rgba(22,18,14,${0.24 + rng() * 0.3})`;
-      tile(() => {
-        g.beginPath();
-        g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
-        g.fill();
-      });
+      softSpot(rng() * S, rng() * S, 18 + rng() * 54, moss ? 28 : 22, moss ? 36 : 18, moss ? 22 : 14, 0.22 + rng() * 0.26);
     }
-    g.filter = "blur(5px)";
-    for (let i = 0; i < 28; i++) {
-      const x = rng() * S, y = rng() * S, rx = 6 + rng() * 18, ry = 4 + rng() * 14, rot = rng() * 3;
-      g.fillStyle = `rgba(10,9,8,${0.28 + rng() * 0.35})`;
-      tile(() => {
-        g.beginPath();
-        g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
-        g.fill();
-      });
+    for (let i = 0; i < 18; i++) {
+      softSpot(rng() * S, rng() * S, 5 + rng() * 12, 10, 9, 8, 0.26 + rng() * 0.32);
     }
-    g.filter = "none";
   }
   const tex = new THREE.CanvasTexture(c);
   tex.encoding = THREE.sRGBEncoding;
@@ -3938,7 +3909,7 @@ label("labEastEdge", SITE_W, 6, -8);
 labelSprites.slice(-3).forEach(s => widthGroup.add(s));
 
 function facadeTexture(seed, rgb) {
-  const S = 256;
+  const S = 128;
   const c = document.createElement("canvas");
   c.width = S; c.height = S;
   const g = c.getContext("2d");
@@ -3946,9 +3917,6 @@ function facadeTexture(seed, rgb) {
   const [cr, cg, cb] = rgb;
   g.fillStyle = `rgb(${cr},${cg},${cb})`;
   g.fillRect(0, 0, S, S);
-  // Plaster grain only. A streak that runs off the tile prints a grid on every
-  // storey, which is what the walls were doing. The stains that read from the
-  // street are painted in world space, once per wall, not once per tile.
   function grain(x, y, rad, col, a) {
     for (let oy = -1; oy <= 1; oy++) {
       for (let ox = -1; ox <= 1; ox++) {
@@ -3962,34 +3930,30 @@ function facadeTexture(seed, rgb) {
       }
     }
   }
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 12; i++) {
     const lift = r() > 0.55;
     const col = lift
       ? [Math.min(255, cr + 14), Math.min(255, cg + 14), Math.min(255, cb + 16)]
       : [Math.max(0, cr - 18), Math.max(0, cg - 18), Math.max(0, cb - 16)];
-    grain(r() * S, r() * S, 16 + r() * 48, col, 0.05 + r() * 0.08);
+    grain(r() * S, r() * S, 10 + r() * 26, col, 0.06 + r() * 0.08);
   }
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 40; i++) {
     const v = r() > 0.5 ? 18 : -22;
-    const n = Math.max(0, Math.min(255, ((cr + cg + cb) / 3) + v));
-    g.fillStyle = `rgba(${n},${n},${Math.max(0, n - 4)},${0.05 + r() * 0.07})`;
-    const x = r() * S, y = r() * S, bw = 2 + r() * 5, bh = 2 + r() * 5;
+    const n = Math.max(0, Math.min(255, ((cr + cg + cb) / 3) + v)) | 0;
+    g.fillStyle = `rgba(${n},${n},${Math.max(0, n - 4)},${0.06 + r() * 0.07})`;
+    const x = r() * S, y = r() * S, bw = 1.5 + r() * 3.5, bh = 1.5 + r() * 3.5;
     g.fillRect(x, y, bw, bh);
-    if (x + bw > S) g.fillRect(x - S, y, bw, bh);
-    if (y + bh > S) g.fillRect(x, y - S, bw, bh);
   }
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 10; i++) {
     const soot = 22 + (r() * 28 | 0);
-    grain(r() * S, r() * S, 24 + r() * 50, [soot, soot, soot], 0.1 + r() * 0.12);
+    grain(r() * S, r() * S, 14 + r() * 28, [soot, soot, soot], 0.1 + r() * 0.12);
   }
-  for (let i = 0; i < 520; i++) {
+  for (let i = 0; i < 200; i++) {
     const dark = r() > 0.42;
-    const n = dark ? 14 + r() * 28 : 168 + r() * 36;
-    const x = r() * S, y = r() * S, s = dark ? 1 + r() * 2.4 : 1;
-    g.fillStyle = `rgba(${n | 0},${n | 0},${Math.max(0, n - 4) | 0},${dark ? 0.28 + r() * 0.35 : 0.12 + r() * 0.16})`;
+    const n = (dark ? 14 + r() * 28 : 168 + r() * 36) | 0;
+    const x = r() * S, y = r() * S, s = dark ? 1 + r() * 1.6 : 1;
+    g.fillStyle = `rgba(${n},${n},${Math.max(0, n - 4)},${dark ? 0.28 + r() * 0.34 : 0.12 + r() * 0.16})`;
     g.fillRect(x, y, s, s);
-    if (x + s > S) g.fillRect(x - S, y, s, s);
-    if (y + s > S) g.fillRect(x, y - S, s, s);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.encoding = THREE.sRGBEncoding;
@@ -4739,18 +4703,12 @@ function shopMip(src) {
 function shopCanvasTex(c) {
   const tex = new THREE.CanvasTexture(c);
   tex.encoding = THREE.sRGBEncoding;
-  tex.anisotropy = 8;
+  tex.anisotropy = 4;
   const pot = c.width > 0 && (c.width & (c.width - 1)) === 0 && c.height > 0 && (c.height & (c.height - 1)) === 0;
   if (!pot) {
     if (renderer.capabilities.isWebGL2) {
-      const mips = [c];
-      let src = c;
-      while (src.width > 1 || src.height > 1) {
-        src = shopMip(src);
-        mips.push(src);
-      }
-      tex.mipmaps = mips;
-      tex.generateMipmaps = false;
+      // WebGL2 generates NPOT mipmaps directly on the GPU without CPU getImageData stalls.
+      tex.generateMipmaps = true;
       tex.minFilter = THREE.LinearMipmapLinearFilter;
       tex.magFilter = THREE.LinearFilter;
     } else {
@@ -4796,40 +4754,34 @@ function signHash(x, y, s) {
 }
 // Enamel and plastic shop boards: nicotine fade, rain soot, rust from the
 // fasteners, and chips through to the undercoat. The trade word stays readable.
-function signWeather(g, w, h, seed) {
-  const img = g.getImageData(0, 0, w, h);
-  const d = img.data;
-  const s = seed || 1;
-  for (let y = 0; y < h; y++) {
-    const yn = y / Math.max(1, h - 1);
-    const soot = yn > 0.8 ? ((yn - 0.8) / 0.2) * 34 : yn < 0.045 ? ((0.045 - yn) / 0.045) * 16 : 0;
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const xn = x / Math.max(1, w - 1);
-      const n = signHash(x, y, s);
-      const fade = 0.3 + (n & 15) * 0.003;
-      let r = d[i] * (1 - fade) + 168 * fade;
-      let gg = d[i + 1] * (1 - fade) + 142 * fade;
-      let b = d[i + 2] * (1 - fade) + 102 * fade;
-      const grain = (n - 128) * 0.18;
-      const edge = (xn < 0.035 || xn > 0.965 || yn < 0.03 || yn > 0.97) ? 26 : 0;
-      const run = ((x * 3 + s) % 41 === 0) ? 5 + (y % 13) * 0.4 : 0;
-      const v = grain - soot - edge * 0.55 - run;
-      r += v;
-      gg += v * 0.9;
-      b += v * 0.72;
-      if (signHash(x, y, s + 17) < 3) {
-        r += 48;
-        gg *= 0.7;
-        b *= 0.48;
-      }
-      d[i] = r < 0 ? 0 : r > 255 ? 255 : r;
-      d[i + 1] = gg < 0 ? 0 : gg > 255 ? 255 : gg;
-      d[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
-    }
+function signGrainTile() {
+  if (signGrainTile.pat) return signGrainTile.pat;
+  const c = document.createElement("canvas");
+  c.width = 64; c.height = 64;
+  const gg = c.getContext("2d");
+  for (let i = 0; i < 240; i++) {
+    const dark = (i & 1) === 0;
+    gg.fillStyle = dark ? "rgba(28,20,12,0.09)" : "rgba(210,185,140,0.08)";
+    gg.fillRect((i * 29) & 63, (i * 17) & 63, 2, 2);
   }
-  g.putImageData(img, 0, 0);
+  return signGrainTile.pat = c;
+}
+function signWeather(g, w, h, seed) {
+  const s = seed || 1;
   const rnd = signRand(s);
+  g.save();
+  // Fast native nicotine fade + tiled grain instead of per-pixel JS getImageData loop.
+  g.fillStyle = "rgba(168,142,102,0.28)";
+  g.fillRect(0, 0, w, h);
+  const pat = g.createPattern(signGrainTile(), "repeat");
+  if (pat) {
+    g.fillStyle = pat;
+    g.fillRect(0, 0, w, h);
+  }
+  g.strokeStyle = "rgba(24,18,12,0.22)";
+  g.lineWidth = Math.max(4, Math.min(w, h) * 0.05);
+  g.strokeRect(0, 0, w, h);
+  g.restore();
   g.save();
   g.fillStyle = "rgba(58,44,28,0.34)";
   for (let k = 0; k < 3; k++) {
@@ -4881,11 +4833,11 @@ function signWeather(g, w, h, seed) {
 function bladeLayout(text, horizontal) {
   const n = Math.max(1, Array.from(text || "").length);
   if (horizontal) {
-    const glyph = 148, gap = 168, side = 40, top = 34;
+    const glyph = 84, gap = 96, side = 24, top = 20;
     return { w: side * 2 + gap * n, h: top * 2 + glyph, n, glyph, gap, side, top };
   }
-  const cell = 200;
-  return { w: cell, h: cell * n, n, cell, glyph: 136 };
+  const cell = 112;
+  return { w: cell, h: cell * n, n, cell, glyph: 76 };
 }
 function bladeTex(text, bg, ink, flip) {
   const key = "blade:" + text + ":" + bg + ":" + ink + ":" + (flip ? "b" : "f");
@@ -5033,7 +4985,7 @@ function shopBoard(text, bg, ink) {
   const key = "sboard:" + text + ":" + bg + ":" + ink;
   if (shopCache[key]) return shopCache[key];
   const n = Math.max(1, String(text || "").length);
-  const H = 128;
+  const H = 80;
   // Glyphs are square. The board is that many squares, plus a narrow margin,
   // so the mesh can copy this ratio instead of stretching the writing.
   const W = Math.max(H, Math.round(H * (n * 0.72 + 0.28)));
@@ -5237,8 +5189,8 @@ function fasciaBoard(text, bg, ink, aspect) {
   const a = Math.max(1.5, Math.round(raw / step) * step);
   const key = "fascia:" + text + ":" + bg + ":" + ink + ":" + a.toFixed(1);
   if (shopCache[key]) return shopCache[key];
-  const H = 160;
-  const W = Math.max(H, Math.round(H * a));
+  const H = 96;
+  const W = Math.min(640, Math.max(H, Math.round(H * a)));
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
@@ -6938,14 +6890,14 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
 // as tall. The canvas uses that same ratio, so the plane does not stretch the writing.
 function stairStripMat(side) {
   return shopMat("stair-strip:" + side, () => {
-    const W = 200, H = 480;
+    const W = 100, H = 240;
     const c = document.createElement("canvas");
     c.width = W; c.height = H;
     const g = c.getContext("2d");
     g.fillStyle = "#7a2e28";
     g.fillRect(0, 0, W, H);
     const chars = side === 0 ? ["出", "入"] : ["平", "安"];
-    chars.forEach((ch, i) => paintWord(g, ch, W * 0.5, 152 + i * 176, 148, "#f3e6c8"));
+    chars.forEach((ch, i) => paintWord(g, ch, W * 0.5, 76 + i * 88, 74, "#f3e6c8"));
     g.fillStyle = "rgba(62,36,22,0.5)";
     g.fillRect(0, 0, W, 26);
     g.fillRect(0, H - 40, W, 40);
@@ -20073,24 +20025,12 @@ function agedPaneMaps(seed) {
     g.fillStyle = `rgba(${v},${v - 8},${v - 16},${0.35 + rng() * 0.5})`;
     g.fillRect(rng() * W, rng() * H, 2 + rng() * 3, 2 + rng() * 3);
   }
-  const map = meshMips(c);
+  const map = new THREE.CanvasTexture(c);
   map.encoding = THREE.sRGBEncoding;
-  map.minFilter = THREE.LinearMipmapLinearFilter;
-  const src = c.getContext("2d").getImageData(0, 0, W, H).data;
-  const rc = document.createElement("canvas");
-  rc.width = W; rc.height = H;
-  const img = rc.getContext("2d").createImageData(W, H);
-  const o = img.data;
-  for (let i = 0; i < src.length; i += 4) {
-    const lum = (src[i] * 0.3 + src[i + 1] * 0.5 + src[i + 2] * 0.2) / 255;
-    const roughV = Math.max(0, Math.min(255, (0.58 + (1 - lum) * 0.4) * 255));
-    o[i] = o[i + 1] = o[i + 2] = roughV;
-    o[i + 3] = 255;
-  }
-  rc.getContext("2d").putImageData(img, 0, 0);
-  const rough = meshMips(rc);
-  rough.minFilter = THREE.LinearMipmapLinearFilter;
-  return { map, rough };
+  map.generateMipmaps = renderer.capabilities.isWebGL2;
+  map.minFilter = renderer.capabilities.isWebGL2 ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+  map.magFilter = THREE.LinearFilter;
+  return { map, rough: null };
 }
 const paneBins = [[], [], [], [], [], []];
 glassQ.forEach(it => { paneBins[it.variant] && paneBins[it.variant].push(it); });
@@ -20098,8 +20038,8 @@ paneBins.forEach((bin, v) => {
   if (!bin.length) return;
   const maps = agedPaneMaps(v + 1);
   const glassMat = new THREE.MeshStandardMaterial({
-    map: maps.map, roughnessMap: maps.rough, color: 0xffffff,
-    roughness: 1, metalness: 0.05, clippingPlanes: clips
+    map: maps.map, color: 0xffffff,
+    roughness: 0.72, metalness: 0.05, clippingPlanes: clips
   });
   attachPlaneAspect(glassMat, 160 / 256, 0);
   attachWetFilm(glassMat);
@@ -35649,6 +35589,8 @@ function releaseCanvasSources() {
       consider(m.emissiveMap);
       consider(m.normalMap);
       consider(m.roughnessMap);
+      consider(m.metalnessMap);
+      consider(m.bumpMap);
       consider(m.alphaMap);
       consider(m.aoMap);
     }
@@ -35668,16 +35610,20 @@ function releaseCanvasSources() {
     }
   });
 }
-let canvasSourcesReleased = false;
+let canvasReleasePass = 0;
+let canvasReleaseWalk = false;
 function renderFrame() {
   syncFxGrade();
   renderWetReflection();
   renderRoofReflection();
   renderer.setRenderTarget(null);
   renderer.render(scene, camera);
-  if (!canvasSourcesReleased) {
-    canvasSourcesReleased = true;
-    releaseCanvasSources();
+  if (canvasReleasePass < 2) {
+    canvasReleasePass++;
+    if (canvasReleasePass === 2) releaseCanvasSources();
+  } else if (walkMode && !canvasReleaseWalk) {
+    canvasReleaseWalk = true;
+    setTimeout(releaseCanvasSources, 450);
   }
 }
 function bakeFleet() {
@@ -36367,21 +36313,24 @@ function flushFigure(fig) {
   if (!fig || fig.userData.doze) return;
   THREE.Object3D.prototype.updateMatrixWorld.call(fig, true);
 }
-// The street light shader and each cast member compile on first use.
-// Doing that while someone walks into frame was a hitch on the playing frame.
+// Defer shader warm-up past the first rendered frame so boot completes quickly,
+// and warm a single representative citizen instead of retaining 30+ dummy rigs in RAM.
 (function warmCastPrograms() {
-  const names = Object.keys(STUDIO);
-  const group = new THREE.Group();
-  group.visible = false;
-  for (let i = 0; i < names.length; i++) {
-    const wear = STUDIO[names[i]];
-    if (!wear || !wear.studioId) continue;
-    group.add(makeCitizen(wear));
-  }
-  scene.add(group);
-  renderer.compile(scene, camera);
-  scene.remove(group);
-  warmCastPrograms.keep = group;
+  const runWarm = function () {
+    const names = Object.keys(STUDIO);
+    let sample = null;
+    for (let i = 0; i < names.length; i++) {
+      const wear = STUDIO[names[i]];
+      if (wear && wear.studioId) { sample = wear; break; }
+    }
+    if (!sample) return;
+    const dummy = makeCitizen(sample);
+    dummy.visible = false;
+    scene.add(dummy);
+    scene.remove(dummy);
+  };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(runWarm, { timeout: 1500 });
+  else setTimeout(runWarm, 600);
 })();
 (function tick() {
   requestAnimationFrame(tick);
