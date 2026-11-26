@@ -10,8 +10,8 @@
     --terra: #ff3a2a; --ochre: #d4b56a; --line: #4a342c;
     --on: #2a100e; --gold: #c6a15a; --gold-in: #8d6d38;
     --gap: clamp(8px, 1.4vw, 14px);
-    /* Clear of the CRT bezel: 8px frame plus the 16px corner curve. */
-    --frame: 24px;
+    /* Clear of the CRT bezel, scaled fluidly for compact viewports. */
+    --frame: clamp(12px, 2.4vmin, 24px);
     --inset-x: max(var(--frame), env(safe-area-inset-left));
     --inset-r: max(var(--frame), env(safe-area-inset-right));
     --inset-t: max(var(--frame), env(safe-area-inset-top));
@@ -19,8 +19,9 @@
     /* How much of each lower corner the stick and the action buttons occupy. */
     --stick-clear: 0px;
     --corner-clear: 0px;
+    --run-center-max-h: min(46dvh, 320px);
     /* Half the countdown, plus a gap, so the time plate cannot reach it. */
-    --clock-guard: calc(0.5 * (2.32 * clamp(31.5px, 5.76vh, 54.9px) + 28px) + 28px);
+    --clock-guard: calc(0.5 * (2.32 * clamp(22px, min(6.2vw, 5.6dvh), 52px) + 28px) + 20px);
     --hud-cap: calc(50vw - var(--inset-x) - var(--clock-guard));
   }
   * { box-sizing: border-box; }
@@ -78,22 +79,22 @@
   #tools { position: static; width: min(100%, max-content); max-width: 100%; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; transform: translateZ(0); }
   #minimap {
     position: fixed;
-    top: max(var(--frame), env(safe-area-inset-top));
-    right: max(var(--frame), env(safe-area-inset-right));
+    top: var(--inset-t);
+    right: var(--inset-r);
     z-index: 3;
     display: block;
-    width: 168px;
-    height: 168px;
+    width: clamp(86px, 19vmin, 168px);
+    height: clamp(86px, 19vmin, 168px);
     aspect-ratio: 1;
     pointer-events: none;
     background: #090807; border: 1px solid rgba(61, 255, 136, 0.72);
     box-shadow: 0 0 10px rgba(61, 255, 136, 0.28);
   }
   @media (aspect-ratio <= 1), (max-width: 720px), (max-height: 540px) {
-    #minimap { width: 112px; height: 112px; }
+    #minimap { width: clamp(82px, 22vmin, 118px); height: clamp(82px, 22vmin, 118px); }
   }
   @media (max-width: 430px) {
-    #minimap { width: 100px; height: 100px; }
+    #minimap { width: clamp(76px, 23vw, 102px); height: clamp(76px, 23vw, 102px); }
   }
   #minimap[hidden] { display: none !important; }
   #tool-row { display: flex; flex-direction: row; align-items: center; gap: 6px; }
@@ -118,6 +119,17 @@
   header.panel h1 > .when,
   header.panel #wx-read,
   header.panel #wx-line { flex-wrap: nowrap; white-space: nowrap; }
+  header.panel.wrap h1,
+  header.panel.wrap h1 > .when,
+  header.panel.wrap #wx-read,
+  header.panel.wrap #wx-line,
+  header.panel.wrap #wx-purse {
+    white-space: normal;
+    flex-wrap: wrap;
+    width: auto;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
   header.panel h1,
   header.panel h1 > .when,
   header.panel #wx-read,
@@ -201,8 +213,8 @@
       0 0 12px rgba(61, 255, 136, 0.7),
       inset 0 0 10px rgba(61, 255, 136, 0.2);
     font-weight: 700;
-    font-size: clamp(31.5px, 5.76vh, 54.9px);
-    letter-spacing: 0.08em;
+    font-size: clamp(22px, min(6.2vw, 5.6dvh), 52px);
+    letter-spacing: 0.06em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     color: #fffaf2;
@@ -357,8 +369,8 @@
   #ui:has(#run-clock:not([hidden])) header.panel { max-width: min(100%, var(--hud-cap)); }
   body:has(#boot) #run-clock { display: none; }
   @media (max-width: 720px), (max-height: 540px) {
-    :root { --clock-guard: calc(0.5 * (2.26 * clamp(26.1px, 7.92vw, 37.8px) + 20px) + 28px); }
-    #run-clock { font-size: clamp(26.1px, 7.92vw, 37.8px); padding: 2px 10px 5px; letter-spacing: 0.06em; }
+    :root { --clock-guard: calc(0.5 * (2.26 * clamp(20px, min(7vw, 6.2dvh), 36px) + 20px) + 18px); }
+    #run-clock { font-size: clamp(20px, min(7vw, 6.2dvh), 36px); padding: 2px 10px 5px; letter-spacing: 0.05em; }
   }
   .kicker { font-family: "PingFang HK", "Heiti TC", sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b56a; margin-bottom: 2px; overflow-wrap: anywhere; }
   .chrome { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
@@ -503,7 +515,7 @@
       8px 0 14px rgba(61, 224, 136, 0.4);
   }
   .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; min-width: 0; }
-  .tabs button { width: 100%; min-width: 0; padding-inline: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tabs button { width: 100%; min-width: 0; padding-inline: 6px; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
   #walk { flex: 1 1 0; min-width: 0; }
   #walk-pad {
     display: none;
@@ -569,8 +581,10 @@
     padding: 8px 28px;
     letter-spacing: 0.18em;
     font-size: clamp(14px, 1.6vw, 16px);
-    line-height: 1.2;
-    white-space: nowrap;
+    line-height: 1.25;
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
     color: #f4e7cf;
     background: #1a1411;
     border: 1px solid #ffc56a;
@@ -599,8 +613,11 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
-    width: min(280px, calc(100vw - var(--inset-x) - var(--inset-r) - var(--stick-clear) - 12px));
+    gap: clamp(6px, 1.2dvh, 8px);
+    width: min(296px, calc(100vw - var(--inset-x) - var(--inset-r) - var(--stick-clear) - 12px));
+    max-height: var(--run-center-max-h);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     pointer-events: none;
   }
   #run-corner {
@@ -779,19 +796,19 @@
     transform: translateX(-50%);
     z-index: 6;
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
-    gap: 16px;
+    gap: clamp(8px, 2vw, 16px);
     width: max-content;
     max-width: calc(100vw - var(--inset-x) - var(--inset-r) - 16px);
     pointer-events: none;
   }
   #run-arrows[hidden] { display: none !important; }
-  .run-arrow { width: 64px; text-align: center; color: #ffc56a; }
-  .run-arrow svg { width: 34px; height: 34px; display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
-  .run-arrow b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; }
-  .run-arrow span { display: block; font-size: 10px; color: #ffe7df; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .run-arrow { min-width: 60px; max-width: clamp(78px, 20vw, 112px); width: auto; text-align: center; color: #ffc56a; }
+  .run-arrow svg { width: clamp(26px, 5vmin, 34px); height: clamp(26px, 5vmin, 34px); display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
+  .run-arrow b { display: block; font-size: clamp(11px, 2.2vmin, 13px); font-weight: 600; letter-spacing: 0.04em; }
+  .run-arrow span { display: block; font-size: clamp(10px, 1.8vmin, 11px); line-height: 1.25; color: #ffe7df; white-space: normal; overflow-wrap: anywhere; }
   .run-arrow.ok { color: #3dff88; }
   .run-arrow.ok svg { filter: drop-shadow(0 0 6px rgba(61, 255, 136, 0.85)); }
   .run-arrow.warm { color: #ffc56a; }
@@ -930,7 +947,7 @@
   #settings-panel .seg button.on:active,
   #settings-panel .seg button:active { text-shadow: none; }
   #settings-panel .seg { flex-wrap: wrap; max-width: 100%; }
-  #settings-panel .seg button { flex: 1 1 auto; white-space: nowrap; }
+  #settings-panel .seg button { flex: 1 1 auto; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
   #settings-panel .note { margin: 0; max-width: 36em; color: rgba(228, 211, 184, 0.62); }
   #settings-back {
     width: 100%;
@@ -974,10 +991,10 @@
       0 0 6px rgba(244, 231, 207, 0.85),
       0 0 14px rgba(232, 210, 170, 0.45);
   }
-  /* Each line on the cut board stays one line. The size drops to fit the language. */
+  /* Allow dock labels and hints to wrap cleanly rather than clipping or shrinking illegibly. */
   #controls label,
   #controls #readout,
-  #controls #hint { white-space: nowrap; }
+  #controls #hint { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
   #controls #hint { min-width: 0; max-width: 100%; }
   #dock-cut .row:last-child > label,
   #dock-cut .row:last-child > #readout { min-width: 0; }
@@ -1211,17 +1228,19 @@
   #boot .boot-card {
     position: relative; z-index: 1;
     display: flex; flex-direction: column; align-items: center; text-align: center;
-    width: max-content; max-width: calc(100% - 48px);
+    width: auto; max-width: calc(100% - 2 * var(--frame));
   }
   #boot h1 {
     margin: 0;
-    padding: 12px 22px 14px;
+    padding: clamp(8px, 2vmin, 12px) clamp(14px, 3.6vw, 22px) clamp(10px, 2.2vmin, 14px);
+    max-width: 100%;
     font-family: "Songti TC", "STSong", "PMingLiU", "Hiragino Mincho ProN", "Yu Mincho", "Songti SC", "Noto Serif CJK JP", "PingFang HK", serif;
-    font-size: clamp(40px, 9vw, 68px);
+    font-size: clamp(26px, min(9vw, 10dvh), 68px);
     font-weight: 700;
-    letter-spacing: 0.22em;
-    line-height: 1.15;
-    white-space: nowrap;
+    letter-spacing: clamp(0.1em, 0.6vw, 0.22em);
+    line-height: 1.18;
+    white-space: normal;
+    overflow-wrap: anywhere;
     color: #ff4a38;
     background: #000;
     border: 2px solid #3dff88;
@@ -1237,13 +1256,15 @@
       inset 0 0 12px rgba(61, 255, 136, 0.28);
   }
   #boot .boot-sub {
-    margin: 18px 0 0;
+    margin: clamp(12px, 2.4dvh, 18px) 0 0;
+    max-width: 100%;
     font-family: "Songti TC", "PMingLiU", Palatino, "Times New Roman", serif;
-    font-size: clamp(13px, 2.6vw, 18px);
+    font-size: clamp(11px, 2.8vw, 18px);
     font-weight: 600;
-    letter-spacing: 0.12em;
-    line-height: 1.3;
-    white-space: nowrap;
+    letter-spacing: clamp(0.06em, 0.35vw, 0.12em);
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
     color: #ffc56a;
     text-shadow:
       0 0 1px #fff3d2,
@@ -1320,7 +1341,7 @@
   }
   #crt::after {
     content: "";
-    position: absolute; inset: 8px; border-radius: 16px; pointer-events: none;
+    position: absolute; inset: clamp(4px, 0.9vmin, 8px); border-radius: clamp(8px, 1.8vmin, 16px); pointer-events: none;
     box-shadow:
       0 0 0 20px #100e0c,
       inset 0 0 0 1px rgba(196, 206, 184, 0.22),
@@ -16356,30 +16377,44 @@ function fitPurseRoom() {
   const line = document.getElementById("wx-line");
   const h1 = header && header.querySelector("h1");
   const clockEl = document.getElementById("run-clock");
+  const toolsEl = document.getElementById("tools");
   if (!header || !h1) return;
   h1.style.fontSize = "";
   header.style.maxWidth = "";
+  header.classList.remove("wrap");
   if (!line) return;
-  if (!clockEl || clockEl.hidden || getComputedStyle(clockEl).display === "none") return;
-  const cr = clockEl.getBoundingClientRect();
-  if (cr.width < 1) return;
   const hr = header.getBoundingClientRect();
+  let rightBound = window.innerWidth - 16;
+  if (clockEl && !clockEl.hidden && getComputedStyle(clockEl).display !== "none") {
+    const cr = clockEl.getBoundingClientRect();
+    if (cr.width > 1) rightBound = Math.min(rightBound, cr.left - 16);
+  } else if (toolsEl && getComputedStyle(toolsEl).display !== "none") {
+    const tr = toolsEl.getBoundingClientRect();
+    if (tr.width > 1 && tr.left > hr.left + 40) rightBound = Math.min(rightBound, tr.left - 12);
+  }
+  const box = rightBound - hr.left;
+  if (!(box > 32)) return;
+  header.style.maxWidth = Math.floor(box) + "px";
   const cs = getComputedStyle(header);
   const padL = parseFloat(cs.paddingLeft) || 0;
   const padR = parseFloat(cs.paddingRight) || 0;
   const border = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
-  const box = cr.left - hr.left - 28;
-  if (!(box > 0)) return;
-  header.style.maxWidth = Math.floor(box) + "px";
   const inner = box - padL - padR - border;
-  if (!(inner > 8)) return;
+  if (!(inner > 16)) return;
   const purse = document.getElementById("wx-purse");
   const purseW = purse && purse.textContent && getComputedStyle(purse).display !== "none" ? purse.scrollWidth : 0;
   const need = Math.max(line.scrollWidth, purseW);
   if (need <= inner + 1) return;
   const size = parseFloat(getComputedStyle(h1).fontSize);
   if (!(size > 0)) return;
-  h1.style.fontSize = ((size * inner) / need).toFixed(2) + "px";
+  const minSize = 11;
+  const scaled = (size * inner) / need;
+  if (scaled >= minSize) {
+    h1.style.fontSize = scaled.toFixed(2) + "px";
+  } else {
+    h1.style.fontSize = minSize + "px";
+    header.classList.add("wrap");
+  }
 }
 function fitRunHub() {
   if (fitRunHub.busy) return;
@@ -16390,6 +16425,8 @@ function fitRunHub() {
     const pad = document.getElementById("walk-pad");
     const stick = document.getElementById("walk-stick");
     const corner = document.getElementById("run-corner");
+    const mapEl = document.getElementById("minimap");
+    const fxEl = document.getElementById("run-fx");
     if (!ui || !arrows) return;
     fitPurseRoom();
     const padOn = pad && getComputedStyle(pad).display !== "none";
@@ -16405,19 +16442,37 @@ function fitRunHub() {
       }
     }
     ui.style.setProperty("--corner-clear", cornerW > 0 ? Math.ceil(cornerW + 10) + "px" : "0px");
+    // Keep #run-center clear of #minimap vertically on short landscape viewports.
+    const uiCs = getComputedStyle(ui);
+    const padB = parseFloat(uiCs.paddingBottom) || 16;
+    let topFloor = (parseFloat(uiCs.paddingTop) || 16) + 56;
+    if (mapEl && !mapEl.hidden && getComputedStyle(mapEl).display !== "none") {
+      const mr = mapEl.getBoundingClientRect();
+      if (mr.height > 1) topFloor = Math.max(topFloor, mr.bottom + 10);
+    }
+    const centerMaxH = Math.max(96, Math.floor(window.innerHeight - padB - topFloor));
+    ui.style.setProperty("--run-center-max-h", centerMaxH + "px");
     arrows.style.left = "";
     arrows.style.right = "";
     arrows.style.width = "";
     arrows.style.maxWidth = "";
     arrows.style.transform = "";
-    if (arrows.hidden || getComputedStyle(arrows).display === "none") {
-      arrows.style.top = "";
-      return;
-    }
     const clock = document.getElementById("run-clock");
+    let clockBot = 0;
     if (clock && !clock.hidden && getComputedStyle(clock).display !== "none") {
       const cr = clock.getBoundingClientRect();
-      if (cr.height > 1) arrows.style.top = Math.round(cr.bottom + 12) + "px";
+      if (cr.height > 1) clockBot = cr.bottom;
+    }
+    if (arrows.hidden || getComputedStyle(arrows).display === "none") {
+      arrows.style.top = "";
+      if (fxEl && clockBot > 0) fxEl.style.top = Math.round(clockBot + 14) + "px";
+      return;
+    }
+    if (clockBot > 0) arrows.style.top = Math.round(clockBot + 10) + "px";
+    if (fxEl) {
+      const ar = arrows.getBoundingClientRect();
+      const below = ar.height > 1 ? ar.bottom : clockBot;
+      if (below > 0) fxEl.style.top = Math.round(below + 10) + "px";
     }
   } finally {
     fitRunHub.busy = false;
@@ -16480,11 +16535,12 @@ function fitDockLine(el, room) {
   const max = parseFloat(getComputedStyle(el).fontSize);
   const need = naturalWidth(el);
   if (!(max > 0) || need <= room + 1) return;
-  let size = Math.max(6, (max * room) / need);
+  const floor = 10;
+  let size = Math.max(floor, (max * room) / need);
   el.style.fontSize = size.toFixed(2) + "px";
   const need2 = naturalWidth(el);
-  if (need2 > room + 1 && size > 6) {
-    size = Math.max(6, (size * room) / need2);
+  if (need2 > room + 1 && size > floor) {
+    size = Math.max(floor, (size * room) / need2);
     el.style.fontSize = size.toFixed(2) + "px";
   }
 }
