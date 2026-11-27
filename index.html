@@ -954,6 +954,16 @@
   #settings-panel .seg button:active { text-shadow: none; }
   #settings-panel .seg { flex-wrap: wrap; max-width: 100%; }
   #settings-panel .seg button { flex: 1 1 auto; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+  #settings-panel .seg button:disabled {
+    opacity: 0.36;
+    cursor: not-allowed;
+    color: rgba(228, 211, 184, 0.55);
+    border-color: #2f221d;
+    border-image: none;
+    box-shadow: none;
+    background: #100a08;
+    pointer-events: none;
+  }
   #settings-panel .note { margin: 0; max-width: 36em; color: rgba(228, 211, 184, 0.62); }
   #settings-back {
     width: 100%;
@@ -2573,7 +2583,7 @@ const WET_GLINT = [
   // Same weights as the night-street mirror: a puddle reflects even when
   // you are looking down, and a graze picks up still more of the street.
   "float cover = mix(0.22, 0.92, wetPud) * (0.35 + 0.65 * fres + 0.25);",
-  "cover *= face * clamp(uWet, 0.0, 1.0) * step(0.5, uWetReflOn) * lotKeep * fxSpec;",
+  "cover *= face * clamp(uWet, 0.0, 1.0) * clamp(uWetReflOn, 0.0, 1.0) * lotKeep * fxSpec;",
   "if (cover > 0.001) {",
   // The mirror was sampled with the screen pixel, so the picture rode with
   // the lens. Project this point of the pavement through the mirrored camera
@@ -2692,8 +2702,8 @@ const ROOF_GLINT = [
   "if (cover > 0.001) {",
   "  vec3 nrm = normalize(vec3(wetRp.x, 1.0, wetRp.y));",
   "  vec3 refl = roofSky(reflect(-normalize(wetV), nrm));",
-  "  if (uRoofReflOn > 0.5) {",
-  "    float band = 1.0 - smoothstep(0.8, 4.0, abs(vWetWorld.y - uRoofPlane));",
+  "  if (uRoofReflOn > 0.01) {",
+  "    float band = (1.0 - smoothstep(0.8, 4.0, abs(vWetWorld.y - uRoofPlane))) * clamp(uRoofReflOn, 0.0, 1.0);",
   "    vec4 mirrorCoord = uRoofMatrix * vec4(vWetWorld, 1.0);",
   "    if (band > 0.04 && mirrorCoord.w > 0.001) {",
       "      vec2 bend = clamp(wetRp, vec2(-1.4), vec2(1.4)) * (0.0016 + wetPud * 0.003);",
@@ -3715,7 +3725,7 @@ function paneSheen(gain, overlay) {
       ? "vec3 lit = mix(vec3(0.40, 0.46, 0.52), vec3(0.94, 0.97, 1.0), paneBead * paneBead * (0.4 + fres * 0.6));"
       : "vec3 lit = mix(vec3(0.72, 0.80, 0.86), vec3(0.96, 0.98, 1.0), paneBead * (0.22 + fres * 0.78));",
     "float cover = (paneTrail * 0.1 + paneBead * 0.34) * (0.4 + fres * 0.6) * paneK * gain;",
-    "if (cover > 0.03 && uWetReflOn > 0.5) {",
+    "if (cover > 0.03 && uWetReflOn > 0.01) {",
     "  vec4 mirrorCoord = uWetMatrix * vec4(vWetWorld, 1.0);",
     "  if (mirrorCoord.w > 0.001) {",
     "    vec2 bend = clamp(paneBend, vec2(-1.2), vec2(1.2)) * (0.0015 + paneBead * 0.008) * " + (gain === "0.30" ? "0.4" : "0.65") + ";",
@@ -3724,7 +3734,7 @@ function paneSheen(gain, overlay) {
     "    refl += texture2D(uWetRefl, suv + bend * 0.8).rgb * 0.38;",
     "    vec3 wetRef = pow(max(uWetCol, vec3(0.001)), vec3(0.5));",
     "    refl = mix(refl, wetRef, 0.18 * night);",
-    "    lit = mix(lit, refl, clamp(cover, 0.0, mix(0.05, 0.2, paneBead) * gain));",
+    "    lit = mix(lit, refl, clamp(cover * clamp(uWetReflOn, 0.0, 1.0), 0.0, mix(0.05, 0.2, paneBead) * gain));",
     "  }",
     "}",
     "gl_FragColor.rgb = lit;"
@@ -6373,7 +6383,7 @@ function keeperBuildWidth(kind) {
   if (kind === "plastic" || kind === "paikau" || kind === "dentist" || kind === "doctor") return 1.03;
   return 0.96;
 }
-function noteShopkeeper(bay, face, kind, data) {
+function noteShopkeeper(bay, face, kind, data, hasAwning) {
   const spec = SHOP_KIND[kind] || {};
   const glass = !!spec.glass;
   const veiled = kind === "mahjong" || kind === "paikau";
@@ -6428,7 +6438,7 @@ function noteShopkeeper(bay, face, kind, data) {
     x: spot.x, y: 0.33, z: spot.z, rot: rot, kind: kind,
     mouthX: mouth.x, mouthZ: mouth.z,
     fx: Math.sin(rot), fz: Math.cos(rot),
-    stance: stance, span: span, seat: seat
+    stance: stance, span: span, seat: seat, awning: !!hasAwning
   });
 }
 // Keepers used to stand in the mouth, turned toward the party wall, so a
@@ -7279,7 +7289,9 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
   const pose = facePose(bay.x, bay.z, bay.w, bay.d, face, 0.5, 0.2 - SHOP_SEAT, 1.23);
   const hitsTemple = pose.x > TEMPLE_X - 0.3 && pose.x < TEMPLE_X + TEMPLE_W + 0.5 && pose.z > TEMPLE_Z + TEMPLE_D - 0.3 && pose.z < TEMPLE_Z + TEMPLE_D + 1.8;
   const proj = hitsTemple ? 0 : Math.min(wide ? 0.62 : 0.36, Math.max(0, alley * 0.16));
+  let hasAwning = false;
   if (spec.awning && proj >= 0.18 && variant !== "shut" && kind !== "door" && laneFree(0.5, proj)) {
+    hasAwning = true;
     const ap = facePose(bay.x, bay.z, bay.w, bay.d, face, 0.5, 0.07 + proj / 2 - SHOP_SEAT, 2.32);
     addShopMesh(shopGeo.box, awningMat(spec.awning, Math.floor(rng() * 3)), ap.x, ap.y, ap.z, ap.rot, Math.max(0.6, bay.span * 0.86), 0.045, proj);
     [0.28, 0.72].forEach(along => put(shopGeo.box, shopFinish.timber, along, proj * 0.5, 2.28, 0.035, 0.028, Math.max(0.12, proj)));
@@ -7390,7 +7402,7 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
     addShopMesh(shopGeo.box, lamp, lp.x, lp.y, lp.z, 0, 0.08, 0.08, 0.06);
   });
   if (lined) {
-    noteShopkeeper(bay, face, kind, data);
+    noteShopkeeper(bay, face, kind, data, hasAwning);
     putIn.raw = put;
     byDay(function () { fitOpenShop(kind, putIn, openW, span, bay, face); });
   }
@@ -18726,7 +18738,7 @@ const rainUniforms = {
   uSplashCol: { value: new THREE.Color(0xaeb8c0) },
   uOpacity: { value: 0 },
   uSplash: { value: 0 },
-  uPx: { value: 900 },
+  uSplashBox: { value: new THREE.Vector4(-1e4, -1e4, 1e4, 1e4) },
   uNight: { value: 0 },
   uLampPos: { value: [0, 1, 2, 3, 4, 5].map(() => new THREE.Vector3()) },
   uLampCol: { value: [0, 1, 2, 3, 4, 5].map(() => new THREE.Color(0xd7f0e4)) }
@@ -18842,6 +18854,7 @@ const splash = new THREE.Mesh(splashGeo, new THREE.ShaderMaterial({
     "varying float vFade;",
     "varying vec3 vLit;",
     "uniform float uTime, uSpanX, uSpanZ, uBot;",
+    "uniform vec4 uSplashBox;",
     LAMP_LIT,
     "void main() {",
     "  vT = fract(uTime * 1.7 + aSeed.z);",
@@ -18851,6 +18864,8 @@ const splash = new THREE.Mesh(splashGeo, new THREE.ShaderMaterial({
     "  vec2 rel = mod(world0 - cameraPosition.xz + halfS, span) - halfS;",
     "  vec3 p = vec3(cameraPosition.x + rel.x, uBot + 0.02, cameraPosition.z + rel.y);",
     "  " + lotKeepGlsl("p.xz"),
+    "  float inBox = smoothstep(uSplashBox.x, uSplashBox.x + 0.35, p.x) * (1.0 - smoothstep(uSplashBox.z - 0.35, uSplashBox.z, p.x))",
+    "              * smoothstep(uSplashBox.y, uSplashBox.y + 0.35, p.z) * (1.0 - smoothstep(uSplashBox.w - 0.35, uSplashBox.w, p.z));",
     "  vLit = vec3(1.0);",
     "  if (uNight > 0.001) vLit = mix(vec3(1.0), lampLit(p), uNight);",
     "  float s = (0.032 + vT * 0.085) * (0.6 + aSeed.w * 0.4);",
@@ -18866,7 +18881,7 @@ const splash = new THREE.Mesh(splashGeo, new THREE.ShaderMaterial({
     "  vC = position.xy * 2.0;",
     "  vec3 q = p + rt * vC.x * s + axis * (vC.y * s * 0.72 + s * 0.22);",
     "  float edge = (1.0 - smoothstep(halfS.x * 0.82, halfS.x, abs(rel.x))) * (1.0 - smoothstep(halfS.y * 0.82, halfS.y, abs(rel.y)));",
-    "  vFade = edge * smoothstep(0.35, 1.15, dc) * lotKeep;",
+    "  vFade = edge * smoothstep(0.35, 1.15, dc) * lotKeep * inBox;",
     "  gl_Position = projectionMatrix * viewMatrix * vec4(q, 1.0);",
     "}"
   ].join("\n"),
@@ -25738,9 +25753,17 @@ function poseGangFight(rig, ud, now, w) {
     if (dist < 0.95 && ud.foe.attacking) hit = 0.6 + Math.sin(seed) * 0.3;
   }
   ud.hit = hit;
-  if (hit > 0.5 && Math.random() < 0.6) {
-    if (Math.random() < 0.7) fightPunch();
-    else fightGrunt();
+  const sfxNow = gang.t || 0;
+  if (hit > 0.5 && sfxNow >= (ud.sfxNext || 0) && Math.random() < 0.55) {
+    const camDist = walkMode
+      ? Math.hypot((ud.x || 0) - walkX, (ud.z || 0) - walkZ)
+      : Math.hypot((ud.x || 0) - camera.position.x, (ud.z || 0) - camera.position.z, camera.position.y);
+    if (camDist < 22) {
+      const att = Math.max(0.18, 1 - camDist / 22);
+      ud.sfxNext = sfxNow + 0.42 + Math.random() * 0.35;
+      if (Math.random() < 0.7) fightPunch(att);
+      else fightGrunt(att);
+    }
   }
   // Smooth envelopes: fast strike, slow return.
   function env(start, peak, end) {
@@ -29382,7 +29405,7 @@ function paintSky() {
   // Night rain is a dim blue-grey; the alley lamps tint each streak.
   const veil = Math.min(1, wet);
   rain.visible = veil > 0.02;
-  splash.visible = rain.visible;
+  splash.visible = rain.visible && (walkMode || camera.position.y <= 28);
   paintSky.baseRainOp = (0.86 - dark * 0.22) * veil;
   rainUniforms.uOpacity.value = paintSky.baseRainOp;
   mixHex(0x101820, 0x4e5e70, dark, rainUniforms.uColor.value);
@@ -29393,6 +29416,9 @@ function paintSky() {
   rainUniforms.uNight.value = dark;
   applyShopGlow();
   applyFogReach();
+  if (typeof applyStormFlash === "function" && typeof storm !== "undefined" && storm.k > 0.004) {
+    applyStormFlash(storm.k);
+  }
 }
 function applyFogReach() {
   const dark = darkness;
@@ -29738,7 +29764,8 @@ function setTod(name) {
     const from = stepSky.clock;
     const to = TOD_HOLD[name];
     const span = todForward(from, to);
-    if (span < 0.004) {
+    const paused = (typeof runPaused === "function" && runPaused()) || (typeof run !== "undefined" && run && run.sheet);
+    if (span < 0.004 || paused) {
       stepSky.glide = null;
       stepSky.hold = to;
       stepSky.clock = to;
@@ -29758,6 +29785,21 @@ function setTod(name) {
 }
 // Half the showers carry a storm. A dry spell, and the next rain, roll again.
 const storm = { on: false, rolled: false, armed: false, next: 0, t0: -20, far: true, az: 0, seed: 1, k: 0, exp: null, lit: false };
+function shiftAtmosphereClocks(delta) {
+  if (!(delta > 0)) return;
+  if (stepSky.t0 != null) stepSky.t0 += delta;
+  if (stepSky.until != null) stepSky.until += delta;
+  if (stepSky.glide) {
+    stepSky.glide.t0 += delta;
+    stepSky.glide.t1 += delta;
+  }
+  if (wxT1 > wxT0) {
+    wxT0 += delta;
+    wxT1 += delta;
+  }
+  if (storm.armed) storm.next += delta;
+  if (storm.t0 > -10) storm.t0 += delta;
+}
 function rollStorm(now) {
   storm.on = Math.random() < 0.5;
   storm.rolled = true;
@@ -29790,8 +29832,9 @@ function setWeather(name, user) {
   if (name === "rain" && (prevSky !== "rain" || !storm.rolled)) rollStorm(now);
   wxT0 = now;
   const remain = 1 - wxFrom[name];
+  const paused = (typeof runPaused === "function" && runPaused()) || (typeof run !== "undefined" && run && run.sheet);
   const full = user ? WX_FADE_USER : WX_FADE;
-  wxT1 = now + (remain < 0.015 ? 0 : full * Math.max(0.4, remain));
+  wxT1 = (user && paused) ? now : (now + (remain < 0.015 ? 0 : full * Math.max(0.4, remain)));
   wxAdvance(now);
   paintSky.ready = 0;
   applyShopGlow.at = null;
@@ -29832,10 +29875,28 @@ bindAirControls();
 // gain, so a dry sky does not mute it. Night brings that gain down, and a
 // shower ducks it under the rain. One switch runs both.
 // A browser will not start it until the first gesture, so a drag or a key does.
-const rainSound = { on: true, ctx: null, level: 0, cityLevel: 0, nextDrop: 0, low: null };
+const rainSound = { on: true, ctx: null, level: 0, cityLevel: 0, nextDrop: 0, low: null, shelter: null };
+function audioPausedNow() {
+  if (!rainSound.on || document.hidden) return true;
+  if (typeof runPaused === "function" && runPaused()) return true;
+  if (typeof run !== "undefined" && run && run.sheet) return true;
+  return false;
+}
+function resumeRainSound() {
+  const ctx = rainSound.ctx;
+  if (!ctx || !rainSound.on || document.hidden) return;
+  if (ctx.state === "running") {
+    if (rainSound.startGraph) rainSound.startGraph();
+    return;
+  }
+  if (ctx.state === "suspended") {
+    const p = ctx.resume();
+    if (p && p.then) p.then(function () { if (rainSound.startGraph) rainSound.startGraph(); }).catch(function () {});
+  }
+}
 function ensureRainSound() {
   if (rainSound.ctx) {
-    if (rainSound.ctx.state === "suspended" && rainSound.on && !document.hidden) rainSound.ctx.resume();
+    resumeRainSound();
     return true;
   }
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -29973,10 +30034,25 @@ function ensureRainSound() {
     const t = i / dn;
     dd[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.6);
   }
+  // Pre-baked shared white & brown noise buffers eliminate main-thread buffer allocation hitches during thunder/SFX.
+  const wn = ctx.sampleRate * 4;
+  const whiteBuf = ctx.createBuffer(1, wn, ctx.sampleRate);
+  const brownBuf = ctx.createBuffer(1, wn, ctx.sampleRate);
+  const wd = whiteBuf.getChannelData(0);
+  const bd = brownBuf.getChannelData(0);
+  let brAcc = 0;
+  for (let i = 0; i < wn; i++) {
+    const wv = Math.random() * 2 - 1;
+    wd[i] = wv;
+    brAcc = brAcc * 0.98 + wv * 0.02;
+    bd[i] = Math.max(-1, Math.min(1, brAcc * 3.4));
+  }
   rainSound.master = master;
   rainSound.washGain = washGain;
   rainSound.bodyGain = bodyGain;
   rainSound.dropBuf = drop;
+  rainSound.whiteBuf = whiteBuf;
+  rainSound.brownBuf = brownBuf;
   rainSound.cityGain = cityGain;
   rainSound.rumbleGain = rumbleGain;
   rainSound.murmurGain = murmurGain;
@@ -30067,7 +30143,8 @@ function cityHorn() {
   g.gain.exponentialRampToValueAtTime(peak, t + 0.018);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
   if (blasts === 2) {
-    g.gain.exponentialRampToValueAtTime(peak * 0.85, t + 0.24);
+    g.gain.setValueAtTime(0.0001, t + 0.19);
+    g.gain.exponentialRampToValueAtTime(peak * 0.85, t + 0.23);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
   }
   o1.connect(lp);
@@ -30083,20 +30160,13 @@ function cityHorn() {
 }
 function cityVoice() {
   const ctx = rainSound.ctx;
-  if (!ctx || ctx.state !== "running" || !rainSound.cityGain) return;
+  if (!ctx || ctx.state !== "running" || !rainSound.cityGain || !rainSound.whiteBuf) return;
   const dur = 0.18 + Math.random() * 0.4;
-  const n = Math.max(8, Math.floor(ctx.sampleRate * dur));
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buf.getChannelData(0);
   const syll = 2 + Math.floor(Math.random() * 3);
-  for (let i = 0; i < n; i++) {
-    const u = i / n;
-    const gate = Math.pow(Math.sin(Math.min(0.999, u * syll) * Math.PI), 1.35);
-    data[i] = (Math.random() * 2 - 1) * gate;
-  }
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = rainSound.whiteBuf;
+  src.loop = true;
   const hi = ctx.createBiquadFilter();
   hi.type = "bandpass";
   hi.frequency.value = 900 + Math.random() * 1100;
@@ -30106,14 +30176,21 @@ function cityVoice() {
   lo.frequency.value = 280 + Math.random() * 260;
   lo.Q.value = 1.1;
   const g = ctx.createGain();
-  g.gain.value = 0.11 + Math.random() * 0.07;
+  const peak = 0.11 + Math.random() * 0.07;
+  const step = dur / syll;
+  g.gain.setValueAtTime(0.0001, t);
+  for (let s = 0; s < syll; s++) {
+    const t0 = t + s * step;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + step * 0.42);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + step * 0.94);
+  }
   src.connect(hi);
   src.connect(lo);
   hi.connect(g);
   lo.connect(g);
   const pan = cityPan(ctx, g, rainSound.cityGain);
-  src.start(t);
-  src.stop(t + dur + 0.02);
+  src.start(t, Math.random() * 3.0, dur + 0.02);
   src.onended = cityDone([src, hi, lo, g, pan].filter(Boolean));
 }
 function cityPass() {
@@ -30180,55 +30257,55 @@ function dayBell() {
 }
 function dayRadio() {
   const ctx = rainSound.ctx;
-  if (!ctx || ctx.state !== "running" || !rainSound.cityGain) return;
+  if (!ctx || ctx.state !== "running" || !rainSound.cityGain || !rainSound.whiteBuf) return;
   const dur = 1.4 + Math.random() * 1.6;
-  const n = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) {
-    const u = i / n;
-    const am = 0.35 + 0.65 * Math.abs(Math.sin(u * Math.PI * (6 + Math.random() * 2)));
-    data[i] = (Math.random() * 2 - 1) * am * 0.6;
-  }
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = rainSound.whiteBuf;
+  src.loop = true;
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
   bp.frequency.value = 1600 + Math.random() * 800;
   bp.Q.value = 0.8;
+  const am = ctx.createGain();
+  am.gain.value = 0.45;
+  const mod = ctx.createOscillator();
+  mod.frequency.value = 4.5 + Math.random() * 3.5;
+  const modG = ctx.createGain();
+  modG.gain.value = 0.25;
+  mod.connect(modG);
+  modG.connect(am.gain);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(0.05, t + 0.08);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(bp);
-  bp.connect(g);
+  bp.connect(am);
+  am.connect(g);
   const pan = cityPan(ctx, g, rainSound.cityGain);
-  src.start(t);
-  src.stop(t + dur + 0.02);
-  src.onended = cityDone([src, bp, g, pan].filter(Boolean));
+  mod.start(t);
+  mod.stop(t + dur + 0.02);
+  src.start(t, Math.random() * 2.0, dur + 0.02);
+  src.onended = cityDone([src, mod, modG, bp, am, g, pan].filter(Boolean));
 }
 function nightClack() {
   const ctx = rainSound.ctx;
-  if (!ctx || ctx.state !== "running" || !rainSound.nightBus) return;
+  if (!ctx || ctx.state !== "running" || !rainSound.nightBus || !rainSound.dropBuf) return;
   const t = ctx.currentTime;
-  const n = Math.floor(ctx.sampleRate * 0.04);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = rainSound.dropBuf;
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
   bp.frequency.value = 2200 + Math.random() * 1400;
   bp.Q.value = 4;
   const g = ctx.createGain();
-  g.gain.value = 0.16 + Math.random() * 0.08;
+  const peak = 0.16 + Math.random() * 0.08;
+  g.gain.setValueAtTime(peak, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
   src.connect(bp);
   bp.connect(g);
   const pan = cityPan(ctx, g, rainSound.nightBus);
-  src.start(t);
-  src.stop(t + 0.06);
+  src.start(t, 0, 0.05);
   src.onended = cityDone([src, bp, g, pan].filter(Boolean));
 }
 function nightCricket() {
@@ -30243,6 +30320,7 @@ function nightCricket() {
   const chirps = 3 + Math.floor(Math.random() * 3);
   for (let i = 0; i < chirps; i++) {
     const at = t + i * 0.09;
+    g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(0.03, at + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, at + 0.05);
   }
@@ -30271,60 +30349,53 @@ function nightDrip() {
   src.stop(t + 0.1);
   src.onended = cityDone([src, bp, g, pan].filter(Boolean));
 }
-function fightPunch() {
+function fightPunch(att) {
+  if (audioPausedNow()) return;
   const ctx = rainSound.ctx;
-  if (!ctx || ctx.state !== "running" || !rainSound.cityGain) return;
+  if (!ctx || ctx.state !== "running" || !rainSound.cityGain || !rainSound.dropBuf) return;
+  const k = att == null ? 1 : att;
   const t = ctx.currentTime;
-  const n = Math.floor(ctx.sampleRate * 0.08);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) {
-    const u = i / n;
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - u, 2.2) * (0.6 + Math.random() * 0.4);
-  }
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = rainSound.dropBuf;
   const lp = ctx.createBiquadFilter();
   lp.type = "lowpass";
   lp.frequency.value = 280 + Math.random() * 120;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0.22 + Math.random() * 0.08, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+  g.gain.setValueAtTime((0.20 + Math.random() * 0.08) * k, t);
+  g.gain.exponentialRampToValueAtTime(0.0005, t + 0.09);
   src.connect(lp);
   lp.connect(g);
   const pan = cityPan(ctx, g, rainSound.cityGain);
-  src.start(t);
-  src.stop(t + 0.1);
+  src.start(t, 0, 0.095);
   src.onended = cityDone([src, lp, g, pan].filter(Boolean));
 }
-function fightGrunt() {
+function fightGrunt(att) {
+  if (audioPausedNow()) return;
   const ctx = rainSound.ctx;
   if (!ctx || ctx.state !== "running" || !rainSound.cityGain) return;
+  const k = att == null ? 1 : att;
   const t = ctx.currentTime;
   const dur = 0.12 + Math.random() * 0.08;
-  const n = Math.floor(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  const f = 140 + Math.random() * 80;
-  for (let i = 0; i < n; i++) {
-    const u = i / n;
-    const gate = Math.sin(u * Math.PI);
-    data[i] = Math.sin(u * f * 0.8) * gate * (0.5 + Math.random() * 0.3);
-  }
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
+  const o = ctx.createOscillator();
+  o.type = "sawtooth";
+  const f = 125 + Math.random() * 65;
+  o.frequency.setValueAtTime(f, t);
+  o.frequency.exponentialRampToValueAtTime(f * 0.72, t + dur);
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
-  bp.frequency.value = 220 + Math.random() * 160;
-  bp.Q.value = 1.4;
+  bp.frequency.value = 240 + Math.random() * 150;
+  bp.Q.value = 1.6;
   const g = ctx.createGain();
-  g.gain.value = 0.08 + Math.random() * 0.04;
-  src.connect(bp);
+  const peak = (0.07 + Math.random() * 0.04) * k;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.025);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(bp);
   bp.connect(g);
   const pan = cityPan(ctx, g, rainSound.cityGain);
-  src.start(t);
-  src.stop(t + dur);
-  src.onended = cityDone([src, bp, g, pan].filter(Boolean));
+  o.start(t);
+  o.stop(t + dur + 0.015);
+  o.onended = cityDone([o, bp, g, pan].filter(Boolean));
 }
 function stepCityBed(now, alive, wet, low) {
   const ctx = rainSound.ctx;
@@ -30340,10 +30411,17 @@ function stepCityBed(now, alive, wet, low) {
   const k = 1 - Math.exp(-dt / (want > rainSound.cityLevel ? 0.55 : 0.35));
   rainSound.cityLevel += (want - rainSound.cityLevel) * k;
   if (rainSound.cityLevel < 0.0005) rainSound.cityLevel = 0;
-  rainSound.cityGain.gain.value = rainSound.cityLevel;
+  if (rainSound.citySet == null || Math.abs(rainSound.citySet - rainSound.cityLevel) > 0.002) {
+    rainSound.citySet = rainSound.cityLevel;
+    rainSound.cityGain.gain.setTargetAtTime(rainSound.cityLevel, audioNow, 0.08);
+  }
   if (rainSound.nightBus) {
     rainSound.nightLevel = (rainSound.nightLevel || 0) + (nightWant - (rainSound.nightLevel || 0)) * k;
-    rainSound.nightBus.gain.value = rainSound.nightLevel;
+    if (rainSound.nightLevel < 0.0005) rainSound.nightLevel = 0;
+    if (rainSound.nightSet == null || Math.abs(rainSound.nightSet - rainSound.nightLevel) > 0.002) {
+      rainSound.nightSet = rainSound.nightLevel;
+      rainSound.nightBus.gain.setTargetAtTime(rainSound.nightLevel, audioNow, 0.08);
+    }
   }
   const heatTalk = walkMode && (heat.phase === "scuffle" || heat.phase === "chase") ? 0.045 : 0;
   const murmur = (low ? 0.09 : 0.055) * dayAmt * (1 - wet * 0.5) + heatTalk;
@@ -30401,10 +30479,14 @@ function stepCityBed(now, alive, wet, low) {
     rainSound.nextDrip = now + 3 + Math.random() * 5;
   }
 }
-function writeRainGain(value) {
+function writeRainGain(value, tc) {
+  const ctx = rainSound.ctx;
+  if (!ctx || !rainSound.master) return;
+  const t = ctx.currentTime;
   const g = rainSound.master.gain;
-  g.cancelScheduledValues(rainSound.ctx.currentTime);
-  g.value = value;
+  if (rainSound.masterSet != null && Math.abs(rainSound.masterSet - value) < 0.001 && value > 0) return;
+  rainSound.masterSet = value;
+  g.setTargetAtTime(value, t, tc == null ? 0.06 : tc);
 }
 // The shower bus is the wash, the body and the drips. Once the streaks are
 // gone it is pulled off the output, so the loop cannot keep playing. The
@@ -30412,8 +30494,8 @@ function writeRainGain(value) {
 function parkRain(now) {
   rainSound.level = 0;
   rainSound.envT = now;
-  writeRainGain(0);
-  if (rainSound.linked) {
+  writeRainGain(0, 0.04);
+  if (rainSound.linked && rainSound.master.gain.value < 0.002) {
     try { rainSound.master.disconnect(); } catch (err) {}
     rainSound.linked = false;
   }
@@ -30426,15 +30508,28 @@ function unparkRain() {
 }
 function stepRainSound(now) {
   if (!rainSound.ctx || !rainSound.master) return;
-  const alive = rainSound.on && !document.hidden;
-  if (rainSound.thunderGain) rainSound.thunderGain.gain.value = alive ? 1 : 0;
+  const alive = !audioPausedNow();
+  if (rainSound.thunderGain) {
+    const tWant = alive ? 1 : 0;
+    if (rainSound.thunderSet !== tWant) {
+      rainSound.thunderSet = tWant;
+      rainSound.thunderGain.gain.setTargetAtTime(tWant, rainSound.ctx.currentTime, 0.05);
+    }
+  }
   const wet = alive ? Math.max(0, Math.min(1, wxNow.rain)) : 0;
-  const low = camera.position.y < 10;
-  if (rainSound.low !== low) {
+  const onRoof = !!(walkMode && roofStay);
+  const underAwning = !!(walkMode && !onRoof && typeof runUnderAwning === "function" && runUnderAwning());
+  // Rooftops hear open-sky rain wash; narrow alleys emphasize low-end enclosure & zinc drips; awnings muffle high wash.
+  const low = !onRoof && camera.position.y < 10;
+  const shelterMode = onRoof ? 2 : (underAwning ? 1 : 0);
+  if (rainSound.low !== low || rainSound.shelter !== shelterMode) {
     rainSound.low = low;
+    rainSound.shelter = shelterMode;
     const t = rainSound.ctx.currentTime;
-    rainSound.washGain.gain.setTargetAtTime(low ? 0.28 : 0.5, t, 0.45);
-    rainSound.bodyGain.gain.setTargetAtTime(low ? 0.86 : 0.52, t, 0.45);
+    const wash = onRoof ? 0.56 : (underAwning ? 0.16 : (low ? 0.28 : 0.50));
+    const body = onRoof ? 0.50 : (underAwning ? 0.94 : (low ? 0.86 : 0.52));
+    rainSound.washGain.gain.setTargetAtTime(wash, t, 0.35);
+    rainSound.bodyGain.gain.setTargetAtTime(body, t, 0.35);
   }
   // Same cutoff as the streaks. Below that the shower is over.
   if (wet <= 0.02) {
@@ -30445,7 +30540,7 @@ function stepRainSound(now) {
   }
   unparkRain();
   // Half the first mix. Horns, voices and traffic keep the other gain.
-  const want = wet * (low ? 0.17 : 0.21);
+  const want = wet * (onRoof ? 0.22 : (underAwning ? 0.125 : (low ? 0.17 : 0.21)));
   let dt = now - (rainSound.envT == null ? now : rainSound.envT);
   rainSound.envT = now;
   dt = Math.min(0.05, Math.max(0, dt));
@@ -30473,38 +30568,28 @@ function flashAmount(age) {
   return Math.min(1, Math.max(main, flick));
 }
 function playThunder(far) {
-  if (!rainSound.on || document.hidden) return;
+  if (audioPausedNow()) return;
   const ctx = rainSound.ctx;
-  if (!ctx || ctx.state !== "running" || !rainSound.mix) return;
+  if (!ctx || ctx.state !== "running" || !rainSound.mix || !rainSound.brownBuf) return;
   if (!rainSound.thunderGain) {
     const bus = ctx.createGain();
     bus.gain.value = 1;
     bus.connect(rainSound.mix);
     rainSound.thunderGain = bus;
+    rainSound.thunderSet = 1;
   }
   const t = ctx.currentTime;
   const delay = far ? 0.85 + Math.random() * 2.3 : 0.16 + Math.random() * 0.32;
   const dur = far ? 2.4 + Math.random() * 1.1 : 1.05 + Math.random() * 0.4;
-  const n = Math.max(8, Math.floor(ctx.sampleRate * dur));
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  let brown = 0;
-  for (let i = 0; i < n; i++) {
-    const white = Math.random() * 2 - 1;
-    brown = brown * 0.98 + white * 0.02;
-    const u = i / n;
-    const env = Math.pow(1 - u, far ? 1.1 : 1.6) * Math.sin(Math.min(0.999, u * (far ? 5 : 9)) * Math.PI);
-    const sample = white * (far ? 0.2 : 0.55) + brown * 3.4;
-    data[i] = Math.max(-1, Math.min(1, sample)) * env;
-  }
+  const start = t + delay;
   const src = ctx.createBufferSource();
-  src.buffer = buf;
+  src.buffer = rainSound.brownBuf;
+  src.loop = true;
   const hp = ctx.createBiquadFilter();
   hp.type = "highpass";
   hp.frequency.value = far ? 32 : 48;
   const lp = ctx.createBiquadFilter();
   lp.type = "lowpass";
-  const start = t + delay;
   lp.frequency.setValueAtTime(far ? 220 : 1200, start);
   lp.frequency.exponentialRampToValueAtTime(far ? 55 : 160, start + dur * 0.8);
   const g = ctx.createGain();
@@ -30517,21 +30602,14 @@ function playThunder(far) {
   hp.connect(lp);
   lp.connect(g);
   g.connect(rainSound.thunderGain);
-  src.start(start);
-  src.stop(start + dur + 0.05);
+  src.start(start, Math.random() * 2.0, dur + 0.05);
   src.onended = function () {
     try { src.disconnect(); hp.disconnect(); lp.disconnect(); g.disconnect(); } catch (err) {}
   };
-  if (far) return;
-  const cn = Math.max(8, Math.floor(ctx.sampleRate * 0.16));
-  const crack = ctx.createBuffer(1, cn, ctx.sampleRate);
-  const cd = crack.getChannelData(0);
-  for (let i = 0; i < cn; i++) {
-    const u = i / cn;
-    cd[i] = (Math.random() * 2 - 1) * Math.pow(1 - u, 2.4);
-  }
+  if (far || !rainSound.whiteBuf) return;
   const cs = ctx.createBufferSource();
-  cs.buffer = crack;
+  cs.buffer = rainSound.whiteBuf;
+  cs.loop = true;
   const bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
   bp.frequency.value = 700 + Math.random() * 900;
@@ -30543,21 +30621,34 @@ function playThunder(far) {
   cs.connect(bp);
   bp.connect(cg);
   cg.connect(rainSound.thunderGain);
-  cs.start(start);
-  cs.stop(start + 0.18);
+  cs.start(start, Math.random() * 3.0, 0.16);
   cs.onended = function () {
     try { cs.disconnect(); bp.disconnect(); cg.disconnect(); } catch (err) {}
   };
 }
+function applyStormFlash(k) {
+  const su = sky.material.uniforms;
+  const baseExp = paintSky.baseExp != null ? paintSky.baseExp : renderer.toneMappingExposure;
+  const baseRainCol = paintSky.baseRainCol || rainUniforms.uColor.value;
+  const baseRainOp = paintSky.baseRainOp != null ? paintSky.baseRainOp : rainUniforms.uOpacity.value;
+  storm.lit = true;
+  renderer.toneMappingExposure = baseExp * (1 + k * 0.42);
+  scene.background.copy(skyCol).lerp(stepLightning.white, k * 0.55);
+  scene.fog.color.copy(fogCol).lerp(stepLightning.white, k * 0.34);
+  su.uFog.value.copy(fogCol).lerp(stepLightning.white, k * 0.4);
+  rainUniforms.uColor.value.copy(baseRainCol).lerp(stepLightning.white, Math.min(1, k * 0.9));
+  rainUniforms.uOpacity.value = Math.min(1, baseRainOp + k * 0.22);
+}
 function stepLightning(now) {
   const wet = wxNow.rain;
   const su = sky.material.uniforms;
+  const paused = (typeof runPaused === "function" && runPaused()) || (typeof run !== "undefined" && run && run.sheet);
   if (wet > 0.45 && storm.on) {
     if (!storm.armed) {
       storm.armed = true;
       storm.next = now + 4 + Math.random() * 8;
     }
-    if (now >= storm.next) {
+    if (!paused && now >= storm.next) {
       storm.t0 = now;
       storm.far = Math.random() < 0.5;
       storm.az = Math.random() * Math.PI * 2 - Math.PI;
@@ -30574,16 +30665,7 @@ function stepLightning(now) {
   su.uBoltSeed.value = storm.seed;
   flashLamp.intensity = k * (0.35 + darkness * 1.5);
   if (k > 0.004) {
-    const baseExp = paintSky.baseExp != null ? paintSky.baseExp : renderer.toneMappingExposure;
-    const baseRainCol = paintSky.baseRainCol || rainUniforms.uColor.value;
-    const baseRainOp = paintSky.baseRainOp != null ? paintSky.baseRainOp : rainUniforms.uOpacity.value;
-    storm.lit = true;
-    renderer.toneMappingExposure = baseExp * (1 + k * 0.42);
-    scene.background.copy(skyCol).lerp(stepLightning.white, k * 0.55);
-    scene.fog.color.copy(fogCol).lerp(stepLightning.white, k * 0.34);
-    su.uFog.value.copy(fogCol).lerp(stepLightning.white, k * 0.4);
-    rainUniforms.uColor.value.copy(baseRainCol).lerp(stepLightning.white, Math.min(1, k * 0.9));
-    rainUniforms.uOpacity.value = Math.min(1, baseRainOp + k * 0.22);
+    applyStormFlash(k);
   } else if (storm.lit) {
     if (paintSky.baseExp != null) renderer.toneMappingExposure = paintSky.baseExp;
     scene.background.copy(skyCol);
@@ -30605,12 +30687,15 @@ document.addEventListener("visibilitychange", function () {
   const ctx = rainSound.ctx;
   if (!ctx) return;
   if (document.hidden) ctx.suspend();
-  else if (rainSound.on) ctx.resume();
+  else if (rainSound.on) resumeRainSound();
 });
 const rainSndBox = document.getElementById("rain-snd");
 if (rainSndBox) rainSndBox.addEventListener("change", function (e) {
   rainSound.on = e.target.checked;
   if (rainSound.on) ensureRainSound();
+  else if (rainSound.ctx && rainSound.ctx.state === "running") {
+    rainSound.ctx.suspend().catch(function () {});
+  }
 });
 placeSun(stepSky.clock);
 shadowWarm = 2;
@@ -31983,7 +32068,7 @@ function runShops() {
     list.push({
       post: i, keeper: kp, kind: post.kind, x: mouth.x, z: mouth.z, yaw: mouth.rot,
       lotX: post.lotX, lotZ: post.lotZ, lotW: post.lotW, lotD: post.lotD,
-      street: street, next: 0, near: false
+      awning: !!post.awning, street: street, next: 0, near: false
     });
   }
   run.shops = list;
@@ -33359,8 +33444,7 @@ function runUnderAwning() {
   if (roofStay) return false;
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
-    const spec = SHOP_KIND[shops[i].kind];
-    if (!spec || !spec.awning) continue;
+    if (!shops[i].awning) continue;
     if (Math.hypot(walkX - shops[i].x, walkZ - shops[i].z) < 1.4) return true;
   }
   return false;
@@ -37505,7 +37589,8 @@ function updateWetReflCamera(farLimit, planeY, clipDrop) {
   return true;
 }
 function renderWetReflection() {
-  if (uWet.value < 0.08 || roofStay) {
+  const reflFade = THREE.MathUtils.smoothstep(uWet.value, 0.03, 0.16);
+  if (reflFade <= 0.001 || roofStay) {
     uWetReflOn.value = 0;
     return;
   }
@@ -37532,7 +37617,10 @@ function renderWetReflection() {
     ? (pourTopAt(walkX, walkZ) > 0.05 ? 0.285 : (walkZ < 1.5 ? 0.085 : 0.015))
     : 0.085;
   const samePlane = renderWetReflection.planeY != null && Math.abs(renderWetReflection.planeY - reflY) < 0.02;
-  if (uWetReflOn.value > 0.5 && samePlane && ((resting && (renderWetReflection.n % restN) !== 0) || (!resting && moveN > 1 && (renderWetReflection.n % moveN) !== 0))) return;
+  if (uWetReflOn.value > 0.001 && samePlane && ((resting && (renderWetReflection.n % restN) !== 0) || (!resting && moveN > 1 && (renderWetReflection.n % moveN) !== 0))) {
+    uWetReflOn.value = reflFade;
+    return;
+  }
   if (!updateWetReflCamera(Math.min(camera.far, high ? (pace.tier === 0 ? 220 : 420) : (pace.tier === 0 ? 140 : 190)), reflY, 0.04)) {
     uWetReflOn.value = 0;
     return;
@@ -37638,7 +37726,7 @@ function renderWetReflection() {
     splash.visible = showSplash;
   }
   if (rendered) {
-    uWetReflOn.value = 1;
+    uWetReflOn.value = reflFade;
     renderWetReflection.planeY = reflY;
     renderWetReflection.anchor.copy(camera.position);
     renderWetReflection.quat.copy(camera.quaternion);
@@ -37682,7 +37770,8 @@ function roofMirrorY() {
 function renderRoofReflection() {
   // The sky fill covers a roof the mirror was not drawn for. The mirror itself
   // stays on through the aerial view, and a slow machine redraws it less often.
-  if (uWet.value < 0.08 || camera.position.y < 6 || camera.position.y > pace.roofHigh) {
+  const reflFade = THREE.MathUtils.smoothstep(uWet.value, 0.03, 0.16);
+  if (reflFade <= 0.001 || camera.position.y < 6 || camera.position.y > pace.roofHigh) {
     uRoofReflOn.value = 0;
     return;
   }
@@ -37703,7 +37792,10 @@ function renderRoofReflection() {
   const restN = pace.reflRest + 2;
   const moveN = walkMode ? pace.roofMove : Math.max(2, pace.roofMove);
   const samePlane = Math.abs(renderRoofReflection.plane - planeY) < 0.2;
-  if (uRoofReflOn.value > 0.5 && samePlane && ((resting && (renderRoofReflection.n % restN) !== 0) || (!resting && moveN > 1 && (renderRoofReflection.n % moveN) !== 0))) return;
+  if (uRoofReflOn.value > 0.001 && samePlane && ((resting && (renderRoofReflection.n % restN) !== 0) || (!resting && moveN > 1 && (renderRoofReflection.n % moveN) !== 0))) {
+    uRoofReflOn.value = reflFade;
+    return;
+  }
   if (!updateWetReflCamera(Math.min(camera.far, pace.tier === 0 ? 420 : 640), planeY, 0.45)) {
     uRoofReflOn.value = 0;
     return;
@@ -37835,7 +37927,7 @@ function renderRoofReflection() {
     for (let wi = 0; wi < hiddenWalkers.length; wi++) hiddenWalkers[wi].visible = true;
   }
   if (rendered) {
-    uRoofReflOn.value = 1;
+    uRoofReflOn.value = reflFade;
     renderRoofReflection.plane = planeY;
     renderRoofReflection.anchor.copy(camera.position);
     renderRoofReflection.quat.copy(camera.quaternion);
@@ -38245,7 +38337,7 @@ function streetGradeReflect(kind) {
     "float sgGloss = 1.0 - clamp(roughnessFactor, 0.0, 1.0);",
     "float sgGleam = pow(sgFres, 1.55) * sgRain * (0.1 + 0.7 * sgNight) * (0.28 + 0.72 * sgGloss);",
     "gl_FragColor.rgb += vec3(0.8, 0.88, 0.94) * sgGleam * " + gleam + ";",
-    "if (sgRain > 0.02 && uWetReflOn > 0.5) {",
+    "if (sgRain > 0.02 && uWetReflOn > 0.01) {",
     "  vec4 sgMirror = uWetMatrix * vec4(vBodyWorld, 1.0);",
     "  if (sgMirror.w > 0.001) {",
     "    vec2 sgSuv = sgMirror.xy / sgMirror.w;",
@@ -38257,7 +38349,7 @@ function streetGradeReflect(kind) {
     "      vec3 sgWet = pow(max(uWetCol, vec3(0.001)), vec3(0.5));",
     "      sgRefl = mix(sgRefl, sgWet, 0.12 * sgNight);",
     "      float sgFace = smoothstep(0.04, 0.7, sgUp);",
-    "      float sgMix = sgRain * (sgFres * " + fresW + " + sgFace * " + upW + ") * (0.42 + 0.58 * sgGloss) * sgIn;",
+    "      float sgMix = sgRain * clamp(uWetReflOn, 0.0, 1.0) * (sgFres * " + fresW + " + sgFace * " + upW + ") * (0.42 + 0.58 * sgGloss) * sgIn;",
     "      gl_FragColor.rgb = mix(gl_FragColor.rgb, sgRefl, clamp(sgMix, 0.0, " + cap + "));",
     "    }",
     "  }",
@@ -38918,6 +39010,15 @@ function flushFigure(fig) {
 (function tick() {
   requestAnimationFrame(tick);
   const now = performance.now() * 0.001;
+  const paused = (typeof runPaused === "function" && runPaused()) || (typeof run !== "undefined" && run && run.sheet);
+  const rawAtmoDt = tick.atmoPrev == null ? 0 : Math.max(0, now - tick.atmoPrev);
+  tick.atmoPrev = now;
+  const simAtmoDt = paused ? 0 : Math.min(0.05, rawAtmoDt);
+  if (paused) shiftAtmosphereClocks(rawAtmoDt);
+  else if (rawAtmoDt > 0.25) shiftAtmosphereClocks(rawAtmoDt - simAtmoDt);
+  if (tick.atmoNow == null) tick.atmoNow = now;
+  else tick.atmoNow += simAtmoDt;
+  const atmoNow = tick.atmoNow;
   stepSky(now);
   stepLightning(now);
   const smokeName = wxLead();
@@ -38930,12 +39031,12 @@ function flushFigure(fig) {
   smokes.forEach((s, i) => {
     if (highCam && i % 2) return;
     const span = 9 - rainK * 3.5;
-    const rise = (now * s.userData.speed + i * 0.7) % span;
+    const rise = (atmoNow * s.userData.speed + i * 0.7) % span;
     const k = rise / span;
     const warm = Math.max(darkness, wxNow.market);
     s.position.y = s.userData.base + rise * (1 - rainK * 0.3);
-    s.position.x = s.userData.x + Math.sin(now * 0.31 + i) * 1.6 + k * (1.5 + rainK * 1.9);
-    s.position.z = s.userData.z + Math.cos(now * 0.23 + i * 1.3) * 0.9;
+    s.position.x = s.userData.x + Math.sin(atmoNow * 0.31 + i) * 1.6 + k * (1.5 + rainK * 1.9);
+    s.position.z = s.userData.z + Math.cos(atmoNow * 0.23 + i * 1.3) * 0.9;
     if (tintSmoke) {
       const cool = rainK > warm ? 0x8e989e : (i % 2 ? 0xc9b8a4 : 0xaeb6bc);
       s.material.color.set(cool).lerp(paintSky.cSmoke || (paintSky.cSmoke = new THREE.Color(0xc8a888)), warm);
@@ -38992,10 +39093,10 @@ function flushFigure(fig) {
     if (dx * dx + dz * dz > 400) return;
     if (cloth.userData.hinged) {
       // Top-pivoted pole garments flap cleanly around the bamboo pole without sliding off.
-      cloth.rotation.x = Math.sin(now * flap + cloth.userData.phase) * gust;
+      cloth.rotation.x = Math.sin(atmoNow * flap + cloth.userData.phase) * gust;
     } else {
-      cloth.rotation.z = Math.sin(now * flap + cloth.userData.phase) * gust;
-      cloth.position.x = cloth.userData.x + Math.sin(now * (1 + wxNow.rain * 1.1) + cloth.userData.phase) * (0.07 + wxNow.rain * 0.13);
+      cloth.rotation.z = Math.sin(atmoNow * flap + cloth.userData.phase) * gust;
+      cloth.position.x = cloth.userData.x + Math.sin(atmoNow * (1 + wxNow.rain * 1.1) + cloth.userData.phase) * (0.07 + wxNow.rain * 0.13);
     }
   });
   dripOpacity.value = wxNow.rain * 0.85;
@@ -39003,8 +39104,7 @@ function flushFigure(fig) {
   // The first dry frame hides them; after that they stay hidden until rain.
   const dripDry = wxNow.rain <= 0.04;
   if (!(dripDry && tick.dripsDry)) {
-  const dripDt = Math.min(0.05, now - (tick.dripT == null ? now : tick.dripT));
-  tick.dripT = now;
+  const dripDt = simAtmoDt;
   drips.forEach(d => {
     d.visible = wxNow.rain > 0.04;
     if (!d.visible) return;
@@ -39047,7 +39147,7 @@ function flushFigure(fig) {
     traffic.t = now;
     traffic.step(now, dt, lit);
   }
-  stepAirliner(now);
+  stepAirliner(atmoNow);
   stepRoofKids(now);
   squareMovers();
   if (shadowWarm > 0) {
@@ -39141,7 +39241,14 @@ function flushFigure(fig) {
         ? Math.max(8, camera.position.y - 74)
         : (walkMode ? (pourTopAt(walkX, walkZ) > 0.05 ? 0.285 : (walkZ < -2.6 ? 0.085 : 0.015)) : 0.085));
     const reach = high ? Math.min(70, Math.max(18, camera.position.y - bot)) : (onRoof ? 14 : 12);
-    rainUniforms.uTime.value = now;
+    splash.visible = walkMode || camera.position.y <= 28;
+    if (onRoof && roofStay.deck) {
+      const dk = roofStay.deck;
+      rainUniforms.uSplashBox.value.set(dk.x + 0.25, dk.z + 0.25, dk.x + dk.w - 0.25, dk.z + dk.d - 0.25);
+    } else {
+      rainUniforms.uSplashBox.value.set(-1e4, -1e4, 1e4, 1e4);
+    }
+    rainUniforms.uTime.value = atmoNow;
     rainUniforms.uSpanX.value = high ? 100 : (onRoof ? 24 : 22);
     rainUniforms.uSpanZ.value = high ? 74 : (onRoof ? 18 : 16);
     rainUniforms.uReach.value = reach;
@@ -39150,14 +39257,14 @@ function flushFigure(fig) {
     rainUniforms.uDrift.value = high ? 3.4 : 1.6;
     rainUniforms.uLean.value = high ? 0.14 : 0.07;
     rainUniforms.uLen.value = (high ? 2.5 : 1) * (1 + darkness * 0.18);
-    const viewH = renderer.domElement.height || innerHeight;
-    rainUniforms.uPx.value = viewH / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5));
     rain.position.copy(camera.position);
     splash.position.set(0, 0, 0);
-    uWetTime.value = now;
+    uWetTime.value = atmoNow;
+  } else {
+    splash.visible = false;
   }
   const su = sky.material.uniforms;
-  su.uTime.value = now;
+  su.uTime.value = atmoNow;
   su.uClock.value = stepSky.clock;
   su.uDark.value = darkness;
   su.uBowl.value = nightBowlOf(stepSky.clock);
