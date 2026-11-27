@@ -8467,8 +8467,9 @@ function addMass(x, z, w, d, floors, meta) {
     if (step.e > 0.2 && zd > 0.3) ledge(step.e, zd, x + w - step.e / 2, (z0 + z1) / 2);
   }
 
+  const deckParapetH = floors > 2 ? 0.32 + lotRoll(x || 0, z || 0, 0xA11) * 0.58 : 0.64;
   roofDeck = {
-    x: top.x, z: top.z, w: top.w, d: top.d, y: h + 0.17, blocks: []
+    x: top.x, z: top.z, w: top.w, d: top.d, y: h + 0.17, parapetTop: h + deckParapetH, blocks: []
   };
   roofDecks.push(roofDeck);
   facePlans.forEach(fp => {
@@ -9007,8 +9008,10 @@ function dressRoof(x, z, w, d, h, hasVent) {
   const rng = roofRand(x, z, 0x5a17);
   const roofTop = h + 0.17;
   function occupy(px, pz, hx, hz) {
-    if (!roofDeck) return;
-    roofDeck.blocks.push({ x: px - hx, z: pz - hz, x2: px + hx, z2: pz + hz });
+    if (!roofDeck) return null;
+    const blk = { x: px - hx, z: pz - hz, x2: px + hx, z2: pz + hz };
+    roofDeck.blocks.push(blk);
+    return blk;
   }
   if (w < 1.90 || d < 1.90) return;
   // Store exact occupied AABBs (plus clearance) so no rooftop prop can overlap another.
@@ -9099,13 +9102,14 @@ function dressRoof(x, z, w, d, h, hasVent) {
       const occZ = (r90Final ? bw : bd) * 0.5 + 0.08;
       rects.push({ x0: sx - occX, x1: sx + occX, z0: sz - occZ, z1: sz + occZ });
       rects.push({ x0: doorX - 0.48, x1: doorX + 0.48, z0: doorZ - 0.48, z1: doorZ + 0.48 });
+      const stairBlk = occupy(sx, sz, occX, occZ);
       roofQ.stair.push({
         x: sx, z: sz, y: roofTop, roofTop,
         sx: bw, sy: bh, sz: bd,
         yaw: yaw, open: !!ent, lift: 0,
-        tint: soilTint(sx, sz, 3)
+        tint: soilTint(sx, sz, 3),
+        _deck: roofDeck, _block: stairBlk, _stairhead: true
       });
-      occupy(sx, sz, occX, occZ);
       if (roofDeck) {
         // stepWalk forward is (-sin(walkYaw), -cos(walkYaw)); add Math.PI so the player emerges facing outward onto the roof.
         roofDeck.stairhead = { x: sx, z: sz, doorX: doorX, doorZ: doorZ, exitYaw: yaw + Math.PI, w: occX * 2, d: occZ * 2 };
@@ -9115,12 +9119,13 @@ function dressRoof(x, z, w, d, h, hasVent) {
   if (hasVent) {
     const vp = spotRect(0.28, 0.28, 0.65, 0.16);
     if (vp) {
+      const ductBlk = occupy(vp.x, vp.z, 0.26, 0.26);
       roofQ.duct.push({
         x: vp.x, z: vp.z, y: roofTop, roofTop,
         sx: 0.46, sy: 1.55, sz: 0.46, lift: 0,
-        tint: soilTint(vp.x, vp.z, 1)
+        tint: soilTint(vp.x, vp.z, 1),
+        _deck: roofDeck, _block: ductBlk
       });
-      occupy(vp.x, vp.z, 0.26, 0.26);
     }
   }
   const nAnt = w < 5 ? 1 + (rng() > 0.45 ? 1 : 0) : 2 + Math.floor(rng() * (w > 8.5 ? 4 : 3));
@@ -9128,14 +9133,15 @@ function dressRoof(x, z, w, d, h, hasVent) {
     const p = spotRect(0.26, 0.26, 0.72, 0.18);
     if (!p) break;
     const wild = rng() > 0.86;
+    const yagiBlk = occupy(p.x, p.z, 0.18, 0.18);
     roofQ.yagi.push({
       x: p.x, z: p.z, y: roofTop, roofTop, lift: 0,
       lean: wild ? (rng() - 0.5) * 0.36 : (rng() - 0.5) * 0.09,
       yaw: wild ? rng() * Math.PI * 2 : TV_YAW + (rng() - 0.5) * 0.7,
       sy: 0.84 + rng() * 0.36,
-      tint: soilTint(p.x, p.z, 1)
+      tint: soilTint(p.x, p.z, 1),
+      _deck: roofDeck, _block: yagiBlk
     });
-    occupy(p.x, p.z, 0.18, 0.18);
   }
   if (w < 4.6 || d < 4.6) return;
   const nRound = (w > 7.2 && d > 6.4 && rng() > 0.7) ? 2 : 1;
@@ -9145,9 +9151,9 @@ function dressRoof(x, z, w, d, h, hasVent) {
       if (!p) break;
       const yaw = rng() * Math.PI;
       const rust = rng() > 0.22;
-      roofQ.cyl.push({ x: p.x, z: p.z, y: roofTop, roofTop, yaw, rust, lift: 0.46, tint: soilTint(p.x, p.z, rust ? 2 : 1) });
+      const cylBlk = occupy(p.x, p.z, 0.5, 0.5);
+      roofQ.cyl.push({ x: p.x, z: p.z, y: roofTop, roofTop, yaw, rust, lift: 0.46, tint: soilTint(p.x, p.z, rust ? 2 : 1), _deck: roofDeck, _block: cylBlk });
       roofQ.cylStand.push({ x: p.x, z: p.z, y: roofTop, roofTop, yaw, lift: 0, tint: soilTint(p.x, p.z, 2) });
-      occupy(p.x, p.z, 0.5, 0.5);
     }
   }
   if (rng() > 0.32) {
@@ -9158,8 +9164,8 @@ function dressRoof(x, z, w, d, h, hasVent) {
       const tankTint = soilTint(p.x, p.z, rust ? 2 : 1);
       const standTint = soilTint(p.x, p.z, 2);
       const pipeTint = soilTint(p.x, p.z, 1);
-      roofQ.tank.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.28, sy, sz: 0.96, lift: 0.22 + sy / 2, rust, tint: tankTint });
-      occupy(p.x, p.z, 0.68, 0.52);
+      const tankBlk = occupy(p.x, p.z, 0.68, 0.52);
+      roofQ.tank.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.28, sy, sz: 0.96, lift: 0.22 + sy / 2, rust, tint: tankTint, _deck: roofDeck, _block: tankBlk });
       roofQ.stand.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.08, sy: 0.22, sz: 0.78, lift: 0.11, tint: standTint });
       // Connected supply pipe: exit tank wall cleanly via elbow + vertical riser down onto roof saddles,
       // strictly contained inside the parapet edge on whichever side has more open roof.
@@ -9172,6 +9178,9 @@ function dressRoof(x, z, w, d, h, hasVent) {
         const runMidX = p.x + pDir * (0.70 + plen * 0.5);
         const tankRectIdx = rects.length - 1;
         if (rectClear(runMidX, p.z, plen * 0.5, 0.08, 0.04, tankRectIdx)) {
+          const pipeX0 = Math.min(p.x + pDir * 0.64, p.x + pDir * (0.70 + plen));
+          const pipeX1 = Math.max(p.x + pDir * 0.64, p.x + pDir * (0.70 + plen));
+          const pipeBlk = occupy((pipeX0 + pipeX1) * 0.5, p.z, (pipeX1 - pipeX0) * 0.5, 0.08);
           // Outlet stub from tank side wall (0.64) to riser (0.70) at y = 0.34
           roofQ.rpipe.push({
             x: p.x + pDir * 0.665, z: p.z, y: roofTop, roofTop,
@@ -9185,7 +9194,8 @@ function dressRoof(x, z, w, d, h, hasVent) {
           // Horizontal roof pipe run strictly inside parapet
           roofQ.rpipe.push({
             x: runMidX, z: p.z, y: roofTop, roofTop,
-            sx: plen, sy: 0.045, sz: 0.045, lift: 0.06, rayX: p.x, rayZ: p.z, tint: pipeTint
+            sx: plen, sy: 0.045, sz: 0.045, lift: 0.06, rayX: p.x, rayZ: p.z, tint: pipeTint,
+            _deck: roofDeck, _block: pipeBlk
           });
           // Roof concrete/iron saddle blocks supporting the horizontal pipe flush on the slab
           [0.32, 0.82].forEach(frac => {
@@ -9194,11 +9204,7 @@ function dressRoof(x, z, w, d, h, hasVent) {
               sx: 0.07, sy: 0.045, sz: 0.09, lift: 0.0225, rayX: p.x, rayZ: p.z, tint: standTint
             });
           });
-          rects.push({
-            x0: Math.min(p.x + pDir * 0.64, p.x + pDir * (0.70 + plen)),
-            x1: Math.max(p.x + pDir * 0.64, p.x + pDir * (0.70 + plen)),
-            z0: p.z - 0.10, z1: p.z + 0.10
-          });
+          rects.push({ x0: pipeX0, x1: pipeX1, z0: p.z - 0.10, z1: p.z + 0.10 });
         }
       }
     }
@@ -9214,12 +9220,13 @@ function dressRoof(x, z, w, d, h, hasVent) {
         ? ((cx >= p.x) ? Math.PI / 2 : -Math.PI / 2)
         : ((cz >= p.z) ? 0 : Math.PI);
       const r90 = Math.abs(Math.sin(shedYaw)) > 0.5;
+      const shedBlk = occupy(p.x, p.z, shedX * 0.5 + 0.04, shedZ * 0.5 + 0.04);
       roofQ.shed.push({
         x: p.x, z: p.z, y: roofTop, roofTop,
         sx: r90 ? shedZ : shedX, sy, sz: r90 ? shedX : shedZ,
-        yaw: shedYaw, lift: 0, tint: soilTint(p.x, p.z, 2)
+        yaw: shedYaw, lift: 0, tint: soilTint(p.x, p.z, 2),
+        _deck: roofDeck, _block: shedBlk
       });
-      occupy(p.x, p.z, shedX * 0.5 + 0.04, shedZ * 0.5 + 0.04);
     }
   }
   if (rng() > 0.42) {
@@ -9228,17 +9235,17 @@ function dressRoof(x, z, w, d, h, hasVent) {
       const lp = spotRect(len * 0.5 + 0.10, 0.24, 0.55, 0.14);
       if (lp) {
         const lx = lp.x - len * 0.5;
-        roofQ.line.push({ x: lx, y: roofTop, z: lp.z, len, roofTop, lift: 1.18, rayX: lp.x, rayZ: lp.z });
-        occupy(lx, lp.z, 0.10, 0.10);
-        occupy(lx + len, lp.z, 0.10, 0.10);
+        // Collide the full hanging-garment clothesline span (both poles + suspended laundry) instead of poles alone.
+        const lineBlk = occupy(lp.x, lp.z, len * 0.5 + 0.08, 0.14);
+        roofQ.line.push({ x: lx, y: roofTop, z: lp.z, len, roofTop, lift: 1.18, rayX: lp.x, rayZ: lp.z, _deck: roofDeck, _block: lineBlk });
       }
     }
   }
   if (rng() > 0.48) {
     const p = spotRect(0.22, 0.22, 0.58, 0.14);
     if (p) {
-      roofQ.pot.push({ x: p.x, z: p.z, y: roofTop, roofTop, lift: 0.1, tint: soilTint(p.x, p.z, 1) });
-      occupy(p.x, p.z, 0.22, 0.22);
+      const potBlk = occupy(p.x, p.z, 0.22, 0.22);
+      roofQ.pot.push({ x: p.x, z: p.z, y: roofTop, roofTop, lift: 0.1, tint: soilTint(p.x, p.z, 1), _deck: roofDeck, _block: potBlk });
     }
   }
 }
@@ -9517,7 +9524,14 @@ function seatRoofClutter() {
       const rx = it.rayX == null ? it.x : it.rayX;
       const rz = it.rayZ == null ? it.z : it.rayZ;
       const y = hitY(rx, rz, it.roofTop);
-      if (y == null) continue;
+      if (y == null) {
+        if (it._deck && it._block) {
+          const idx = it._deck.blocks.indexOf(it._block);
+          if (idx >= 0) it._deck.blocks.splice(idx, 1);
+          if (it._stairhead) it._deck.stairhead = null;
+        }
+        continue;
+      }
       it.y = y + (it.lift || 0);
       out.push(it);
     }
@@ -17968,6 +17982,10 @@ addEventListener("keydown", e => {
   if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
   if (e.key === "1" && !deliveryOn) go("air");
   if (e.code === "KeyF") { runUse(); e.preventDefault(); }
+  if (e.code === "KeyE" && walkMode && !walkGlide && !run.sheet && !runPaused()) {
+    if (roofStay) { leaveRoof(); syncRoofButton(); e.preventDefault(); }
+    else if (roofOffer) { enterRoof(roofOffer); syncRoofButton(); e.preventDefault(); }
+  }
 });
 addEventListener("keyup", e => walkHeld.delete(e.code));
 addEventListener("blur", () => walkHeld.clear());
@@ -30550,7 +30568,7 @@ function walkBlocked(x, z, opts) {
     const b = walkSolids[i];
     if (x > b.wx - pad && x < b.wx2 + pad && z > b.z - pad && z < b.z2 + pad) return true;
   }
-  if (clutterGrid) {
+  if (clutterGrid && !(opts && opts.clutter === false)) {
     const list = clutterGrid.get(Math.floor(x / 4) + "," + Math.floor(z / 4));
     if (list) {
       for (let i = 0; i < list.length; i++) {
@@ -30774,6 +30792,8 @@ function applyWalkGlide(g, s) {
   camera.near = 0.05;
   camera.updateProjectionMatrix();
 }
+// Shared rooftop obstacle pad so landing, spot scans, player movement, and camera boom agree.
+const ROOF_PAD = 0.24;
 function roofLanding(door) {
   const deck = door.deck;
   const m = 0.42;
@@ -30782,11 +30802,10 @@ function roofLanding(door) {
   if (x1 - x0 < 0.3 || z1 - z0 < 0.3) return null;
   function free(x, z) {
     if (x < x0 || x > x1 || z < z0 || z > z1) return false;
-    const pad = 0.26;
     const blocks = deck.blocks;
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
-      if (x > b.x - pad && x < b.x2 + pad && z > b.z - pad && z < b.z2 + pad) return false;
+      if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return false;
     }
     return true;
   }
@@ -30829,18 +30848,37 @@ function roofBlocked(x, z) {
   const s = roofStay;
   if (!s) return true;
   if (x < s.x0 || x > s.x1 || z < s.z0 || z > s.z1) return true;
-  return roofCamBlocked(x, z);
+  const blocks = s.blocks;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return true;
+  }
+  return false;
 }
-// The deck edge is open air, so the lens may hang past it at the street boom.
-// A tank or a hut still shortens that boom, the way a wall does below.
-function roofCamBlocked(x, z) {
+// The deck edge is open air, so the lens may hang past it at the street boom,
+// while respecting current-deck props, linked neighboring roof props, and taller adjacent buildings.
+function roofCamBlocked(x, z, cy) {
   const s = roofStay;
   if (!s) return false;
   const blocks = s.blocks;
-  const pad = 0.22;
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    if (x > b.x - pad && x < b.x2 + pad && z > b.z - pad && z < b.z2 + pad) return true;
+    if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return true;
+  }
+  const camY = cy != null ? cy : s.y + 1.5;
+  for (let i = 0; i < roofDecks.length; i++) {
+    const d = roofDecks[i];
+    if (d === s.deck) continue;
+    if (x < d.x - 1.5 || x > d.x + d.w + 1.5 || z < d.z - 1.5 || z > d.z + d.d + 1.5) continue;
+    if (camY < (d.parapetTop || d.y + 0.5) + 0.15 && x > d.x - 0.16 && x < d.x + d.w + 0.16 && z > d.z - 0.16 && z < d.z + d.d + 0.16) {
+      return true;
+    }
+    if (d.y >= s.y - 1.5 && d.y <= s.y + 1.8 && d.blocks) {
+      for (let k = 0; k < d.blocks.length; k++) {
+        const b = d.blocks[k];
+        if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return true;
+      }
+    }
   }
   return false;
 }
@@ -30872,6 +30910,38 @@ function roofSameDeck(door) {
   if (roofStay.door === door) return true;
   return !!(roofStay.deck && door.deck && roofStay.deck === door.deck);
 }
+function roofOnDeck(deck, door) {
+  if (!roofStay) return false;
+  if (deck) return roofStay.deck === deck;
+  return roofSameDeck(door);
+}
+function roofClusterExitDoor(fromDeck) {
+  if (!fromDeck) return roofStay ? roofStay.door : null;
+  if (fromDeck.doors && fromDeck.doors.length) return fromDeck.doors[0];
+  const seen = new Set([fromDeck]);
+  const q = [fromDeck];
+  while (q.length) {
+    const cur = q.shift();
+    if (cur.doors && cur.doors.length) return cur.doors[0];
+    const links = cur.links || [];
+    for (let i = 0; i < links.length; i++) {
+      const nb = links[i].to;
+      if (nb && !seen.has(nb)) { seen.add(nb); q.push(nb); }
+    }
+  }
+  return roofStay ? roofStay.door : null;
+}
+function roofDeckSpotClear(deck, x, z) {
+  const x0 = deck.x + 0.42, x1 = deck.x + deck.w - 0.42;
+  const z0 = deck.z + 0.42, z1 = deck.z + deck.d - 0.42;
+  if (x < x0 || x > x1 || z < z0 || z > z1) return false;
+  const blocks = deck.blocks || [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return false;
+  }
+  return true;
+}
 function buildRoofLinks() {
   for (let i = 0; i < roofDecks.length; i++) {
     roofDecks[i].links = [];
@@ -30883,53 +30953,107 @@ function buildRoofLinks() {
     const d = roofDoors[i];
     if (d.live && d.deck) d.deck.doors.push(d);
   }
-  const bridgeMat = new THREE.MeshStandardMaterial({
-    color: 0x5c4632, roughness: 0.92, metalness: 0.08, clippingPlanes: clips
-  });
+  // Check whether any third building roof rises into the gap between two linked decks.
+  function bridgeGapBlocked(a, b, x0, x1, z0, z1, minY) {
+    for (let k = 0; k < roofDecks.length; k++) {
+      const c = roofDecks[k];
+      if (c === a || c === b) continue;
+      if ((c.parapetTop || c.y + 0.5) < minY - 0.4) continue;
+      if (x1 > c.x + 0.05 && x0 < c.x + c.w - 0.05 && z1 > c.z + 0.05 && z0 < c.z + c.d - 0.05) return true;
+    }
+    return false;
+  }
+  const bridgeBoxes = [];
+  const bridgeW = 0.95;
+  const halfTrigger = 0.55;
   for (let i = 0; i < roofDecks.length; i++) {
     const a = roofDecks[i];
     for (let j = i + 1; j < roofDecks.length; j++) {
       const b = roofDecks[j];
       const dy = Math.abs(a.y - b.y);
-      // Only link rooftops within a traversable 1.4 m height step (eliminates 2.5 m vertical cliffs & >45 deg planks).
+      // Link same-level or gently stepped decks (eliminates 2.5 m vertical cliffs).
       if (dy > 1.4) continue;
       const gx = Math.max(0, Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w)));
       const gz = Math.max(0, Math.max(a.z - (b.z + b.d), b.z - (a.z + a.d)));
-      const ovX0 = Math.max(a.x + 0.45, b.x + 0.45), ovX1 = Math.min(a.x + a.w - 0.45, b.x + b.w - 0.45);
-      const ovZ0 = Math.max(a.z + 0.45, b.z + 0.45), ovZ1 = Math.min(a.z + a.d - 0.45, b.z + b.d - 0.45);
+      const ovX0 = Math.max(a.x + 0.55, b.x + 0.55), ovX1 = Math.min(a.x + a.w - 0.55, b.x + b.w - 0.55);
+      const ovZ0 = Math.max(a.z + 0.55, b.z + 0.55), ovZ1 = Math.min(a.z + a.d - 0.55, b.z + b.d - 0.55);
+      const bridgeY = Math.max(a.parapetTop || (a.y + 0.48), b.parapetTop || (b.y + 0.48)) + 0.04;
       let linkA = null, linkB = null;
       if (gx <= 2.2 && gz === 0 && ovZ1 - ovZ0 >= 1.1) {
-        if (dy > 0.4 && Math.atan2(dy, Math.max(0.9, gx + 0.6)) > 0.72) continue;
         const aLeft = (a.x + a.w * 0.5) < (b.x + b.w * 0.5);
-        const midZ = (ovZ0 + ovZ1) * 0.5;
         const xA = aLeft ? a.x + a.w : a.x;
         const xB = aLeft ? b.x : b.x + b.w;
-        linkA = { to: b, axis: "x", edge: xA, span0: ovZ0, span1: ovZ1, landX: aLeft ? b.x + 0.55 : b.x + b.w - 0.55, landZ: midZ };
-        linkB = { to: a, axis: "x", edge: xB, span0: ovZ0, span1: ovZ1, landX: aLeft ? a.x + a.w - 0.55 : a.x + 0.55, landZ: midZ };
-        if (gx > 0.25 || dy > 0.35) {
-          const spanLen = Math.hypot(Math.max(0.8, gx + 0.6), dy);
-          const plank = new THREE.Mesh(new THREE.BoxGeometry(spanLen, 0.08, 0.95), bridgeMat);
-          plank.position.set((xA + xB) * 0.5, (a.y + b.y) * 0.5, midZ);
-          plank.rotation.z = Math.atan2(aLeft ? (b.y - a.y) : (a.y - b.y), Math.max(0.8, gx + 0.6));
-          city.add(plank);
+        const landAX = aLeft ? a.x + a.w - 0.58 : a.x + 0.58;
+        const landBX = aLeft ? b.x + 0.58 : b.x + b.w - 0.58;
+        const centerZ = (ovZ0 + ovZ1) * 0.5;
+        const tries = [0, 0.65, -0.65, 1.3, -1.3];
+        let midZ = null;
+        for (let t = 0; t < tries.length; t++) {
+          const cz = centerZ + tries[t];
+          if (cz < ovZ0 + 0.48 || cz > ovZ1 - 0.48) continue;
+          if (!roofDeckSpotClear(a, landAX, cz) || !roofDeckSpotClear(b, landBX, cz)) continue;
+          if (bridgeGapBlocked(a, b, Math.min(xA, xB), Math.max(xA, xB), cz - 0.52, cz + 0.52, Math.min(a.y, b.y))) continue;
+          midZ = cz;
+          break;
+        }
+        if (midZ != null) {
+          const dirX = aLeft ? 1 : -1;
+          linkA = { to: b, axis: "x", edge: xA, dirX: dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, landX: landBX, landZ: midZ };
+          linkB = { to: a, axis: "x", edge: xB, dirX: -dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, landX: landAX, landZ: midZ };
+          // Always build a visible parapet-clearing timber bridge/stile + step blocks on both decks (even when gx <= 0.25).
+          const spanLen = Math.max(0.76, gx + 0.68);
+          bridgeBoxes.push({ x: (xA + xB) * 0.5, y: bridgeY, z: midZ, sx: spanLen, sy: 0.075, sz: bridgeW, tint: soilTint((xA + xB) * 0.5, midZ, 2) });
+          const riseA = Math.max(0.14, bridgeY - 0.035 - a.y);
+          const riseB = Math.max(0.14, bridgeY - 0.035 - b.y);
+          bridgeBoxes.push({ x: xA - dirX * 0.28, y: a.y + riseA * 0.5, z: midZ, sx: 0.32, sy: riseA, sz: bridgeW * 0.92, tint: soilTint(xA, midZ, 1) });
+          bridgeBoxes.push({ x: xB + dirX * 0.28, y: b.y + riseB * 0.5, z: midZ, sx: 0.32, sy: riseB, sz: bridgeW * 0.92, tint: soilTint(xB, midZ, 1) });
         }
       } else if (gz <= 2.2 && gx === 0 && ovX1 - ovX0 >= 1.1) {
-        if (dy > 0.4 && Math.atan2(dy, Math.max(0.9, gz + 0.6)) > 0.72) continue;
         const aNorth = (a.z + a.d * 0.5) < (b.z + b.d * 0.5);
-        const midX = (ovX0 + ovX1) * 0.5;
         const zA = aNorth ? a.z + a.d : a.z;
         const zB = aNorth ? b.z : b.z + b.d;
-        linkA = { to: b, axis: "z", edge: zA, span0: ovX0, span1: ovX1, landX: midX, landZ: aNorth ? b.z + 0.55 : b.z + b.d - 0.55 };
-        linkB = { to: a, axis: "z", edge: zB, span0: ovX0, span1: ovX1, landX: midX, landZ: aNorth ? a.z + a.d - 0.55 : a.z + 0.55 };
-        if (gz > 0.25 || dy > 0.35) {
-          const spanLen = Math.hypot(Math.max(0.8, gz + 0.6), dy);
-          const plank = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, spanLen), bridgeMat);
-          plank.position.set(midX, (a.y + b.y) * 0.5, (zA + zB) * 0.5);
-          plank.rotation.x = Math.atan2(aNorth ? (a.y - b.y) : (b.y - a.y), Math.max(0.8, gz + 0.6));
-          city.add(plank);
+        const landAZ = aNorth ? a.z + a.d - 0.58 : a.z + 0.58;
+        const landBZ = aNorth ? b.z + 0.58 : b.z + b.d - 0.58;
+        const centerX = (ovX0 + ovX1) * 0.5;
+        const tries = [0, 0.65, -0.65, 1.3, -1.3];
+        let midX = null;
+        for (let t = 0; t < tries.length; t++) {
+          const cx = centerX + tries[t];
+          if (cx < ovX0 + 0.48 || cx > ovX1 - 0.48) continue;
+          if (!roofDeckSpotClear(a, cx, landAZ) || !roofDeckSpotClear(b, cx, landBZ)) continue;
+          if (bridgeGapBlocked(a, b, cx - 0.52, cx + 0.52, Math.min(zA, zB), Math.max(zA, zB), Math.min(a.y, b.y))) continue;
+          midX = cx;
+          break;
+        }
+        if (midX != null) {
+          const dirZ = aNorth ? 1 : -1;
+          linkA = { to: b, axis: "z", edge: zA, dirX: 0, dirZ: dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, landX: midX, landZ: landBZ };
+          linkB = { to: a, axis: "z", edge: zB, dirX: 0, dirZ: -dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, landX: midX, landZ: landAZ };
+          const spanLen = Math.max(0.76, gz + 0.68);
+          bridgeBoxes.push({ x: midX, y: bridgeY, z: (zA + zB) * 0.5, sx: bridgeW, sy: 0.075, sz: spanLen, tint: soilTint(midX, (zA + zB) * 0.5, 2) });
+          const riseA = Math.max(0.14, bridgeY - 0.035 - a.y);
+          const riseB = Math.max(0.14, bridgeY - 0.035 - b.y);
+          bridgeBoxes.push({ x: midX, y: a.y + riseA * 0.5, z: zA - dirZ * 0.28, sx: bridgeW * 0.92, sy: riseA, sz: 0.32, tint: soilTint(midX, zA, 1) });
+          bridgeBoxes.push({ x: midX, y: b.y + riseB * 0.5, z: zB + dirZ * 0.28, sx: bridgeW * 0.92, sy: riseB, sz: 0.32, tint: soilTint(midX, zB, 1) });
         }
       }
       if (linkA && linkB) { a.links.push(linkA); b.links.push(linkB); }
+    }
+  }
+  if (bridgeBoxes.length) {
+    const bridgeMat = new THREE.MeshStandardMaterial({
+      map: woodGrainMap(), color: 0x86684c, roughness: 0.92, metalness: 0.04, clippingPlanes: clips
+    });
+    attachBoxTile(bridgeMat, 0.48, 0.01, 0);
+    attachWetRoof(bridgeMat);
+    const before = city.children.length;
+    tagKit(fillInst(new THREE.BoxGeometry(1, 1, 1), bridgeMat, bridgeBoxes, placeBox), "bridge");
+    for (let i = before; i < city.children.length; i++) {
+      const obj = city.children[i];
+      if (!obj) continue;
+      if (obj.isInstancedMesh) squareInstances(obj);
+      else if (obj.isMesh || obj.isGroup) applySquare(obj, true);
+      obj.layers.set(2);
     }
   }
   let cid = 0;
@@ -30949,25 +31073,17 @@ function buildRoofLinks() {
     cid++;
   }
 }
-function roofDeckSpotClear(deck, x, z) {
-  const x0 = deck.x + 0.42, x1 = deck.x + deck.w - 0.42;
-  const z0 = deck.z + 0.42, z1 = deck.z + deck.d - 0.42;
-  if (x < x0 || x > x1 || z < z0 || z > z1) return false;
-  const blocks = deck.blocks || [];
-  const pad = 0.28;
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i];
-    if (x > b.x - pad && x < b.x2 + pad && z > b.z - pad && z < b.z2 + pad) return false;
-  }
-  return true;
-}
-function tryRoofCross(nx, nz) {
+function tryRoofCross(nx, nz, ux, uz) {
   if (!roofStay || !roofStay.deck || !roofStay.deck.links) return false;
+  // Only trigger bridge crossings when pushing against the deck perimeter, never when bumping an interior tank/shed.
+  const hitEdge = nx < roofStay.x0 || nx > roofStay.x1 || nz < roofStay.z0 || nz > roofStay.z1;
+  if (!hitEdge) return false;
   const links = roofStay.deck.links;
   for (let i = 0; i < links.length; i++) {
     const lk = links[i];
-    const hitX = lk.axis === "x" && Math.abs(nx - lk.edge) < 0.55 && nz >= lk.span0 && nz <= lk.span1;
-    const hitZ = lk.axis === "z" && Math.abs(nz - lk.edge) < 0.55 && nx >= lk.span0 && nx <= lk.span1;
+    if (ux != null && uz != null && (ux * lk.dirX + uz * lk.dirZ) < 0.25) continue;
+    const hitX = lk.axis === "x" && Math.abs(nx - lk.edge) < 0.58 && nz >= lk.span0 && nz <= lk.span1;
+    const hitZ = lk.axis === "z" && Math.abs(nz - lk.edge) < 0.58 && nx >= lk.span0 && nx <= lk.span1;
     if (!hitX && !hitZ) continue;
     const next = lk.to;
     // Validate destination bridge landing against water tanks/stairheads so crossing never traps the player.
@@ -30986,17 +31102,19 @@ function tryRoofCross(nx, nz) {
     }
     if (!found) continue;
     const prevCluster = roofStay.deck ? roofStay.deck.cluster : -1;
-    const exitDoor = (next.doors && next.doors.length) ? next.doors[0] : roofStay.door;
+    const prevKidsOut = roofStay.kidsOut;
+    const exitDoor = (next.doors && next.doors.length) ? next.doors[0] : (roofClusterExitDoor(next) || roofStay.door);
     roofStay = {
       deck: next, door: exitDoor, y: next.y, blocks: next.blocks,
       x0: next.x + 0.42, z0: next.z + 0.42,
-      x1: next.x + next.w - 0.42, z1: next.z + next.d - 0.42
+      x1: next.x + next.w - 0.42, z1: next.z + next.d - 0.42,
+      kidsOut: prevKidsOut
     };
     walkX = lx;
     walkZ = lz;
     const need = next.y + 4.5;
     if (floorPlane.constant < need) floorPlane.constant = need;
-    if (prevCluster < 0 || prevCluster !== next.cluster || !roofVisit.length) spawnRoofVisit();
+    if (prevCluster < 0 || prevCluster !== next.cluster || (roofKidsOut() && !roofVisit.length)) spawnRoofVisit();
     return true;
   }
   return false;
@@ -31038,7 +31156,7 @@ function runCamPos(x, z, yaw, pitch) {
     const sx = x + sin * cp * d;
     const sz = z + cos * cp * d;
     const blocked = roofStay
-      ? roofCamBlocked(sx, sz)
+      ? roofCamBlocked(sx, sz, pivotY + sp * d)
       : (!walkInside(sx, sz) || walkBlocked(sx, sz, { pad: 0.05, bodies: false }));
     if (blocked) { dist = Math.max(0.72, d - step); break; }
   }
@@ -31879,11 +31997,30 @@ function runSpotTaken(x, z) {
   }
   return false;
 }
+function runRoofSight(x0, z0, x1, z1, deck) {
+  if (!deck) return true;
+  const dx = x1 - x0, dz = z1 - z0;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.25) return true;
+  const blocks = deck.blocks || [];
+  const pad = 0.22;
+  const n = Math.max(2, Math.ceil(dist / 0.25));
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    const px = x0 + dx * t, pz = z0 + dz * t;
+    if (px < deck.x + 0.34 || px > deck.x + deck.w - 0.34 || pz < deck.z + 0.34 || pz > deck.z + deck.d - 0.34) return false;
+    for (let b = 0; b < blocks.length; b++) {
+      const box = blocks[b];
+      if (px > box.x - pad && px < box.x2 + pad && pz > box.z - pad && pz < box.z2 + pad) return false;
+    }
+  }
+  return true;
+}
 function runRoofSpot(door) {
   const deck = door.deck;
   if (!deck || !door.live) return null;
   const blocks = deck.blocks || [];
-  function scan(minStair) {
+  function scan(minStair, needSight) {
     let best = null, bestScore = -1e9;
     for (let ix = 0; ix < 5; ix++) {
       for (let iz = 0; iz < 5; iz++) {
@@ -31891,6 +32028,7 @@ function runRoofSpot(door) {
         const z = deck.z + 0.8 + Math.max(0.4, deck.d - 1.6) * (iz / 4);
         if (x < deck.x + 0.65 || x > deck.x + deck.w - 0.65) continue;
         if (z < deck.z + 0.65 || z > deck.z + deck.d - 0.65) continue;
+        if (!roofDeckSpotClear(deck, x, z)) continue;
         const stair = Math.hypot(x - door.upX, z - door.upZ);
         if (stair < minStair) continue;
         let hit = false;
@@ -31899,9 +32037,10 @@ function runRoofSpot(door) {
           if (x > box.x - 0.4 && x < box.x2 + 0.4 && z > box.z - 0.4 && z < box.z2 + 0.4) { hit = true; break; }
         }
         if (hit) continue;
-        if (roofSameDeck(door) && roofBlocked(x, z)) continue;
+        const sight = runRoofSight(door.upX, door.upZ, x, z, deck);
+        if (needSight && !sight) continue;
         const edge = Math.min(x - deck.x, deck.x + deck.w - x, z - deck.z, deck.z + deck.d - z);
-        const score = stair * 0.35 - edge;
+        const score = stair * 0.35 - edge + (sight ? 2.5 : 0);
         if (score > bestScore) {
           bestScore = score;
           best = { x: x, z: z, y: deck.y, sit: runSitRoll(x, z) };
@@ -31910,7 +32049,7 @@ function runRoofSpot(door) {
     }
     return best;
   }
-  return scan(1.65) || scan(1.15);
+  return scan(1.65, true) || scan(1.15, true) || scan(1.65, false) || scan(1.15, false);
 }
 function runMark(x, z, selfKind) {
   let best = null, bestD = 14;
@@ -32061,12 +32200,22 @@ function runNoteHistory(dest) {
   run.recentSectors.push(runSector(dest.x, dest.z));
   if (run.recentSectors.length > 4) run.recentSectors.shift();
 }
-function runPickFromPool(pool, salt) {
+function runDestReachable(shop, dest) {
+  if (!shop || !dest) return false;
+  const gx = (dest.roof && dest.door >= 0 && roofDoors[dest.door]) ? roofDoors[dest.door].x : dest.x;
+  const gz = (dest.roof && dest.door >= 0 && roofDoors[dest.door]) ? roofDoors[dest.door].z : dest.z;
+  return !!runFindPath(shop.x, shop.z, gx, gz);
+}
+function runPickFromPool(pool, salt, shop) {
   if (!pool.length) return null;
   pool.sort(function (a, b) { return b.score - a.score; });
-  const top = Math.min(5, pool.length);
-  const idx = Math.abs(((salt || 1) * 2654435761) | 0) % top;
-  return pool[idx].dest;
+  const top = Math.min(6, pool.length);
+  const start = Math.abs(((salt || 1) * 2654435761) | 0) % top;
+  for (let k = 0; k < top; k++) {
+    const dest = pool[(start + k) % top].dest;
+    if (!shop || runDestReachable(shop, dest)) return dest;
+  }
+  return null;
 }
 function runFareValue(cls, dest) {
   const cfg = RUN_TIERS[cls] || RUN_TIERS.green;
@@ -32115,7 +32264,7 @@ function runPickKeeper(shop, maxDist, salt) {
       }
     });
   }
-  return runPickFromPool(pool, (salt || run.seq) + 7);
+  return runPickFromPool(pool, (salt || run.seq) + 7, shop);
 }
 function runPickDest(shop, mode, maxDist, salt) {
   if (mode === "keeper") return runPickKeeper(shop, maxDist, salt);
@@ -32185,7 +32334,7 @@ function runPickDest(shop, mode, maxDist, salt) {
       });
     }
   }
-  return runPickFromPool(pool, (salt || run.seq) + 13);
+  return runPickFromPool(pool, (salt || run.seq) + 13, shop);
 }
 function runSecondsLeft(kind) {
   const span = SHOP_HOURS[kind];
@@ -32443,6 +32592,7 @@ function runOpenDay(now, restart) {
   if (restart) {
     runResetCast();
     runPlaceAtEntry();
+    miniMapReset();
   }
   todLock = null;
   markAir("tod-seg", "auto");
@@ -32729,8 +32879,9 @@ function runTake(slip, now) {
   if (!item || run.ended || run.sheet || run.shift <= 0) return false;
   if (runCarrying()) return false;
   runFreeze();
+  const itemSlots = item.slots || 1;
   const job = {
-    id: run.seq++, item: slip.item, kind: slip.shop.kind, slots: 1,
+    id: run.seq++, item: slip.item, kind: slip.shop.kind, slots: itemSlots,
     class: slip.class || "green", base: slip.base || FARE_BASE.green, dock: 0,
     cost: item.cost, drop: item.drop, rain: item.rain, roof: slip.dest.roof, keeper: !!slip.dest.keeper, sit: !!slip.dest.sit,
     post: slip.dest.post, x: slip.dest.x, z: slip.dest.z, y: slip.dest.y, yaw: slip.dest.yaw,
@@ -32739,7 +32890,7 @@ function runTake(slip, now) {
     first: false, second: false,
     fig: null, box: null
   };
-  // Measure true walkable alley route distance via A* pathfinder for fair delivery windows.
+  // Measure true walkable alley route distance via A* pathfinder and scale window by actual cargo/alley pace.
   const goalPt = (job.roof && job.door >= 0 && roofDoors[job.door])
     ? { x: roofDoors[job.door].x, z: roofDoors[job.door].z }
     : { x: job.x, z: job.z };
@@ -32749,7 +32900,10 @@ function runTake(slip, now) {
     : 0;
   const fallbackM = job.dist * (job.roof ? 1.45 : (slip.dest.alley ? 1.42 : 1.32));
   const pathM = Math.max(18, (route ? route.dist : fallbackM) + roofExtraM);
-  job.window = (pathM / 3.0) * 1.35 + 16 + (job.roof ? 22 : 0) + (slip.dest.alley ? 5 : 0);
+  const paceSpd = itemSlots >= 2
+    ? (slip.dest.alley ? 1.85 : 2.55)
+    : (slip.dest.alley ? 2.30 : 3.00);
+  job.window = (pathM / paceSpd) * 1.35 + 16 + (job.roof ? 24 : 0) + (slip.dest.alley ? 6 : 0);
   if (route) job._route = { sx: walkX, sz: walkZ, gx: goalPt.x, gz: goalPt.z, pts: route.pts };
   run.jobs.push(job);
   slip.shop.slip = null;
@@ -33062,7 +33216,7 @@ function runShowHolo(shop, now) {
 function runSpotHolos(now) {
   const shops = run.shops;
   if (!shops) return;
-  const show = walkMode && !run.sheet && !run.ended;
+  const show = walkMode && !roofStay && !run.sheet && !run.ended && !runCarrying();
   for (let i = 0; i < shops.length; i++) {
     const shop = shops[i];
     if (!show || !shop.slip || !shopOpenNow(shop.kind)) {
@@ -33104,16 +33258,7 @@ function runPosePeople(now, dt) {
     const wantWave = figurePlaying(job.x, foot + 0.85, job.z);
     job.waveMix = (job.waveMix || 0) + ((wantWave ? 1 : 0) - (job.waveMix || 0)) * Math.min(1, (dt || 0.016) * 5);
     if (job.fig.studio) job.fig.studio.wave = job.waveMix || 0;
-    if (ud.rig) {
-      poseIdle(ud.rig, ud, now, 1, wxNow.rain > 0.4);
-      if (job.waveMix > 0.02) {
-        const want = Math.atan2(walkX - job.x, walkZ - job.z);
-        let aim = Math.atan2(Math.sin(want - job.fig.rotation.y), Math.cos(want - job.fig.rotation.y));
-        if (aim > 0.9) aim = 0.9;
-        else if (aim < -0.9) aim = -0.9;
-        poseWave(ud.rig, now, job.waveMix, aim);
-      }
-    }
+    // Live studio rig is posed by poseStudioCast() via job.fig.studio.wave & runFaceReceiver().
     wakeFigure(job.fig);
   }
   runSpotReceivers(now, dt);
@@ -33172,13 +33317,21 @@ function runDropTop(now, hard) {
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried") continue;
-    j.dock = (j.dock || 0) + (hard ? 6 : 4);
-    if (hard && j.drop) {
-      // Spill droppable cargo onto the ground/deck so the player must stop and lift it back up.
+    const mode = j.drop || "keep";
+    if (mode === "keep") {
+      // Durable wrapped goods stay in hand and only lose a small time dock on collisions.
+      j.dock = (j.dock || 0) + (hard ? 3 : 2);
+      return;
+    }
+    const fragile = mode === "break";
+    j.dock = (j.dock || 0) + (fragile ? (hard ? 10 : 6) : (hard ? 8 : 5));
+    if (hard) {
+      // Spillable ("spill") or fragile ("break") cargo drops onto the ground/deck on a hard stop.
       j.state = "dropped";
       j.dx = walkX;
       j.dz = walkZ;
       j.onRoof = !!roofStay;
+      j.roofDeck = roofStay ? roofStay.deck : null;
       j.roofDoor = roofStay ? roofStay.door : null;
       const box = runGroundProp(j.item);
       const foot = roofStay ? roofStay.y : groundFootAt(walkX, walkZ);
@@ -33234,14 +33387,18 @@ function runShopOut(shop) {
   const yaw = shop.yaw || 0;
   return { x: Math.sin(yaw), z: Math.cos(yaw) };
 }
-function runShopSight(x0, z0, x1, z1) {
+function runShopSight(x0, z0, x1, z1, pad, staticOnly) {
   const dx = x1 - x0, dz = z1 - z0;
   const dist = Math.hypot(dx, dz);
   if (dist < 0.25) return true;
+  const p = pad == null ? 0 : pad;
+  const opts = staticOnly
+    ? { pad: p, bodies: false, clutter: false, sleepers: false }
+    : { pad: p, bodies: false };
   const n = Math.max(2, Math.ceil(dist / 0.28));
   for (let i = 1; i < n; i++) {
     const t = i / n;
-    if (walkBlocked(x0 + dx * t, z0 + dz * t, { pad: 0, bodies: false })) return false;
+    if (walkBlocked(x0 + dx * t, z0 + dz * t, opts)) return false;
   }
   return true;
 }
@@ -33256,7 +33413,7 @@ function runAtShopFront(shop) {
   return runAtEntrance(shop.x, shop.z, out.x, out.z);
 }
 function runNearSlip() {
-  if (run.ended) return null;
+  if (run.ended || roofStay) return null;
   let best = null, bestD = 2.2;
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
@@ -33274,26 +33431,27 @@ function runNearJob() {
       const j = run.jobs[i];
       if (j.state !== "carried" || !j.roof || j.door < 0) continue;
       if (!roofSameDeck(roofDoors[j.door])) continue;
-      if (Math.hypot(walkX - j.x, walkZ - j.z) < 1.3) return j;
+      if (Math.hypot(walkX - j.x, walkZ - j.z) < 1.55 && runRoofSight(walkX, walkZ, j.x, j.z, roofStay.deck)) return j;
     }
     return null;
   }
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried" || j.roof) continue;
-    if (Math.hypot(walkX - j.x, walkZ - j.z) >= 1.3) continue;
+    const lim = j.keeper ? 1.85 : 1.55;
+    if (Math.hypot(walkX - j.x, walkZ - j.z) >= lim) continue;
     if (!runShopSight(walkX, walkZ, j.x, j.z)) continue;
     return j;
   }
   return null;
 }
 function runNearDrop() {
-  let best = null, bestD = 0.8;
+  let best = null, bestD = 1.15;
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "dropped") continue;
     if (j.onRoof) {
-      if (!roofSameDeck(j.roofDoor)) continue;
+      if (!roofOnDeck(j.roofDeck, j.roofDoor)) continue;
     } else if (roofStay) continue;
     const d = Math.hypot(walkX - j.dx, walkZ - j.dz);
     if (d < bestD) { bestD = d; best = j; }
@@ -33331,10 +33489,10 @@ function runPromptTarget() {
     const j = jobs[i];
     if (j.state !== "dropped") continue;
     if (j.onRoof) {
-      if (!roofSameDeck(j.roofDoor)) continue;
+      if (!roofOnDeck(j.roofDeck, j.roofDoor)) continue;
     } else if (roofStay) continue;
     const d = Math.hypot(walkX - j.dx, walkZ - j.dz);
-    if (d >= 0.8) continue;
+    if (d >= 1.15) continue;
     const foot = j.onRoof && roofStay ? roofStay.y : GROUND_Y;
     const py = j.box ? j.box.position.y + 0.12 : foot + 0.28;
     consider("lift", d, j.dx, py, j.dz, j, null);
@@ -33344,12 +33502,30 @@ function runPromptTarget() {
     if (j.state !== "carried") continue;
     if (roofStay) {
       if (!j.roof || j.door < 0 || !roofDoors[j.door] || !roofSameDeck(roofDoors[j.door])) continue;
-    } else if (j.roof) continue;
-    const d = Math.hypot(walkX - j.x, walkZ - j.z);
-    if (d >= 1.3) continue;
-    if (!roofStay && !runShopSight(walkX, walkZ, j.x, j.z)) continue;
-    const foot = j.roof ? j.y : groundFootAt(j.x, j.z);
-    consider("give", d, j.x, foot + WALK_EYE * 0.62, j.z, j, null);
+      const d = Math.hypot(walkX - j.x, walkZ - j.z);
+      if (d >= 1.55) continue;
+      if (!runRoofSight(walkX, walkZ, j.x, j.z, roofStay.deck)) continue;
+      consider("give", d, j.x, j.y + (j.sit ? 0.78 : WALK_EYE * 0.62), j.z, j, null);
+      continue;
+    }
+    if (j.roof) continue;
+    const mouthD = Math.hypot(walkX - j.x, walkZ - j.z);
+    if (j.keeper && j.post != null) {
+      const post = keeperByShopPost.get(j.post) || null;
+      const kx = post ? post.x : j.x;
+      const kz = post ? post.z : j.z;
+      const kd = Math.hypot(walkX - kx, walkZ - kz);
+      if (mouthD >= 1.85 && kd >= 2.15) continue;
+      if (!runShopSight(walkX, walkZ, j.x, j.z)) continue;
+      const foot = post ? post.y : groundFootAt(j.x, j.z);
+      const sit = !!(post && post.stance === "sit");
+      consider("give", Math.min(mouthD, kd), kx, foot + (sit ? 0.78 : WALK_EYE * 0.62), kz, j, null);
+      continue;
+    }
+    if (mouthD >= 1.55) continue;
+    if (!runShopSight(walkX, walkZ, j.x, j.z)) continue;
+    const foot = groundFootAt(j.x, j.z);
+    consider("give", mouthD, j.x, foot + (j.sit ? 0.78 : WALK_EYE * 0.62), j.z, j, null);
   }
   const shop = runNearOrderShop();
   if (shop && shop.slip && !runCarrying()) {
@@ -33474,14 +33650,25 @@ function runPlacePrompt(target) {
 }
 function runUse() {
   const now = performance.now() * 0.001;
-  if (run.sheet) { run.sheet = false; runForgetJobs(); run.runs = []; run.openRun = null; runPaint(); return; }
-  if (!walkMode || run.ended) return;
+  if (run.sheet) {
+    run.sheet = false;
+    if (!run.ended) runOpenDay(now, true);
+    else { runForgetJobs(); run.runs = []; run.openRun = null; }
+    runPaint();
+    return;
+  }
+  if (!walkMode || run.ended || runPaused()) return;
   const target = runPromptTarget();
   if (target && target.kind === "lift") { runLift(target.job); runPaint(); return; }
   if (target && target.kind === "give") { runDeliver(target.job, now); runPaint(); return; }
   if (target && target.kind === "take" && target.shop && target.shop.slip) {
     runTake(target.shop.slip, now);
     runPaint();
+    return;
+  }
+  if (!roofStay && roofOffer && !walkGlide) {
+    enterRoof(roofOffer);
+    syncRoofButton();
     return;
   }
   runPoint(now);
@@ -33497,7 +33684,7 @@ function runSub(job) {
   return runDestLine(job);
 }
 function runNearOrderShop() {
-  if (!walkMode || run.ended || run.sheet) return null;
+  if (!walkMode || roofStay || run.ended || run.sheet) return null;
   const ready = runNearSlip();
   if (ready && ready.shop) return ready.shop;
   let best = null, bestD = 4.2;
@@ -33597,7 +33784,9 @@ function runPaint() {
         const d = Math.hypot(walkX - s.x, walkZ - s.z);
         if (run.intro < 3 && d < farD) { farD = d; far = s; }
       }
-      if (far && farD >= 6) text = runText("first") + " · " + runWord(far.kind) + " · " + runStreet(far.street);
+      const fullShop = runCarrying() ? runNearOrderShop() : null;
+      if (fullShop && fullShop.slip) text = runText("full");
+      else if (far && farD >= 6) text = runText("first") + " · " + runWord(far.kind) + " · " + runStreet(far.street);
       else if (!run.day && !runAnyOrderOpen()) text = runText("shut");
     }
     near.textContent = text;
@@ -33718,15 +33907,37 @@ const runNav = {
   x0: -4, z0: -4, w: 218, h: 128,
   grid: null, gScore: null, parent: null, stamp: null, runId: 0
 };
+function runPaused() {
+  if (document.hidden) return true;
+  const s = document.getElementById("settings-layer");
+  if (s && !s.hidden) return true;
+  const l = document.getElementById("legend-layer");
+  if (l && !l.hidden) return true;
+  return false;
+}
+function runShiftClocks(delta) {
+  if (!(delta > 0)) return;
+  if (run.t0 != null) run.t0 += delta;
+  if (run.survivedAt != null) run.survivedAt += delta;
+  const jobs = run.jobs || [];
+  for (let i = 0; i < jobs.length; i++) {
+    if (jobs[i].state === "carried" || jobs[i].state === "dropped") jobs[i].t0 += delta;
+  }
+  const notes = run.notices || [];
+  for (let i = 0; i < notes.length; i++) notes[i].t0 += delta;
+}
 function runEnsureNavGrid() {
   if (runNav.grid) return runNav.grid;
   const W = runNav.w, H = runNav.h, N = W * H;
   const g = new Uint8Array(N);
+  // Bake only permanent architecture with player capsule radius WALK_R so transient
+  // daytime shop clutter and midnight sleepers never freeze into the A* map.
+  const opts = { pad: WALK_R, bodies: false, clutter: false, sleepers: false };
   for (let iz = 0; iz < H; iz++) {
     const wz = runNav.z0 + iz + 0.5;
     for (let ix = 0; ix < W; ix++) {
       const wx = runNav.x0 + ix + 0.5;
-      if (walkInside(wx, wz) && !walkBlocked(wx, wz, { pad: 0.06, bodies: false })) g[iz * W + ix] = 1;
+      if (walkInside(wx, wz) && !walkBlocked(wx, wz, opts)) g[iz * W + ix] = 1;
     }
   }
   runNav.grid = g;
@@ -33754,7 +33965,7 @@ function runSnapNavCell(x, z) {
   return -1;
 }
 function runFindPath(sx, sz, tx, tz) {
-  if (runShopSight(sx, sz, tx, tz)) {
+  if (runShopSight(sx, sz, tx, tz, WALK_R, true)) {
     return { pts: [{ x: sx, z: sz }, { x: tx, z: tz }], dist: Math.hypot(tx - sx, tz - sz) };
   }
   const g = runEnsureNavGrid();
@@ -33833,13 +34044,13 @@ function runFindPath(sx, sz, tx, tz) {
   raw.reverse();
   raw[0] = { x: sx, z: sz };
   raw[raw.length - 1] = { x: tx, z: tz };
-  // String-pull straight line-of-sight runs so the path turns only at real alley corners.
+  // String-pull straight line-of-sight runs with WALK_R clearance so paths turn only at real alley corners.
   const smooth = [raw[0]];
   let a = 0;
   while (a < raw.length - 1) {
     let best = a + 1;
     for (let b = Math.min(raw.length - 1, a + 28); b > a + 1; b--) {
-      if (runShopSight(raw[a].x, raw[a].z, raw[b].x, raw[b].z)) { best = b; break; }
+      if (runShopSight(raw[a].x, raw[a].z, raw[b].x, raw[b].z, WALK_R, true)) { best = b; break; }
     }
     smooth.push(raw[best]);
     a = best;
@@ -33850,41 +34061,120 @@ function runFindPath(sx, sz, tx, tz) {
   }
   return { pts: smooth, dist: dist };
 }
-function runRawGoal(job) {
-  if (job.state === "dropped") {
-    if (job.onRoof && job.roofDoor && !roofSameDeck(job.roofDoor)) {
-      return { x: job.roofDoor.x, z: job.roofDoor.z, ground: true };
+// BFS across linked rooftop planks so inter-deck routes follow actual wooden bridges instead of open air.
+function runRoofClusterRoute(fromDeck, targetDeck, sx, sz, tx, tz) {
+  if (!fromDeck || !targetDeck || fromDeck === targetDeck) return [{ x: sx, z: sz }, { x: tx, z: tz }];
+  const q = [fromDeck];
+  const prev = new Map();
+  prev.set(fromDeck, null);
+  while (q.length) {
+    const cur = q.shift();
+    if (cur === targetDeck) break;
+    const links = cur.links || [];
+    for (let i = 0; i < links.length; i++) {
+      const lk = links[i];
+      if (!lk.to || prev.has(lk.to)) continue;
+      prev.set(lk.to, { from: cur, lk: lk });
+      q.push(lk.to);
     }
+  }
+  if (!prev.has(targetDeck)) return [{ x: sx, z: sz }, { x: tx, z: tz }];
+  const steps = [];
+  let cur = targetDeck;
+  while (cur && cur !== fromDeck) {
+    const rec = prev.get(cur);
+    if (!rec) break;
+    steps.push(rec.lk);
+    cur = rec.from;
+  }
+  steps.reverse();
+  const pts = [{ x: sx, z: sz }];
+  for (let i = 0; i < steps.length; i++) {
+    const lk = steps[i];
+    const mid = (lk.span0 + lk.span1) * 0.5;
+    if (lk.axis === "x") pts.push({ x: lk.edge, z: mid });
+    else pts.push({ x: mid, z: lk.edge });
+    pts.push({ x: lk.landX, z: lk.landZ });
+  }
+  pts.push({ x: tx, z: tz });
+  return pts;
+}
+function runRawGoal(job) {
+  function exitGoal() {
+    const ex = roofStay ? roofClusterExitDoor(roofStay.deck) : null;
+    if (!ex) return null;
+    return { x: ex.upX, z: ex.upZ, ground: false, deck: ex.deck, exit: true };
+  }
+  if (job.state === "dropped") {
+    if (job.onRoof && (job.roofDeck || job.roofDoor)) {
+      const targetDeck = job.roofDeck || (job.roofDoor && job.roofDoor.deck);
+      if (roofOnDeck(job.roofDeck, job.roofDoor)) return { x: job.dx, z: job.dz, ground: false, deck: targetDeck };
+      const sameCluster = !!(roofStay && roofStay.deck && targetDeck && roofStay.deck.cluster >= 0 && roofStay.deck.cluster === targetDeck.cluster);
+      if (sameCluster) return { x: job.dx, z: job.dz, ground: false, deck: targetDeck };
+      const ex = exitGoal();
+      if (ex) return ex;
+      const entry = roofClusterExitDoor(targetDeck) || job.roofDoor;
+      if (entry) return { x: entry.x, z: entry.z, ground: true };
+    }
+    const ex = exitGoal();
+    if (ex) return ex;
     return { x: job.dx, z: job.dz, ground: !job.onRoof };
   }
   if (job.roof && job.door >= 0 && roofDoors[job.door]) {
     const targetDoor = roofDoors[job.door];
     const onDeck = roofSameDeck(targetDoor);
     const sameCluster = !!(roofStay && roofStay.deck && targetDoor.deck && roofStay.deck.cluster >= 0 && roofStay.deck.cluster === targetDoor.deck.cluster);
-    if (!onDeck && !sameCluster) return { x: targetDoor.x, z: targetDoor.z, ground: true };
+    if (onDeck || sameCluster) return { x: job.x, z: job.z, ground: false, deck: targetDoor.deck };
+    const ex = exitGoal();
+    if (ex) return ex;
+    return { x: targetDoor.x, z: targetDoor.z, ground: true };
   }
+  const ex = exitGoal();
+  if (ex) return ex;
   return { x: job.x, z: job.z, ground: !job.roof };
 }
 function runJobRoute(job) {
   const goal = runRawGoal(job);
-  if (roofStay || !goal.ground) return [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }];
+  if (roofStay) {
+    if (goal.deck && roofStay.deck && goal.deck !== roofStay.deck) {
+      return runRoofClusterRoute(roofStay.deck, goal.deck, walkX, walkZ, goal.x, goal.z);
+    }
+    return [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }];
+  }
+  if (!goal.ground) return [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }];
   const r = job._route;
+  const moveLim = (r && r.failed) ? 5.5 : 1.8;
   const need = !r || !r.pts || r.pts.length < 2
     || Math.hypot(r.gx - goal.x, r.gz - goal.z) > 0.6
-    || Math.hypot(r.sx - walkX, r.sz - walkZ) > 1.8;
+    || Math.hypot(r.sx - walkX, r.sz - walkZ) > moveLim;
   if (need) {
     const solved = runFindPath(walkX, walkZ, goal.x, goal.z);
     job._route = {
       sx: walkX, sz: walkZ, gx: goal.x, gz: goal.z,
+      failed: !solved,
       pts: solved ? solved.pts : [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }]
     };
   }
   return job._route.pts;
 }
+// Monotonic polyline aim: locate the closest segment to the player first, then
+// return the next waypoint strictly ahead along the route so corners never aim backward.
 function runAim(job) {
   const pts = runJobRoute(job);
-  for (let i = 1; i < pts.length - 1; i++) {
-    if (Math.hypot(pts[i].x - walkX, pts[i].z - walkZ) > 1.6) return pts[i];
+  if (pts.length <= 2) return pts[pts.length - 1];
+  let bestSeg = 0, bestD2 = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const ax = pts[i].x, az = pts[i].z;
+    const bx = pts[i + 1].x, bz = pts[i + 1].z;
+    const dx = bx - ax, dz = bz - az;
+    const l2 = dx * dx + dz * dz;
+    const t = l2 > 1e-6 ? Math.max(0, Math.min(1, ((walkX - ax) * dx + (walkZ - az) * dz) / l2)) : 0;
+    const px = ax + dx * t - walkX, pz = az + dz * t - walkZ;
+    const d2 = px * px + pz * pz;
+    if (d2 < bestD2) { bestD2 = d2; bestSeg = i; }
+  }
+  for (let i = bestSeg + 1; i < pts.length - 1; i++) {
+    if (Math.hypot(pts[i].x - walkX, pts[i].z - walkZ) > 1.45) return pts[i];
   }
   return pts[pts.length - 1];
 }
@@ -33946,8 +34236,27 @@ function runGuides(now) {
     fitRunHub();
   }
 }
+function runPruneJobs() {
+  const jobs = run.jobs;
+  if (!jobs || !jobs.length) return;
+  for (let i = jobs.length - 1; i >= 0; i--) {
+    const j = jobs[i];
+    if ((j.state === "done" || j.state === "failed") && !j.fig && !j.box && !j.spot && !j.facing) {
+      jobs.splice(i, 1);
+    }
+  }
+}
 function stepRun(now, dt) {
   if (!run.shops) runShops();
+  const prevNow = run.lastNow == null ? now : run.lastNow;
+  run.lastNow = now;
+  const rawGap = Math.max(0, now - prevNow);
+  const paused = runPaused();
+  if (paused) {
+    runShiftClocks(rawGap);
+    return;
+  }
+  if (rawGap > 0.25) runShiftClocks(rawGap - dt);
   if (run.day && !run.seeded && !run.sheet && walkMode) runSeed(now);
   if (run.day && !run.sheet && walkMode) {
     run.shift -= dt;
@@ -33963,6 +34272,7 @@ function stepRun(now, dt) {
   runSpotHolos(now);
   runWaves();
   runStepBursts(now);
+  runPruneJobs();
   runPaint();
   runGuides(now);
 }
@@ -34119,11 +34429,85 @@ function miniMapYaw() {
   const face = run.riderFace == null ? walkYaw + Math.PI : run.riderFace;
   return face - Math.PI;
 }
+function miniMapReset() {
+  if (!miniMap.fogCtx || !miniMap.fog) return;
+  miniMap.fogCtx.globalCompositeOperation = "source-over";
+  miniMap.fogCtx.fillStyle = "#090807";
+  miniMap.fogCtx.fillRect(0, 0, miniMap.fog.width, miniMap.fog.height);
+  if (miniMap.seen) miniMap.seen.fill(0);
+  miniMap.lastX = null;
+  miniMap.lastZ = null;
+}
+function miniMapClipExit(x0, y0, x1, y1, limX, limY, cx, cy) {
+  const dx = x1 - x0, dy = y1 - y0;
+  let tBest = Infinity;
+  if (dx > 1e-4) {
+    const t = (cx + limX - x0) / dx;
+    if (t >= 0 && t <= 1 && Math.abs(y0 + dy * t - cy) <= limY + 1e-3 && t < tBest) tBest = t;
+  } else if (dx < -1e-4) {
+    const t = (cx - limX - x0) / dx;
+    if (t >= 0 && t <= 1 && Math.abs(y0 + dy * t - cy) <= limY + 1e-3 && t < tBest) tBest = t;
+  }
+  if (dy > 1e-4) {
+    const t = (cy + limY - y0) / dy;
+    if (t >= 0 && t <= 1 && Math.abs(x0 + dx * t - cx) <= limX + 1e-3 && t < tBest) tBest = t;
+  } else if (dy < -1e-4) {
+    const t = (cy - limY - y0) / dy;
+    if (t >= 0 && t <= 1 && Math.abs(x0 + dx * t - cx) <= limX + 1e-3 && t < tBest) tBest = t;
+  }
+  if (!isFinite(tBest)) return null;
+  return { x: x0 + dx * tBest, y: y0 + dy * tBest, ang: Math.atan2(dy, dx) };
+}
+function miniMapRoofOverlay(ctx, pxPerM, cx, cy) {
+  if (!roofStay || !roofStay.deck) return;
+  const cluster = roofStay.deck.cluster;
+  const yaw = miniMapYaw();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(4, 4, miniMap.view.width - 8, miniMap.view.height - 8);
+  ctx.clip();
+  ctx.translate(cx, cy);
+  ctx.rotate(yaw);
+  for (let i = 0; i < roofDecks.length; i++) {
+    const d = roofDecks[i];
+    if (d !== roofStay.deck && (cluster < 0 || d.cluster !== cluster)) continue;
+    const rx = (d.x - walkX) * pxPerM;
+    const rz = (d.z - walkZ) * pxPerM;
+    const rw = d.w * pxPerM;
+    const rd = d.d * pxPerM;
+    ctx.fillStyle = d === roofStay.deck ? "rgba(116,104,92,0.88)" : "rgba(86,78,70,0.78)";
+    ctx.fillRect(rx, rz, rw, rd);
+    ctx.strokeStyle = d === roofStay.deck ? "#ffc56a" : "rgba(255,197,106,0.45)";
+    ctx.lineWidth = d === roofStay.deck ? 2 : 1.5;
+    ctx.strokeRect(rx, rz, rw, rd);
+  }
+  ctx.strokeStyle = "#ffc56a";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < roofDecks.length; i++) {
+    const d = roofDecks[i];
+    if (d !== roofStay.deck && (cluster < 0 || d.cluster !== cluster)) continue;
+    const links = d.links || [];
+    for (let k = 0; k < links.length; k++) {
+      const lk = links[k];
+      const mid = (lk.span0 + lk.span1) * 0.5;
+      const sx = ((lk.axis === "x" ? lk.edge : mid) - walkX) * pxPerM;
+      const sz = ((lk.axis === "x" ? mid : lk.edge) - walkZ) * pxPerM;
+      const tx = (lk.landX - walkX) * pxPerM;
+      const tz = (lk.landZ - walkZ) * pxPerM;
+      ctx.beginPath();
+      ctx.moveTo(sx, sz);
+      ctx.lineTo(tx, tz);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function miniMapAims(ctx, pxPerM, cx, cy) {
   if (run.sheet || !run.jobs) return;
   const now = performance.now() * 0.001;
   const w = miniMap.view.width, h = miniMap.view.height;
   const pad = 16;
+  const limX = w / 2 - pad, limY = h / 2 - pad;
   const yaw = miniMapYaw();
   const c = Math.cos(yaw), s = Math.sin(yaw);
   function toMap(x, z) {
@@ -34131,22 +34515,69 @@ function miniMapAims(ctx, pxPerM, cx, cy) {
     const wz = (z - walkZ) * pxPerM;
     return { x: cx + wx * c - wz * s, y: cy + wx * s + wz * c };
   }
+  // When hands are free on street level, draw available pickup slips (green/yellow/red diamonds & edge pips).
+  if (!runCarrying() && !roofStay && run.shops) {
+    for (let i = 0; i < run.shops.length; i++) {
+      const sh = run.shops[i];
+      if (!sh.slip || !shopOpenNow(sh.kind)) continue;
+      const mp = toMap(sh.x, sh.z);
+      const dx = mp.x - cx, dy = mp.y - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) continue;
+      const cls = sh.slip.class || "green";
+      const col = cls === "red" ? "#ff5a42" : cls === "yellow" ? "#ffc56a" : "#3dff88";
+      ctx.fillStyle = col;
+      ctx.strokeStyle = "#120806";
+      ctx.lineWidth = 2;
+      if (Math.abs(dx) <= limX && Math.abs(dy) <= limY) {
+        ctx.beginPath();
+        ctx.moveTo(mp.x, mp.y - 7);
+        ctx.lineTo(mp.x + 7, mp.y);
+        ctx.lineTo(mp.x, mp.y + 7);
+        ctx.lineTo(mp.x - 7, mp.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        const fit = Math.min(limX / Math.abs(dx), limY / Math.abs(dy));
+        const ex = cx + dx * fit, ey = cy + dy * fit;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  }
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried" && j.state !== "dropped") continue;
     const pts = runJobRoute(j);
-    const goal = pts[pts.length - 1];
-    const gMap = toMap(goal.x, goal.z);
+    const mapPts = [{ x: cx, y: cy }];
+    for (let k = 1; k < pts.length; k++) mapPts.push(toMap(pts[k].x, pts[k].z));
+    const gMap = mapPts[mapPts.length - 1];
     const dx = gMap.x - cx, dy = gMap.y - cy;
     const dist = Math.hypot(dx, dy);
     if (dist < 1) continue;
-    const ux = dx / dist, uy = dy / dist;
-    let ex = gMap.x, ey = gMap.y, inside = true;
-    if (Math.abs(dx) > w / 2 - pad || Math.abs(dy) > h / 2 - pad) {
-      const fit = Math.min((w / 2 - pad) / Math.abs(dx), (h / 2 - pad) / Math.abs(dy));
-      ex = cx + dx * fit;
-      ey = cy + dy * fit;
+    let ex = gMap.x, ey = gMap.y, ang = Math.atan2(dy, dx), inside = true;
+    if (Math.abs(dx) > limX || Math.abs(dy) > limY) {
       inside = false;
+      let exit = null;
+      for (let k = 0; k < mapPts.length - 1; k++) {
+        const p0 = mapPts[k], p1 = mapPts[k + 1];
+        const in0 = Math.abs(p0.x - cx) <= limX && Math.abs(p0.y - cy) <= limY;
+        const in1 = Math.abs(p1.x - cx) <= limX && Math.abs(p1.y - cy) <= limY;
+        if (in0 && !in1) {
+          exit = miniMapClipExit(p0.x, p0.y, p1.x, p1.y, limX, limY, cx, cy);
+          if (exit) break;
+        }
+      }
+      if (exit) {
+        ex = exit.x; ey = exit.y; ang = exit.ang;
+      } else {
+        const fit = Math.min(limX / Math.abs(dx), limY / Math.abs(dy));
+        ex = cx + dx * fit;
+        ey = cy + dy * fit;
+      }
     }
     const hue = runFareHue(j, now);
     const color = hue === "hot" ? "#ff5a42" : hue === "warm" ? "#ffc56a" : "#3dff88";
@@ -34155,16 +34586,15 @@ function miniMapAims(ctx, pxPerM, cx, cy) {
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    // Trace the real multi-segment alley route polyline inside the minimap frame.
+    // Trace the real multi-segment alley or rooftop-bridge route polyline inside the minimap frame.
     ctx.save();
     ctx.beginPath();
     ctx.rect(4, 4, w - 8, h - 8);
     ctx.clip();
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    for (let k = 1; k < pts.length; k++) {
-      const mp = toMap(pts[k].x, pts[k].z);
-      ctx.lineTo(mp.x, mp.y);
+    for (let k = 1; k < mapPts.length; k++) {
+      ctx.lineTo(mapPts[k].x, mapPts[k].y);
     }
     ctx.stroke();
     ctx.restore();
@@ -34176,7 +34606,6 @@ function miniMapAims(ctx, pxPerM, cx, cy) {
       ctx.arc(ex, ey, 3, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      const ang = Math.atan2(uy, ux);
       ctx.save();
       ctx.translate(ex, ey);
       ctx.rotate(ang);
@@ -34194,7 +34623,7 @@ function miniMapDraw() {
   const view = miniMapEls();
   if (!view || !walkMode) return;
   view.hidden = false;
-  if (miniMap.lastX == null || Math.hypot(walkX - miniMap.lastX, walkZ - miniMap.lastZ) > 0.45) {
+  if (!roofStay && (miniMap.lastX == null || Math.hypot(walkX - miniMap.lastX, walkZ - miniMap.lastZ) > 0.45)) {
     miniMapVisit(walkX, walkZ);
   }
   const ctx = miniMap.ctx;
@@ -34223,6 +34652,11 @@ function miniMapDraw() {
   miniMapStamp(miniMap.fog, sx, sy, sw, sw, dw);
   ctx.restore();
   const cx = view.width / 2, cy = view.height / 2;
+  if (roofStay) {
+    ctx.fillStyle = "rgba(9,8,7,0.45)";
+    ctx.fillRect(0, 0, view.width, view.height);
+    miniMapRoofOverlay(ctx, pxPerM, cx, cy);
+  }
   miniMapAims(ctx, pxPerM, cx, cy);
   ctx.strokeStyle = "#ffc56a";
   ctx.lineWidth = 3;
@@ -34238,6 +34672,7 @@ function miniMapDraw() {
 }
 
 function stepWalk(dt) {
+  if (runPaused()) return;
   if (walkGlide) {
     // Frame time, capped by the caller, so a hitch does not skip the move.
     const u = walkGlide.u = Math.min(1, walkGlide.u + dt / walkGlide.dur);
@@ -34293,7 +34728,7 @@ function stepWalk(dt) {
         if (!hitX) walkX = nx;
         const hitZ = roofBlocked(walkX, nz);
         if (!hitZ) walkZ = nz;
-        if ((hitX || hitZ) && tryRoofCross(nx, nz)) break;
+        if ((hitX || hitZ) && tryRoofCross(nx, nz, ux, uz)) break;
       } else {
         if (walkInside(nx, walkZ) && !walkBlocked(nx, walkZ)) walkX = nx;
         if (walkInside(walkX, nz) && !walkBlocked(walkX, nz)) walkZ = nz;
@@ -34619,8 +35054,6 @@ function bakeWalk() {
   }
 }
 bakeWalk();
-seatRoofDoors();
-buildRoofLinks();
 if (streetLamps.posts) {
   streetLamps.posts.forEach(p => {
     const wx = p.x + SHEAR_K * p.z;
@@ -34751,6 +35184,8 @@ function cullFloatingGoods() {
 }
 cullFloatingGoods();
 buildRoof();
+seatRoofDoors();
+buildRoofLinks();
 function clipPavement() {
   // A slab is poured a little under the wall beside it. That overlap is one
   // edge. Cutting both axes used to delete the whole bay of an east–west lane.
@@ -36601,36 +37036,66 @@ function stepAirliner(now) {
 // There is no chair up here.
 function roofKidsOut() {
   const hour = clockHour();
-  // 13/24 does not land on 13 in binary, so 1:00 pm needs a little slack.
-  return hour + 1e-4 >= 13 && hour < 18;
+  // 13/24 does not land on 13 in binary, so 1:00 pm needs a little slack; kids head indoors during rain.
+  return hour + 1e-4 >= 13 && hour < 18 && wxNow.rain <= 0.35;
 }
 const roofKids = [];
-function roofPick(group) {
-  const roof = group;
-  for (let n = 0; n < 8; n++) {
-    const x = roof.minX + group.rand() * (roof.maxX - roof.minX);
-    const z = roof.minZ + group.rand() * (roof.maxZ - roof.minZ);
-    let blocked = false;
-    for (let i = 0; i < roof.obstacles.length; i++) {
-      const o = roof.obstacles[i];
-      const dx = o.x - x, dz = o.z - z;
-      if (dx * dx + dz * dz < (o.r + 0.4) * (o.r + 0.4)) blocked = true;
-    }
-    if (!blocked) return { x: x, z: z };
+function roofBoxClear(group, x, z, pad) {
+  if (x < group.minX || x > group.maxX || z < group.minZ || z > group.maxZ) return false;
+  const boxes = group.boxes;
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    if (x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad) return false;
   }
-  return { x: (roof.minX + roof.maxX) * 0.5, z: (roof.minZ + roof.maxZ) * 0.5 };
+  return true;
+}
+function roofPick(group) {
+  const pad = 0.30;
+  for (let n = 0; n < 16; n++) {
+    const x = group.minX + group.rand() * (group.maxX - group.minX);
+    const z = group.minZ + group.rand() * (group.maxZ - group.minZ);
+    if (roofBoxClear(group, x, z, pad)) return { x: x, z: z };
+  }
+  // Deterministic 5x5 grid scan so a cluttered roof never falls back to spawning inside a central stairhead/tank.
+  for (let ix = 0; ix < 5; ix++) {
+    for (let iz = 0; iz < 5; iz++) {
+      const x = group.minX + (group.maxX - group.minX) * (ix / 4);
+      const z = group.minZ + (group.maxZ - group.minZ) * (iz / 4);
+      if (roofBoxClear(group, x, z, 0.24)) return { x: x, z: z };
+    }
+  }
+  return null;
 }
 function roofClamp(group, home) {
-  const kids = group.obstacles;
-  for (let i = 0; i < kids.length; i++) {
-    const o = kids[i];
-    let ox = home.x - o.x, oz = home.z - o.z;
-    let od = Math.hypot(ox, oz);
-    const min = o.r + 0.34;
-    if (od < min) {
-      if (od < 0.001) { ox = 1; oz = 0; od = 1; }
-      home.x = o.x + ox / od * min;
-      home.z = o.z + oz / od * min;
+  const boxes = group.boxes;
+  const rad = 0.24;
+  for (let pass = 0; pass < 2; pass++) {
+    if (home.x < group.minX) home.x = group.minX;
+    if (home.x > group.maxX) home.x = group.maxX;
+    if (home.z < group.minZ) home.z = group.minZ;
+    if (home.z > group.maxZ) home.z = group.maxZ;
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i];
+      const cx = Math.max(b.x0, Math.min(home.x, b.x1));
+      const cz = Math.max(b.z0, Math.min(home.z, b.z1));
+      const dx = home.x - cx, dz = home.z - cz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < rad * rad) {
+        if (d2 > 1e-6) {
+          const d = Math.sqrt(d2);
+          home.x = cx + (dx / d) * rad;
+          home.z = cz + (dz / d) * rad;
+        } else {
+          // Point is strictly inside the box: push out along the shallowest face.
+          const penL = Math.abs(home.x - b.x0), penR = Math.abs(b.x1 - home.x);
+          const penN = Math.abs(home.z - b.z0), penS = Math.abs(b.z1 - home.z);
+          const m = Math.min(penL, penR, penN, penS);
+          if (m === penL) home.x = b.x0 - rad;
+          else if (m === penR) home.x = b.x1 + rad;
+          else if (m === penN) home.z = b.z0 - rad;
+          else home.z = b.z1 + rad;
+        }
+      }
     }
   }
   if (home.x < group.minX) home.x = group.minX;
@@ -36638,22 +37103,61 @@ function roofClamp(group, home) {
   if (home.z < group.minZ) home.z = group.minZ;
   if (home.z > group.maxZ) home.z = group.maxZ;
 }
-function roofSteer(group, home, tx, tz, speed, dt) {
+function roofSteer(group, home, fig, tx, tz, speed, dt) {
   let dx = tx - home.x, dz = tz - home.z;
   let dist = Math.hypot(dx, dz);
   if (dist < 0.001) { dx = 1; dz = 0; dist = 1; }
   dx /= dist;
   dz /= dist;
-  const list = group.obstacles;
-  for (let i = 0; i < list.length; i++) {
-    const o = list[i];
-    const ox = o.x - home.x, oz = o.z - home.z;
-    const od = Math.hypot(ox, oz);
-    const reach = o.r + 0.7;
+  // Smooth repulsion from nearest point on each exact rectangular roof obstacle.
+  const boxes = group.boxes;
+  const reach = 0.54;
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    const cx = Math.max(b.x0, Math.min(home.x, b.x1));
+    const cz = Math.max(b.z0, Math.min(home.z, b.z1));
+    const rx = home.x - cx, rz = home.z - cz;
+    const od = Math.hypot(rx, rz);
     if (od < reach && od > 0.001) {
       const push = (reach - od) / reach;
-      dx -= ox / od * push * 1.6;
-      dz -= oz / od * push * 1.6;
+      dx += (rx / od) * push * 1.8;
+      dz += (rz / od) * push * 1.8;
+    }
+  }
+  // Sibling separation so rooftop kids don't stack on top of one another.
+  for (let i = 0; i < group.kids.length; i++) {
+    const other = group.kids[i];
+    if (other === fig) continue;
+    const oh = other.userData.roof;
+    const rx = home.x - oh.x, rz = home.z - oh.z;
+    const od = Math.hypot(rx, rz);
+    if (od < 0.65 && od > 0.001) {
+      const push = (0.65 - od) / 0.65;
+      dx += (rx / od) * push * 1.35;
+      dz += (rz / od) * push * 1.35;
+    }
+  }
+  // Yield space around the player and any rooftop delivery receiver on the same deck.
+  if (roofStay && roofStay.deck === group.deck) {
+    const px = home.x - walkX, pz = home.z - walkZ;
+    const pd = Math.hypot(px, pz);
+    if (pd < 0.95 && pd > 0.001) {
+      const push = (0.95 - pd) / 0.95;
+      dx += (px / pd) * push * 1.9;
+      dz += (pz / pd) * push * 1.9;
+    }
+  }
+  const jobs = run.jobs || [];
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (!j.roof || j.door < 0 || !roofDoors[j.door] || roofDoors[j.door].deck !== group.deck) continue;
+    if (j.state !== "carried" && j.state !== "dropped") continue;
+    const rx = home.x - j.x, rz = home.z - j.z;
+    const rd = Math.hypot(rx, rz);
+    if (rd < 0.85 && rd > 0.001) {
+      const push = (0.85 - rd) / 0.85;
+      dx += (rx / rd) * push * 1.5;
+      dz += (rz / rd) * push * 1.5;
     }
   }
   const edge = 0.4;
@@ -36666,71 +37170,6 @@ function roofSteer(group, home, tx, tz, speed, dt) {
   home.z += dz / len * speed * dt;
   roofClamp(group, home);
   return Math.atan2(dx, dz);
-}
-// Legs and neck are assigned, not added to. A child glance is a few degrees.
-function poseRoofBody(rig, ud, now, moving, lookX, lookY) {
-  const phase = now * (2.2 + moving * 5.6) + ud.offset * 3;
-  const s = Math.sin(phase);
-  const c = Math.cos(phase);
-  const hipAmp = 0.4 * moving;
-  const kneeAmp = 0.95 * moving;
-  const aL = s * hipAmp;
-  const aR = -s * hipAmp;
-  const liftL = Math.max(0, Math.sin(phase + 0.5));
-  const liftR = Math.max(0, Math.sin(phase + Math.PI + 0.5));
-  const kL = 0.05 + liftL * liftL * kneeAmp;
-  const kR = 0.05 + liftR * liftR * kneeAmp;
-  rig.legL.pivot.rotation.x = aL;
-  rig.legR.pivot.rotation.x = aR;
-  rig.legL.knee.rotation.x = kL;
-  rig.legR.knee.rotation.x = kR;
-  rig.legL.ankle.rotation.x = -(aL + kL);
-  rig.legR.ankle.rotation.x = -(aR + kR);
-  function drop(hipAng, kneeAng) {
-    return THIGH_L * Math.cos(hipAng) + SHIN_L * Math.cos(hipAng + kneeAng);
-  }
-  const bob = Math.pow(Math.abs(Math.sin(phase)), 1.3) * 0.01 * moving;
-  rig.hip.position.y = Math.max(drop(aL, kL), drop(aR, kR)) + 0.04 - bob;
-  if (moving > 0.65) {
-    const hop = Math.max(0, Math.sin(phase * 2));
-    rig.hip.position.y += hop * hop * 0.03;
-  }
-  rig.hip.position.x = (kL - kR) * 0.05 * moving;
-  rig.hip.rotation.set(0.03 + bob * 0.3, s * 0.09 * moving, s * 0.03 * moving);
-  rig.torso.rotation.set(0.03 + Math.sin(phase * 2) * 0.01 * moving, -s * 0.14 * moving, -s * 0.02 * moving);
-  rig.head.rotation.set(lookX, lookY, 0);
-  const armS = Math.sin(phase - 0.22);
-  function hang(arm, swing) {
-    const fore = Math.max(0, -swing);
-    const back = Math.max(0, swing);
-    arm.spread.rotation.z = arm.restZ;
-    arm.pivot.rotation.x = -fore * 0.9 + back * 0.32;
-    arm.elbow.rotation.x = -0.28 - fore * 0.7;
-    arm.elbow.rotation.z = 0;
-  }
-  const armAmp = 0.55 * moving;
-  hang(rig.armL, -armS * armAmp);
-  hang(rig.armR, armS * armAmp);
-  if (moving < 0.35 && ud.play === "wave") {
-    rig.armR.pivot.rotation.x = -1.35;
-    rig.armR.elbow.rotation.x = -0.35;
-  } else if (moving < 0.35 && ud.play === "sit") {
-    rig.legL.pivot.rotation.x = -1.15;
-    rig.legR.pivot.rotation.x = -1.15;
-    rig.legL.knee.rotation.x = 1.65;
-    rig.legR.knee.rotation.x = 1.65;
-    rig.hip.position.y = 0.42;
-  } else if (ud.play === "fight" && moving > 0.45) {
-    const kick = Math.max(0, Math.sin(now * 2.4 + ud.offset));
-    rig.legR.pivot.rotation.x = -0.35 - kick * 0.85;
-    rig.legR.knee.rotation.x = 0.25 + kick * 0.45;
-    rig.armR.pivot.rotation.x = -0.7 - kick * 0.45;
-  }
-  if (lookX < -0.35) {
-    rig.armR.pivot.rotation.x = -1.2;
-    rig.armR.spread.rotation.z = 0.2;
-    rig.armR.elbow.rotation.x = -0.45;
-  }
 }
 const roofVisit = [];
 function clearRoofVisit() {
@@ -36752,35 +37191,39 @@ function spawnRoofVisit() {
   const x0 = roofStay.x0, x1 = roofStay.x1, z0 = roofStay.z0, z1 = roofStay.z1;
   if (!(x1 - x0 > 1.2) || !(z1 - z0 > 1.2)) return;
   const blocks = roofStay.blocks || [];
-  const obstacles = [];
+  const boxes = [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (b.x == null || b.z == null) continue;
-    const cx = b.x2 != null ? (b.x + b.x2) * 0.5 : b.x;
-    const cz = b.z2 != null ? (b.z + b.z2) * 0.5 : b.z;
-    const bw = b.x2 != null ? Math.abs(b.x2 - b.x) : 0.9;
-    const bd = b.z2 != null ? Math.abs(b.z2 - b.z) : 0.9;
-    obstacles.push({ x: cx, z: cz, r: Math.max(0.45, 0.5 * Math.hypot(bw, bd) + 0.14) });
+    const xA = b.x2 != null ? Math.min(b.x, b.x2) : b.x - 0.35;
+    const xB = b.x2 != null ? Math.max(b.x, b.x2) : b.x + 0.35;
+    const zA = b.z2 != null ? Math.min(b.z, b.z2) : b.z - 0.35;
+    const zB = b.z2 != null ? Math.max(b.z, b.z2) : b.z + 0.35;
+    boxes.push({ x0: xA, x1: xB, z0: zA, z1: zB });
   }
   const group = {
+    deck: roofStay.deck,
     minX: x0, maxX: x1, minZ: z0, maxZ: z1,
-    obstacles: obstacles, kids: [], mode: "play", until: 0, it: 0, tagAt: 0,
+    boxes: boxes, kids: [], mode: "play", until: 0, it: 0, tagAt: 0,
     rand: mulberry32((x0 * 13 + z0 * 17 + roofStay.y) | 0)
   };
   const door = roofStay.door;
   for (let i = 0; i < n; i++) {
+    let spot = roofPick(group);
+    if (!spot) break;
+    for (let t = 0; t < 6 && door && Math.hypot(spot.x - door.upX, spot.z - door.upZ) < 1.3; t++) {
+      const nextSpot = roofPick(group);
+      if (nextSpot) spot = nextSpot;
+    }
     const key = STUDIO_KIDS[(Math.random() * STUDIO_KIDS.length) | 0];
     const spec = wearCopy(STUDIO[key], { gait: "walk" });
     const fig = makeCitizen(spec);
-    let spot = roofPick(group);
-    for (let t = 0; t < 6 && door && Math.hypot(spot.x - door.upX, spot.z - door.upZ) < 1.3; t++) {
-      spot = roofPick(group);
-    }
-    const home = { x: spot.x, z: spot.z, y: roofStay.y, group: group, goalX: spot.x, goalZ: spot.z };
+    const home = { x: spot.x, z: spot.z, y: roofStay.y, group: group, goalX: spot.x, goalZ: spot.z, pauseUntil: 0 };
     roofClamp(group, home);
     fig.userData.roof = home;
     fig.userData.offset = i * 0.85;
-    fig.userData.play = spec.play || (i % 2 ? "wave" : "work");
+    const playStyle = spec.play === "sit" ? "wave" : (spec.play || (i % 2 ? "wave" : "work"));
+    fig.userData.play = playStyle;
     fig.position.set(home.x, home.y, home.z);
     vfx.add(fig);
     roofKids.push(fig);
@@ -36796,15 +37239,15 @@ function stepRoofVisit(now) {
   const group = roofVisit[0].userData.roof.group;
   if (now >= group.until) {
     const roll = group.rand();
-    group.mode = roll < 0.55 ? "chase" : "play";
+    group.mode = roll < 0.52 ? "chase" : "play";
     group.until = now + 7 + group.rand() * 6;
     if (group.mode === "chase") group.it = (group.rand() * group.kids.length) | 0;
     if (group.mode === "play") {
       for (let k = 0; k < group.kids.length; k++) {
         const goal = roofPick(group);
         const home = group.kids[k].userData.roof;
-        home.goalX = goal.x;
-        home.goalZ = goal.z;
+        if (goal) { home.goalX = goal.x; home.goalZ = goal.z; }
+        home.pauseUntil = 0;
       }
     }
   }
@@ -36826,34 +37269,40 @@ function stepRoofVisit(now) {
           const d = Math.hypot(other.x - home.x, other.z - home.z);
           if (d < bestD) { bestD = d; best = other; bestI = k; }
         }
-        if (best && bestD < 0.5 && now > group.tagAt) {
+        if (best && bestD < 0.55 && now > group.tagAt) {
           group.it = bestI;
           group.tagAt = now + 1.4;
         }
-        yaw = roofSteer(group, home, best ? best.x : group.minX, best ? best.z : group.minZ, 1.2, dt);
+        yaw = roofSteer(group, home, fig, best ? best.x : group.minX, best ? best.z : group.minZ, 1.2, dt);
         moving = 1;
       } else {
         const awayX = home.x - quarry.x, awayZ = home.z - quarry.z;
         const ad = Math.hypot(awayX, awayZ) || 1;
-        yaw = roofSteer(group, home, home.x + awayX / ad * 1.5, home.z + awayZ / ad * 1.5, 1.15, dt);
+        yaw = roofSteer(group, home, fig, home.x + awayX / ad * 1.5, home.z + awayZ / ad * 1.5, 1.15, dt);
         moving = 1;
       }
+    } else if (home.pauseUntil && now < home.pauseUntil) {
+      // Natural idle/wave pause between strolls so rooftop work_stand, fight, and wave_stand clips play.
+      moving = 0;
+      const lookPlayer = roofStay && roofStay.deck === group.deck && Math.hypot(walkX - home.x, walkZ - home.z) < 6;
+      if (lookPlayer) yaw = Math.atan2(walkX - home.x, walkZ - home.z);
     } else {
-      if (Math.hypot(home.goalX - home.x, home.goalZ - home.z) < 0.4) {
+      if (Math.hypot(home.goalX - home.x, home.goalZ - home.z) < 0.42) {
         const goal = roofPick(group);
-        home.goalX = goal.x;
-        home.goalZ = goal.z;
+        if (goal) { home.goalX = goal.x; home.goalZ = goal.z; }
+        home.pauseUntil = now + 1.8 + group.rand() * 2.4;
+        moving = 0;
+      } else {
+        yaw = roofSteer(group, home, fig, home.goalX, home.goalZ, 0.7, dt);
+        moving = 0.7;
       }
-      yaw = roofSteer(group, home, home.goalX, home.goalZ, 0.7, dt);
-      moving = 0.7;
     }
     roofClamp(group, home);
-    if (Math.hypot(home.x - wasX, home.z - wasZ) < 0.012) {
+    if (moving > 0 && Math.hypot(home.x - wasX, home.z - wasZ) < 0.012) {
       home.stuck = (home.stuck || 0) + 1;
       if (home.stuck > 18) {
         const goal = roofPick(group);
-        home.goalX = goal.x;
-        home.goalZ = goal.z;
+        if (goal) { home.goalX = goal.x; home.goalZ = goal.z; }
         home.stuck = 0;
         if (group.mode === "chase") group.mode = "play";
       }
@@ -36868,6 +37317,10 @@ function stepRoofVisit(now) {
 function stepRoofKids(now) {
   if (!roofStay) {
     if (roofVisit.length) clearRoofVisit();
+    return;
+  }
+  if (runPaused() || run.sheet) {
+    stepRoofVisit.prev = now;
     return;
   }
   const out = roofKidsOut();
@@ -38523,12 +38976,12 @@ function flushFigure(fig) {
   // OrbitControls rewrites the camera from its saved target. Walk and the place glide come after that.
   const dt = Math.min(0.05, Math.max(0, now - (stepWalk.t || now)));
   stepWalk.t = now;
-  if (walkMode) {
-    stepWalk(dt);
-    miniMapDraw();
-  } else stepViewGlide(dt);
-  stepRun(now, dt);
+  if (walkMode) stepWalk(dt);
+  else stepViewGlide(dt);
+  // Position #roof-go before stepRun() so #run-prompt avoids fresh bounds, then draw minimap with current-frame jobs & slips.
   syncRoofButton();
+  stepRun(now, dt);
+  if (walkMode) miniMapDraw();
   holdCameraAboveFloor();
   if (!walkMode) holdViewOutside();
   syncCityFolk(now);
