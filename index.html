@@ -4213,6 +4213,7 @@ const SHOP_MIX = {
   tau:    [["dentist", 0.48], ["doctor", 0.22], ["pharmacy", 0.12], ["bonesetter", 0.08], ["herbal", 0.05], ["grocery", 0.05]],
   tsing:  [["dentist", 0.22], ["doctor", 0.14], ["grocery", 0.18], ["pharmacy", 0.12], ["cafe", 0.10], ["barber", 0.08], ["hardware", 0.08], ["rice", 0.08]],
   carpenter: [["grocery", 0.22], ["cafe", 0.14], ["pharmacy", 0.12], ["hardware", 0.12], ["rice", 0.10], ["barber", 0.10], ["herbal", 0.08], ["electrical", 0.06], ["bonesetter", 0.06]],
+  saitau:    [["dentist", 0.24], ["doctor", 0.12], ["grocery", 0.18], ["cafe", 0.12], ["hardware", 0.10], ["barber", 0.08], ["herbal", 0.08], ["plastic", 0.08]],
   loyan:  [["door", 0.60], ["grocery", 0.14], ["herbal", 0.10], ["doctor", 0.08], ["bonesetter", 0.08]],
   temple: [["joss", 0.32], ["grocery", 0.16], ["herbal", 0.12], ["cafe", 0.08], ["door", 0.32]],
   szkung: [["door", 0.72], ["joss", 0.16], ["grocery", 0.12]],
@@ -5406,6 +5407,7 @@ function probeFace(x, z, w, d, face, along) {
           let thick = Math.min(v.x2 - v.x, v.z2 - v.z);
           if (thick > 6) thick = 2.2;
           if (v.link && thick > 1.55) thick = 1.55;
+          if (v.apron && thick < 1.45) thick = 1.45;
           lane = { kind: "void", thick: thick, s: s };
           break;
         }
@@ -5414,13 +5416,17 @@ function probeFace(x, z, w, d, face, along) {
     if (massAt < 1.2) break;
   }
   if (massAt < 1.2) return { kind: "mass" };
-  if (lane && lane.s < massAt && lane.s <= 3.8) return { kind: lane.kind, thick: lane.thick };
+  if (lane && lane.s < massAt && lane.s <= 3.8) {
+    const clearW = massAt < 99 ? Math.min(lane.thick, massAt - 0.10) : lane.thick;
+    return { kind: lane.kind, thick: clearW };
+  }
   // The next building is across a gap, not against this wall. Keep the kind
   // the sign pass already skips, and tell the shop the gap is narrow.
   if (massAt < 99) return { kind: "none", thick: Math.max(0.9, massAt - 0.15) };
   if (face === "n" && z < 5.5) return { kind: "outer", thick: 7.5 };
   if (face === "e" && x + w > SITE_W - 5.5) return { kind: "outer", thick: 5.5 };
   if (face === "s" && z + d > SITE_D - 6) return { kind: "outer", thick: 6 };
+  if (face === "w" && x < 5.5) return { kind: "outer", thick: 5.5 };
   let outside = 0;
   for (let s = 0.6; s <= 3.4; s += 0.4) {
     const px = origin.x + dir[0] * s;
@@ -5450,8 +5456,8 @@ function faceOpenRuns(x, z, w, d, face, allowSlit) {
   const step = 0.34;
   const n = Math.max(2, Math.ceil(span / step));
   const samples = [];
-  const minClear = allowSlit ? 1.15 : 1.38;
-  const minRun = allowSlit ? 1.15 : 1.85;
+  const minClear = allowSlit ? 1.15 : 1.25;
+  const minRun = allowSlit ? 1.15 : 1.55;
   for (let i = 0; i <= n; i++) {
     const m = span * (i / n);
     const hit = probeFace(x, z, w, d, face, m / span);
@@ -5533,10 +5539,10 @@ function bayOnFace(x, z, w, d, face, a0, a1) {
 // of those fronts. A single mouth on that wall, with the rest left as
 // concrete or one long shutter, reads as a thin shop stranded on the block.
 function shopBayCount(span) {
-  // Authentic 1980s Kowloon Walled City shopfronts: ~2.1–3.8 m wide.
-  const bay = 3.15;
-  const widest = 3.85;
-  const narrowest = 2.05;
+  // Authentic 1980s Kowloon Walled City shopfronts: wall-to-wall ~1.75–3.75 m bays.
+  const bay = 2.95;
+  const widest = 3.75;
+  const narrowest = 1.75;
   let n = Math.max(1, Math.round(span / bay));
   if (span / n > widest) n = Math.ceil(span / widest);
   if (n > 1 && span / n < narrowest) n = Math.max(1, Math.floor(span / narrowest));
@@ -5548,7 +5554,7 @@ function planShopFace(x, z, w, d, face, run) {
   const a0 = run ? run.a0 : 0;
   const a1 = run ? run.a1 : full;
   const span = a1 - a0;
-  if (span < 1.85) return [];
+  if (span < 1.55) return [];
   const n = shopBayCount(span);
   // The trade belongs to the street this opening faces, not to whichever
   // named street happens to be nearest the middle of the block.
@@ -5559,7 +5565,7 @@ function planShopFace(x, z, w, d, face, run) {
     const gap = n > 1 ? 0.08 : 0.04;
     const s0 = a0 + i * piece + gap;
     const s1 = a0 + (i + 1) * piece - gap;
-    if (s1 - s0 < 1.8) continue;
+    if (s1 - s0 < 1.48) continue;
     const bay = bayOnFace(x, z, w, d, face, s0, s1);
     const picked = chooseShop(zoneId, bay.x + bay.w * 0.5, bay.z + bay.d * 0.5, 0x9e3779b9 + i * 17 + Math.floor(a0 * 13));
     // Only split off a residential door when BOTH a realistic 1.38 m door bay
@@ -5735,16 +5741,24 @@ function addShopCheek(box) {
   }
 }
 const SHOP_ROOM_MAX = 2.05;
+function shopBayMargin(span, movedHole) {
+  if (movedHole) return 0.08;
+  let m = span < 1.95 ? 0.14 : (span < 2.25 ? 0.18 : 0.24);
+  if (span - m * 2 < 0.62) m = Math.max(0.05, (span - 0.62) / 2);
+  return m;
+}
 function shopCounterPlan(roomD, openW) {
   const wall = -(roomD - 0.05);
   const deep = roomD >= 1.32;
-  const frontD = deep ? 0.44 : 0.42;
+  const frontD = deep ? 0.44 : (roomD < 0.78 ? 0.34 : 0.40);
   let frontOut = deep ? -0.52 : -0.42;
-  const frontMin = wall + 0.04 + frontD * 0.5;
+  const frontMin = wall + 0.05 + frontD * 0.5;
+  const frontMax = -0.12 - frontD * 0.5;
   if (frontOut < frontMin) frontOut = frontMin;
+  if (frontOut > frontMax) frontOut = frontMax;
   const frontW = deep
-    ? Math.min(1.26, Math.max(0.58, openW * 0.44))
-    : Math.min(1.15, Math.max(0.55, openW * 0.42));
+    ? Math.min(1.26, Math.max(0.54, openW * 0.44))
+    : Math.min(1.12, Math.max(0.46, openW * 0.42));
   return { wall: wall, deep: deep, frontD: frontD, frontOut: frontOut, frontW: frontW, frontAlong: 0.62, frontTop: 0.88 };
 }
 function fitOpenShop(kind, put, openW, span, bay, face) {
@@ -5826,9 +5840,8 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
   const counterL = 0.64 * span - openW * 0.2;
   function fitFloor(wants) {
     const gap = 0.04;
-    // The plaster cheek is the 8 cm jamb at the opening. Goods start clear of it.
-    const cheekEnd = Math.max(marginM, 0.1);
-    const lo = cheekEnd + 0.08;
+    // Stay clear of both the 8 cm jamb cheek and the 16 cm open folded gate stack at the left edge.
+    const lo = Math.max(marginM + 0.20, 0.26);
     const hi = Math.max(lo + 0.16, counterL - 0.03);
     const room = Math.max(0.16, hi - lo);
     let need = gap * Math.max(0, wants.length - 1);
@@ -5841,9 +5854,9 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       let cx = x + ww * 0.5;
       x += ww + gap * s;
       const rad = dd * 0.5;
-      const back = deepRoom ? Math.max(wall + 0.42 + rad, -0.68 + rad) : (-0.375 + rad);
-      const front = (deepRoom ? -0.14 : -0.05) - rad;
-      const out = back <= front ? (back + front) * 0.5 : back;
+      const back = Math.max(wall + 0.08 + rad, deepRoom ? Math.max(wall + 0.42 + rad, -0.68 + rad) : (-0.375 + rad));
+      const front = -0.14 - rad;
+      const out = back <= front ? (back + front) * 0.5 : Math.min(front, back);
       // A single piece can step along the opening until it is off a jamb.
       // Packed rows keep their gaps, so they do not step into each other.
       if (bay && face && wants.length === 1) {
@@ -5876,8 +5889,7 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
   {
     const kindSpec = SHOP_KIND[kind] || {};
     const mouthCap = (kindSpec.workshop || kind === "bbq" || kind === "noodle" || kind === "fishball") ? 2.15 : 2.6;
-    let bayMargin = 0.24;
-    if (span - bayMargin * 2 < 0.62) bayMargin = Math.max(0.05, (span - 0.62) / 2);
+    const bayMargin = shopBayMargin(span, !!(bay && bay.movedHole));
     const mouthW = Math.min(openW * 0.96, mouthCap);
     const mouth0 = bayMargin / span;
     const mouth1 = mouth0 + mouthW / span;
@@ -6007,9 +6019,10 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       { geo: "tin", mat: bolt[1], s: 1.15 }
     ]);
   } else if (kind === "rice") {
-    put(shopGeo.sack, shopFinish.sack, 0.28, -0.32, 0.312, 0.95, 1, 0.95);
-    put(shopGeo.sack, shopFinish.sack, 0.44, -0.34, 0.31, 1, 1.05, 1);
-    put(shopGeo.box, wood, 0.72, -0.32, 0.582, 0.28, 0.5, 0.16);
+    const riceOut = Math.min(-0.30, Math.max(wall + 0.22, -0.34));
+    put(shopGeo.sack, shopFinish.sack, 0.30, riceOut, 0.312, 0.95, 1, 0.95);
+    put(shopGeo.sack, shopFinish.sack, 0.46, riceOut - 0.02, 0.31, 1, 1.05, 1);
+    put(shopGeo.box, wood, 0.72, riceOut, 0.582, 0.28, 0.5, 0.16);
     if (deepRoom) {
       // Second tiered stack of burlap sacks deeper in the storeroom.
       const sackBack = Math.max(wall + 0.42, -1.08);
@@ -6062,7 +6075,7 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       ]);
     }
   } else if (kind === "barber") {
-    const chairOut = deepRoom ? Math.max(wall + 0.66, -0.78) : -0.24;
+    const chairOut = deepRoom ? Math.max(wall + 0.66, -0.78) : Math.min(-0.28, Math.max(wall + 0.22, -0.36));
     put(shopGeo.chair, shopFinish.chair, 0.38, chairOut, 0.32, 0.92, 0.92, 0.92);
     lay(shopGeo.box, tin, 0.52, wallOut(0.025), 1.32, Math.min(0.82, openW * 0.42), 0.58, 0.025);
     if (deepRoom) {
@@ -6116,9 +6129,9 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       lay(shopGeo.pot, tin, 0.58, backCounterOut, onPot(backCounterTop, 0.55), 0.55, 0.55, 0.55);
     }
   } else if (kind === "mahjong") {
-    const mjOut = deepRoom ? Math.max(wall + 0.58, -0.92) : -0.28;
     const mjW = Math.min(0.76, openW * 0.42);
-    const mjD = deepRoom ? 0.56 : 0.4;
+    const mjD = deepRoom ? 0.56 : Math.min(0.40, Math.max(0.28, roomD - 0.26));
+    const mjOut = deepRoom ? Math.max(wall + 0.58, -0.92) : Math.min(-0.14 - mjD * 0.5, Math.max(wall + 0.08 + mjD * 0.5, -0.38));
     put(shopGeo.box, wood, 0.48, mjOut, 0.58, mjW, 0.14, mjD);
     legs(wood, 0.48, mjOut, 0.51, mjW, mjD);
     put(shopGeo.box, felt, 0.48, mjOut, 0.665, mjW - 0.06, 0.03, mjD - 0.06);
@@ -6131,9 +6144,9 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       put(shopGeo.stool, sMat, 0.48, mjOut + mjD * 0.5 + 0.18, floorY, 1, 1, 1);
     }
   } else if (kind === "paikau") {
-    const pkOut = deepRoom ? Math.max(wall + 0.58, -0.92) : -0.28;
     const pkW = Math.min(0.74, openW * 0.4);
-    const pkD = deepRoom ? 0.54 : 0.38;
+    const pkD = deepRoom ? 0.54 : Math.min(0.38, Math.max(0.26, roomD - 0.26));
+    const pkOut = deepRoom ? Math.max(wall + 0.58, -0.92) : Math.min(-0.14 - pkD * 0.5, Math.max(wall + 0.08 + pkD * 0.5, -0.38));
     put(shopGeo.box, wood, 0.48, pkOut, 0.58, pkW, 0.14, pkD);
     legs(wood, 0.48, pkOut, 0.51, pkW, pkD);
     put(shopGeo.box, cloth, 0.48, pkOut, 0.665, pkW - 0.06, 0.03, pkD - 0.06);
@@ -6243,10 +6256,11 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       ]);
     }
   } else if (kind === "joss") {
-    put(shopGeo.jar, redG, 0.28, deepRoom ? -0.38 : -0.28, 0.434, 1.3, 1.7, 1.3);
-    put(shopGeo.jar, redG, 0.4, deepRoom ? -0.38 : -0.28, 0.407, 1, 1.25, 1);
-    put(shopGeo.box, amber, 0.72, deepRoom ? -0.38 : -0.28, 0.442, 0.16, 0.22, 0.1);
-    for (let i = 0; i < 5; i++) put(shopGeo.box, amber, 0.28 + (i - 2) * 0.012 / span, deepRoom ? -0.38 : -0.28, 0.66, 0.012, 0.32, 0.012);
+    const jossOut = deepRoom ? -0.38 : Math.min(-0.26, Math.max(wall + 0.18, -0.32));
+    put(shopGeo.jar, redG, 0.30, jossOut, 0.434, 1.3, 1.7, 1.3);
+    put(shopGeo.jar, redG, 0.42, jossOut, 0.407, 1, 1.25, 1);
+    put(shopGeo.box, amber, 0.72, jossOut, 0.442, 0.16, 0.22, 0.1);
+    for (let i = 0; i < 5; i++) put(shopGeo.box, amber, 0.30 + (i - 2) * 0.012 / span, jossOut, 0.66, 0.012, 0.32, 0.012);
     stockBackShelf(0.5, Math.min(1.1, openW * 0.5), [
       { geo: "box", mat: amber, w: 0.14, h: 0.14 }, { geo: "jar", mat: redG, s: 1.2 },
       { geo: "box", mat: amber, w: 0.16, h: 0.12 }, { geo: "jar", mat: redG, s: 1.15 }
@@ -6275,9 +6289,9 @@ function fitOpenShop(kind, put, openW, span, bay, face) {
       ? (span - openW) * 0.5 + front.doorW + front.gap + front.winW * 0.5
       : (span - openW) * 0.5 + front.doorW * 0.5;
     const ua = Math.max(0.18, Math.min(0.82, winCenterM / span));
-    // Seat dental chair and console naturally inside the deeper treatment room rather than pressed against the glass.
-    const chairOut = deepRoom ? Math.max(wall + 0.72, -0.58) : -0.14;
-    const unitOut = Math.max(wall + 0.26, chairOut - 0.28);
+    // Seat dental chair and console naturally inside the treatment room, strictly clear of both the front glass and rear wall.
+    const chairOut = deepRoom ? Math.max(wall + 0.72, -0.58) : Math.min(-0.26, Math.max(wall + 0.32, -0.34));
+    const unitOut = Math.max(wall + 0.18, chairOut - 0.24);
     const unitH = 0.92;
     put(shopGeo.box, cream, ua, unitOut, floorY + unitH * 0.5, 0.34, unitH, 0.28);
     put(shopGeo.box, tin, ua, unitOut + 0.06, floorY + unitH + 0.012, 0.16, 0.02, 0.1);
@@ -6381,20 +6395,26 @@ function noteShopkeeper(bay, face, kind, data) {
   }
   const span = bay.span || 4;
   const thin = span < 2.2;
+  const compact = roomFit < 1.05 || span < 1.85;
   const roll = lotRoll(bay.x + bay.w * 0.5, bay.z + bay.d * 0.5, 0x51 + Math.floor(span * 10));
   let stance = "work";
-  if (thin && !deep) stance = "sit";
+  if (compact) stance = (roll < 0.58 && span >= 1.1) ? "sit" : "idle";
+  else if (thin && !deep) stance = "sit";
   else if (roll < 0.32) stance = "sit";
   else if (roll < 0.62) stance = "idle";
   if (kind === "barber" && !thin && stance === "sit") stance = "idle";
-  if (stance === "sit" && span < 0.9) stance = "idle";
+  if (stance === "sit" && span < 1.05) stance = "idle";
+  // Keep initial keeper target strictly between rear plaster wall (+0.17 m) and gate clearance line.
+  const minPrefOut = backFace - SHOP_SEAT + 0.17;
+  const maxPrefOut = Math.max(minPrefOut, -0.96);
+  const clampedPrefOut = Math.min(Math.min(-0.66, maxPrefOut), Math.max(minPrefOut, depth - SHOP_SEAT));
   const seat = {
     face: face, x: bay.x, z: bay.z, w: bay.w, d: bay.d, span: span,
-    room: roomFit, roomW: bay.roomW || 0,
-    prefAlong: along, prefOut: depth - SHOP_SEAT,
+    room: roomFit, roomW: bay.roomW || 0, movedHole: !!bay.movedHole,
+    prefAlong: along, prefOut: clampedPrefOut,
     lotX: data.x, lotZ: data.z, lotW: data.w, lotD: data.d
   };
-  const spot = facePose(bay.x, bay.z, bay.w, bay.d, face, along, depth - SHOP_SEAT, 0.33);
+  const spot = facePose(bay.x, bay.z, bay.w, bay.d, face, along, clampedPrefOut, 0.33);
   const mouth = facePose(bay.x, bay.z, bay.w, bay.d, face, 0.5, -SHOP_SEAT, 0.33);
   if (massCovers(spot.x, spot.z, data.x, data.z, data.w, data.d)) return;
   const toward = face === "e" ? 1 : -1;
@@ -6619,8 +6639,7 @@ function settleSeatedKeepers() {
     const seat = post.seat;
     if (!seat) continue;
     const span = (seat.face === "n" || seat.face === "s") ? seat.w : seat.d;
-    let margin = 0.24;
-    if (span - margin * 2 < 0.62) margin = Math.max(0.05, (span - 0.62) / 2);
+    const margin = shopBayMargin(span, !!seat.movedHole);
     const openW = Math.max(0.55, span - margin * 2);
     const roomW = (seat.room > 0.7 && seat.roomW)
       ? Math.min(seat.roomW - 0.04, openW + 0.16)
@@ -6725,8 +6744,7 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
   }
   noteLaneMouth(bay, face);
   const span = bay.span;
-  let margin = 0.24;
-  if (span - margin * 2 < 0.62) margin = Math.max(0.05, (span - 0.62) / 2);
+  const margin = shopBayMargin(span, !!bay.movedHole);
   const openW = Math.max(0.55, span - margin * 2);
   const inset = (span - openW) / (2 * span);
   const front = spec.glass ? glassFront(openW) : null;
@@ -6852,18 +6870,19 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
   } else {
     put(shopGeo.box, cheekMat, frameAlong, returnOut, returnTop - 0.04, frameW + cheekW * 2, 0.07, returnD);
   }
-  // 1980s Kowloon Walled City pier utilities: exposed galvanized water/conduit pipe & electrical meter box (電錶箱).
+  // 1980s Kowloon Walled City pier utilities: exposed galvanized conduit & electrical meter box (電錶箱),
+  // mounted flush against the cheek front face (out = -0.040) with zero air gap or pier overhang.
   if (!isDoor) {
     const pipeMat = solidMat("pierPipe", 0x5c605c, 0.72, 0.22);
     const meterMat = solidMat("meterBox", 0x3b3f3d, 0.78, 0.16);
     if (hasLeftCheek && bayRoll < 0.68) {
-      put(shopGeo.box, pipeMat, leftCheek, -0.015, returnY, 0.032, returnH * 0.96, 0.032);
-      if (bayRoll < 0.36) put(shopGeo.box, pipeMat, leftCheek + 0.036 / span, -0.015, returnY, 0.022, returnH * 0.96, 0.022);
+      put(shopGeo.box, pipeMat, leftCheek - 0.014 / span, -0.026, returnY, 0.028, returnH * 0.96, 0.028);
+      if (bayRoll < 0.36) put(shopGeo.box, pipeMat, leftCheek + 0.016 / span, -0.030, returnY, 0.020, returnH * 0.96, 0.020);
     }
     if (hasRightCheek && bayRoll > 0.34) {
       const meterY = 1.48 + (bayRoll - 0.5) * 0.25;
-      put(shopGeo.box, meterMat, rightCheek, 0.005, meterY, 0.12, 0.19, 0.07);
-      put(shopGeo.box, pipeMat, rightCheek, -0.012, (meterY + returnTop) * 0.5, 0.02, Math.max(0.2, returnTop - meterY), 0.02);
+      put(shopGeo.box, meterMat, rightCheek, -0.012, meterY, 0.078, 0.19, 0.060);
+      put(shopGeo.box, pipeMat, rightCheek, -0.031, (meterY + returnTop) * 0.5, 0.018, Math.max(0.2, returnTop - meterY), 0.018);
     }
   }
   // The bay.room depth is the recess plus the notch cut out of the ground
@@ -6978,13 +6997,18 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
     }
   }
   function putExteriorFasciaLamp(width, along, y) {
-    // Hooded exterior fluorescent tube mounted just above the trade fascia.
+    // Hooded exterior fluorescent tube anchored directly into the fascia/lintel via steel brackets,
+    // clamped cleanly below the mosaic header so it never floats or clips.
     const lampW = Math.min(1.08, Math.max(0.42, width * 0.58));
+    const lampY = Math.min(y, returnTop - 0.095);
     const hoodMat = solidMat("fasciaHood", 0x2a2c2b, 0.78, 0.24);
     const extTube = solidMat("extTube-" + (spec.tube || 0xffe2b8).toString(16), spec.tube || 0xffe2b8, 0.32, 0, 0.35, 1.45);
-    put(shopGeo.box, hoodMat, along, 0.055, y + 0.025, lampW + 0.06, 0.022, 0.09);
+    const brOff = Math.max(0.10, lampW * 0.36) / span;
+    put(shopGeo.box, hoodMat, along - brOff, -0.005, lampY + 0.022, 0.022, 0.022, 0.055);
+    put(shopGeo.box, hoodMat, along + brOff, -0.005, lampY + 0.022, 0.022, 0.022, 0.055);
+    put(shopGeo.box, hoodMat, along, 0.020, lampY + 0.022, lampW + 0.06, 0.022, 0.09);
     byDay(function () {
-      put(shopGeo.box, extTube, along, 0.06, y, lampW, 0.022, 0.024);
+      put(shopGeo.box, extTube, along, 0.030, lampY, lampW, 0.020, 0.022);
     });
   }
   if (word && kind !== "door" && !(spec.glass && variant !== "shut")) {
@@ -7038,8 +7062,8 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
     if (hasLeftCheek) put(shopGeo.plane, stairStripMat(0), leftCheek, -0.036, 1.66, 0.072, 0.20, 1);
     if (hasRightCheek) put(shopGeo.plane, stairStripMat(1), rightCheek, -0.036, 1.66, 0.072, 0.20, 1);
   } else if (variant === "shut") {
-    putShutterBox(openW * 0.98, 0.5, shutterBoxY, 0.36, shutterBoxH, -0.05, true, false);
-    roller(0.36, mouthTop, openW * 0.96, 0.5, -0.05);
+    putShutterBox(openW * 0.98, 0.5, shutterBoxY, floorTop, shutterBoxH, -0.05, true, false);
+    roller(floorTop, mouthTop, openW * 0.96, 0.5, -0.05);
   } else if (spec.glass) {
     const doorW = front.doorW;
     const winW = front.winW;
@@ -7063,11 +7087,12 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
       const board = fasciaBoard(word, spec.fascia || "#f4f0e6", spec.inkF || "#1a1612", fw / fh);
       put(shopGeo.plane, board.mat, unitMid, -0.02, fy, fw, fh, 1);
       putExteriorFasciaLamp(fw, unitMid, fy + fh * 0.5 + 0.02);
-      // Authentic 1980s Walled City clinic side vertical plaque beside the doorway.
+      // Authentic 1980s Walled City clinic side vertical plaque mounted flush onto the 0.08 m pier cheek.
       if (hasLeftCheek && words.length > 1) {
         const sideWord = words[(wordIndex + 1) % words.length] || word;
         const sideMat = alleySignMat(sideWord, spec.blade || "#f3efe4", spec.ink || "#9d1c1c", 0.32, false, false);
-        put(shopGeo.plane, sideMat, leftCheek, 0.02, 1.48, 0.16, 0.36, 1);
+        put(shopGeo.box, shopFinish.metal, leftCheek, -0.036, 1.48, 0.076, 0.24, 0.008);
+        put(shopGeo.plane, sideMat, leftCheek, -0.030, 1.48, 0.074, 0.23, 1);
       }
     }
     const frostMat = solidMat("clinicFrost", 0xdcd6c6, 0.65, 0.02);
@@ -7121,21 +7146,22 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
     put(shopGeo.box, shopFinish.timber, doorAlong - doorW / (2 * span), -0.05, frameY, 0.045, frameH, 0.05);
     put(shopGeo.box, shopFinish.timber, doorAlong + doorW / (2 * span), -0.05, frameY, 0.045, frameH, 0.05);
     put(shopGeo.box, shopFinish.timber, doorAlong, -0.05, head - 0.02, doorW + 0.05, 0.045, 0.05);
-    const fold = 0.14;
-    const gateW = Math.max(0.5, unit - 0.06);
-    // Authentic clinic gate: scissor iron gate (75%) or light steel roller shutter (25%), seated cleanly proud of glass/bars at out=-0.02.
+    const gateW = Math.max(0.44, unit - 0.05);
+    // Authentic clinic gate: scissor iron gate (75%) with flush steel head track or light steel roller shutter (25%), proud of glass/bars at out=-0.02.
     if (clinicRoller) {
       const cBoxH = 0.10;
       const cBoxY = head + 0.06;
-      putShutterBox(gateW + 0.04, unitMid, cBoxY, 0.36, cBoxH, -0.02, false, true);
+      putShutterBox(gateW + 0.04, unitMid, cBoxY, floorTop, cBoxH, -0.02, false, true);
       addShopMesh.hours = 2;
-      roller(0.36, cBoxY - cBoxH * 0.5 + 0.01, gateW, unitMid, -0.02);
+      roller(floorTop, cBoxY - cBoxH * 0.5 + 0.01, gateW, unitMid, -0.02);
       addShopMesh.hours = 0;
     } else {
+      const cTrackBot = head - 0.028;
+      put(shopGeo.box, shopFinish.metal, unitMid, -0.02, cTrackBot + 0.014, Math.max(0.48, unit - 0.02), 0.028, 0.04);
       addShopMesh.hours = 1;
-      putCollapsedGate(put, span, inset + fold / (2 * span), 0.38, head - 0.06, gateProf.barTone, -0.02);
+      putCollapsedGate(put, span, inset + (0.025 + 0.075) / span, floorTop, cTrackBot, gateProf.barTone, -0.02);
       addShopMesh.hours = 2;
-      putCollapsible(put, span, unitMid, gateW, 0.38, head - 0.06, gateProf.barTone, -0.02);
+      putCollapsible(put, span, unitMid, gateW, floorTop, cTrackBot, gateProf.barTone, -0.02);
       addShopMesh.hours = 0;
     }
     const rest = openW - unit;
@@ -7155,30 +7181,33 @@ function placeBay(bay, face, kind, rng, data, clearance, lotZ, pinX, pinZ) {
       const restCenter = 1 - inset - rest / (2 * span);
       // Every partial workshop shutter gets its own overhead housing & tracks (or shares a full-width roller box).
       if (gateProf.style !== "roller") {
-        putShutterBox(restW + 0.04, restCenter, shutterBoxY, 0.36, shutterBoxH, -0.05, false, false);
+        putShutterBox(restW + 0.04, restCenter, shutterBoxY, floorTop, shutterBoxH, -0.05, false, false);
       }
-      roller(0.36, mouthTop, restW, restCenter, -0.05);
+      roller(floorTop, mouthTop, restW, restCenter, -0.05);
     }
     if (gateProf.style === "roller") {
       // Continuous overhead shutter box covering the full opening when a side roller is present, no phantom day scissor stack.
-      if (hasSideRoller) putShutterBox(openW * 0.98, 0.5, shutterBoxY, 0.36, shutterBoxH, -0.05, true, false);
-      else putShutterBox(mouth * 0.98, mouthCenter, shutterBoxY, 0.36, shutterBoxH, -0.05, true, true);
+      if (hasSideRoller) putShutterBox(openW * 0.98, 0.5, shutterBoxY, floorTop, shutterBoxH, -0.05, true, false);
+      else putShutterBox(mouth * 0.98, mouthCenter, shutterBoxY, floorTop, shutterBoxH, -0.05, true, true);
       if (hasSideRoller) {
         addShopMesh.hours = 1;
         put(shopGeo.box, solidMat("shutterLip", 0x262422, 0.86, 0.18), mouthCenter, -0.05, shutterBoxBot - 0.018, Math.max(0.3, mouth - 0.04), 0.034, 0.028);
         addShopMesh.hours = 0;
       }
       addShopMesh.hours = 2;
-      roller(0.36, mouthTop, mouth * 0.96, mouthCenter, -0.05);
+      roller(floorTop, mouthTop, mouth * 0.96, mouthCenter, -0.05);
       addShopMesh.hours = 0;
     } else if (gateProf.style === "scissor") {
+      // Flush overhead steel head track bridging mouthTop up to the fascia underside.
+      put(shopGeo.box, shopFinish.metal, mouthCenter, -0.05, mouthTop + 0.014, mouth, 0.028, 0.045);
       addShopMesh.hours = 1;
-      putCollapsedGate(put, span, inset + fold / (2 * span), 0.36, mouthTop, gateProf.barTone, -0.05);
+      putCollapsedGate(put, span, inset + 0.085 / span, floorTop, mouthTop, gateProf.barTone, -0.05);
       addShopMesh.hours = 2;
-      putCollapsible(put, span, mouthCenter, mouth * 0.96, 0.36, mouthTop, gateProf.barTone, -0.05);
+      putCollapsible(put, span, mouthCenter, Math.max(0.42, mouth - 0.04), floorTop, mouthTop, gateProf.barTone, -0.05);
       addShopMesh.hours = 0;
     } else {
-      shopGate(inset + fold / (2 * span), mouthCenter, mouth, 0.36, mouthTop, gateProf.foldV, -0.05);
+      put(shopGeo.box, shopFinish.metal, mouthCenter, -0.05, mouthTop + 0.014, mouth, 0.028, 0.045);
+      shopGate(inset + 0.09 / span, mouthCenter, mouth, floorTop, mouthTop, gateProf.foldV, -0.05);
     }
   }
   if (lined && open && kind !== "mahjong" && kind !== "paikau") byDay(function () {
@@ -7517,8 +7546,8 @@ function streetFaces(x, z, w, d) {
     for (let i = 0; i < runs.length; i++) if (runs[i].clearance > clearance) clearance = runs[i].clearance;
     hits.push({ f: f, clearance: clearance, runs: runs });
   });
-  // Two open faces of one tenement meet at a corner. Pull both runs back 0.62 m
-  // so perpendicular shop cheeks and recesses stay cleanly clear of each other.
+  // Two open faces of one tenement meet at a corner. Pull both runs back 0.50 m
+  // so perpendicular shop cheeks stay clear while preserving compact corner kiosks.
   const open = {};
   hits.forEach(h => { open[h.f] = true; });
   const spanOf = f => (f === "n" || f === "s") ? w : d;
@@ -7530,16 +7559,15 @@ function streetFaces(x, z, w, d) {
     for (let i = 0; i < h.runs.length; i++) {
       const run = h.runs[i];
       let a0 = run.a0, a1 = run.a1;
-      if (open[prev] && a0 < 0.62) a0 = 0.62;
-      if (open[next] && a1 > span - 0.62) a1 = span - 0.62;
-      if (a1 - a0 >= 1.85) kept.push({ a0: a0, a1: a1, clearance: run.clearance });
+      if (open[prev] && a0 < 0.50) a0 = 0.50;
+      if (open[next] && a1 > span - 0.50) a1 = span - 0.50;
+      if (a1 - a0 >= 1.55) kept.push({ a0: a0, a1: a1, clearance: run.clearance });
     }
     h.runs = kept;
   });
   const live = hits.filter(h => h.runs.length);
   live.sort((a, b) => (b.clearance || 0) - (a.clearance || 0));
-  const maxFaces = Math.min(w, d) < 5.5 ? 2 : 3;
-  return live.slice(0, maxFaces);
+  return live.slice(0, 3);
 }
 function streetCell(i, j, face, cols, rows) {
   if (face === "n") return j === 0;
@@ -7756,9 +7784,15 @@ function shopRoomCuts(x, z, w, d, facePlans, openFaces) {
   facePlans.forEach(fp => {
     const face = fp.face;
     const spanDepth = (face === "n" || face === "s") ? d : w;
+    const crossSpan = (face === "n" || face === "s") ? w : d;
     const shell = spanDepth - inset(face) - inset(opp[face]);
-    let notch = Math.min(1.55 + SHOP_SEAT, shell - 0.55);
-    if (notch < 0.4) notch = 0;
+    const hasPerp = (face === "n" || face === "s") ? (open.e || open.w) : (open.n || open.s);
+    const oppOpen = !!open[opp[face]];
+    // Keep full 1.55 m walk-in rooms on deep lots; balance opposite open faces so neither face starves the other.
+    const wantRoom = (spanDepth >= 6.0 && (!hasPerp || crossSpan >= 6.5)) ? 1.55 : 1.05;
+    const maxPerSide = oppOpen ? Math.max(0.66, (shell - 0.46) * 0.5) : (shell - 0.50);
+    let notch = Math.min(wantRoom + SHOP_SEAT, maxPerSide);
+    if (notch < 0.45) notch = 0;
     fp.plans.forEach(p => {
       if (!p.bay) return;
       if (p.kind === "door" || notch <= 0) {
@@ -7766,19 +7800,19 @@ function shopRoomCuts(x, z, w, d, facePlans, openFaces) {
         p.bay.room = 0.2;
         // The household door is seated onto the wall with the shops. A short
         // slot keeps the gate and the first steps in the opening.
-        if (p.kind === "door" && notch >= 0.4) {
+        if (p.kind === "door" && notch >= 0.45) {
           let doorAlong, doorWidth;
           if (face === "n" || face === "s") { doorAlong = p.bay.x - x; doorWidth = p.bay.w; }
           else { doorAlong = p.bay.z - z; doorWidth = p.bay.d; }
           let margin = 0.24;
           if (doorWidth - margin * 2 < 0.62) margin = Math.max(0.05, (doorWidth - 0.62) / 2);
           const openDoorW = Math.max(0.55, doorWidth - margin * 2);
-          const mouth = Math.min(Math.max(0.70, openDoorW), 1.18);
+          const mouth = Math.min(Math.max(0.80, openDoorW), 1.18);
           // Center the concrete shell cutout to match placeBay's centered doorway + 0.08 m jambs per side.
           const cutW = Math.min(doorWidth - 0.08, mouth + 0.16);
           const cutA0 = doorAlong + (doorWidth - cutW) * 0.5;
           const doorNotch = Math.min(1.05, notch);
-          if (cutW >= 0.86) {
+          if (cutW >= 0.96) {
             p.bay.doorCutW = cutW;
             cuts.push({ face: face, along0: cutA0, width: cutW, notch: doorNotch, bay: p.bay });
           }
@@ -7788,7 +7822,7 @@ function shopRoomCuts(x, z, w, d, facePlans, openFaces) {
       let along0, width;
       if (face === "n" || face === "s") { along0 = p.bay.x - x; width = p.bay.w; }
       else { along0 = p.bay.z - z; width = p.bay.d; }
-      const pad = width > 1.15 ? 0.22 : 0.08;
+      const pad = width > 1.85 ? 0.22 : (width > 1.35 ? 0.14 : 0.08);
       const cutW = width - pad * 2;
       if (cutW < 0.4) {
         p.bay.room = 0.2;
@@ -7967,8 +8001,9 @@ function makeFramedBlock(w, d, floors, floorH, openFaces, ox, oz, stairCut, step
           return;
         }
         const hole = measureHole(cut.face, best);
-        const minHoleW = cut.shop ? 1.35 : 0.86;
-        if (hole.width < minHoleW || hole.notch < 0.42) {
+        const minHoleW = cut.shop ? 1.24 : 0.96;
+        const minHoleNotch = cut.shop ? 0.62 : 0.45;
+        if (hole.width < minHoleW || hole.notch < minHoleNotch) {
           cut.notch = 0;
           if (cut.bay) cut.bay.room = 0.2;
           return;
@@ -7980,12 +8015,13 @@ function makeFramedBlock(w, d, floors, floorH, openFaces, ox, oz, stairCut, step
         if (cut.bay) {
           cut.bay.room = hole.notch > 0.35 ? 0.48 + Math.max(0, hole.notch - SHOP_SEAT) - 0.06 : 0.2;
           // The bay was wider than the hole left beside a neighbour. Sit the
-          // shop on the hole, or its counter and lining run through that wall.
+          // shop on the hole and mark movedHole so placeBay does not subtract margins twice.
           if (moved) {
             if (cut.face === "n" || cut.face === "s") { cut.bay.x = ox + hole.along0; cut.bay.w = hole.width; }
             else { cut.bay.z = oz + hole.along0; cut.bay.d = hole.width; }
             cut.bay.span = hole.width;
             cut.bay.roomW = hole.width;
+            if (cut.shop) cut.bay.movedHole = true;
             if (cut.bay.doorCutW) cut.bay.doorCutW = hole.width;
           }
         }
@@ -8196,38 +8232,42 @@ function reserveBuildingStair(x, z, w, d, floors, facePlans, openFaces) {
   // one, reads as a second entrance a step from the first.
   if (facePlans.some(fp => fp.plans.some(p => p.kind === "door"))) return null;
   const stairW = 1.04;
-  for (let i = 0; i < facePlans.length; i++) {
-    const fp = facePlans[i];
-    if (fp.plans.some(p => p.kind === "door")) continue;
-    const face = fp.face;
-    const run = fp.run;
-    if (!run || run.a1 - run.a0 < stairW + 1.9) continue;
-    const slot = stairOnRun(x, z, w, d, face, run);
-    if (!slot) continue;
-    const shop0 = slot.atEnd ? run.a0 : slot.along0 + stairW;
-    const shop1 = slot.atEnd ? slot.along0 : run.a1;
-    const shopSpan = shop1 - shop0;
-    if (shopSpan < 1.85 * fp.plans.length) continue;
-    const n = fp.plans.length;
-    const piece = shopSpan / n;
-    let ok = true;
-    const next = [];
-    for (let k = 0; k < n; k++) {
-      const gap = n > 1 ? 0.06 : 0.02;
-      const s0 = shop0 + k * piece + gap;
-      const s1 = shop0 + (k + 1) * piece - gap;
-      if (s1 - s0 < 1.8) ok = false;
-      next.push(bayOnFace(x, z, w, d, face, s0, s1));
+  // Pass 1 keeps all planned shops; Pass 2 merges one shop bay on a tight run so multi-storey tenements get a real stair.
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < facePlans.length; i++) {
+      const fp = facePlans[i];
+      if (fp.plans.some(p => p.kind === "door")) continue;
+      const face = fp.face;
+      const run = fp.run;
+      if (!run || run.a1 - run.a0 < stairW + 1.55) continue;
+      const slot = stairOnRun(x, z, w, d, face, run);
+      if (!slot) continue;
+      const shop0 = slot.atEnd ? run.a0 : slot.along0 + stairW;
+      const shop1 = slot.atEnd ? slot.along0 : run.a1;
+      const shopSpan = shop1 - shop0;
+      const n = pass === 0 ? fp.plans.length : Math.max(1, fp.plans.length - 1);
+      if (pass === 1 && n === fp.plans.length) continue;
+      if (shopSpan < 1.52 * n) continue;
+      const piece = shopSpan / n;
+      let ok = true;
+      const next = [];
+      for (let k = 0; k < n; k++) {
+        const gap = n > 1 ? 0.06 : 0.02;
+        const s0 = shop0 + k * piece + gap;
+        const s1 = shop0 + (k + 1) * piece - gap;
+        if (s1 - s0 < 1.48) ok = false;
+        next.push(bayOnFace(x, z, w, d, face, s0, s1));
+      }
+      if (!ok) continue;
+      fp.plans.length = n;
+      for (let k = 0; k < n; k++) fp.plans[k].bay = next[k];
+      return slot;
     }
-    if (!ok) continue;
-    for (let k = 0; k < n; k++) fp.plans[k].bay = next[k];
-    return slot;
   }
-  if (facePlans.some(fp => fp.plans.some(p => p.kind === "door"))) return null;
   const used = {};
   facePlans.forEach(fp => { used[fp.face] = true; });
   let best = null;
-  // Only place fallback stairs on real mapped street/court/outer frontage (never disconnected dead-end slits).
+  // Pass 3: fallback stair on any unused mapped street/court/outer/apron frontage.
   ["n", "s", "e", "w"].forEach(face => {
     if (used[face]) return;
     const runs = faceOpenRuns(x, z, w, d, face, false);
@@ -8239,9 +8279,22 @@ function reserveBuildingStair(x, z, w, d, floors, facePlans, openFaces) {
       if (!best || run.clearance > best.clearance) best = { slot: slot, clearance: run.clearance, face: face };
     }
   });
-  if (!best) return null;
-  if (openFaces.indexOf(best.face) < 0) openFaces.push(best.face);
-  return best.slot;
+  if (best) {
+    if (openFaces.indexOf(best.face) < 0) openFaces.push(best.face);
+    return best.slot;
+  }
+  // Pass 4: if a multi-bay tenement still has no entrance, convert the narrowest secondary-face bay into a residential door.
+  let totalBays = 0;
+  for (let i = 0; i < facePlans.length; i++) totalBays += facePlans[i].plans.length;
+  if (totalBays >= 2 && facePlans.length > 0) {
+    const secFp = facePlans[facePlans.length - 1];
+    let pick = secFp.plans[0];
+    for (let k = 1; k < secFp.plans.length; k++) {
+      if (secFp.plans[k].bay.span < pick.bay.span) pick = secFp.plans[k];
+    }
+    if (pick) pick.kind = "door";
+  }
+  return null;
 }
 // A later household often stopped short of the lot line. The lower floors
 // keep the parcel. The added storeys step back, and the ledge is the roof
@@ -8654,6 +8707,7 @@ function shopZone(x, z, w, d, face) {
   if (face === "n" && z < 5.5) return "tau";
   if (face === "e" && x + w > SITE_W - 5.5) return "tsing";
   if (face === "s" && z + d > SITE_D - 6) return facingMain(x, z, w, d, face) || "carpenter";
+  if (face === "w" && x < 5.5) return (z + d * 0.5) < 55 ? "west" : "saitau";
   return facingMain(x, z, w, d, face) || "lane";
 }
 function lotZone(x, z, w, d) {
@@ -8937,7 +8991,7 @@ function dressRoof(x, z, w, d, h) {
     if (!roofDeck) return;
     roofDeck.blocks.push({ x: px - hx, z: pz - hz, x2: px + hx, z2: pz + hz });
   }
-  if (w < inset * 2 + 0.4 || d < inset * 2 + 0.4) return;
+  if (w < 1.90 || d < 1.90) return;
   const taken = [];
   function claim(px, pz, rad) {
     for (let i = 0; i < taken.length; i++) {
@@ -8959,11 +9013,13 @@ function dressRoof(x, z, w, d, h) {
   // 1980s Kowloon Walled City rooftop stairhead bulkhead (天台樓梯屋): full human height (~2.14-2.32 m),
   // placed first so every active rooftop entrance emerges cleanly from a real stairhead doorway.
   const ent = roofDeck && roofDeck.entrance;
+  const minRoofSpan = ent ? 1.90 : 2.15;
   const wantsBulkhead = !!ent || (w >= 3.6 && d >= 3.6 && rng() > 0.16);
-  if (wantsBulkhead && w >= 2.15 && d >= 2.15) {
+  if (wantsBulkhead && w >= minRoofSpan && d >= minRoofSpan) {
     const large = w >= 4.2 && d >= 4.2;
-    const bw = large ? (1.72 + rng() * 0.32) : Math.max(1.22, Math.min(1.56, w - 0.86));
-    const bd = large ? (1.88 + rng() * 0.34) : Math.max(1.26, Math.min(1.62, d - 0.86));
+    const tight = !large && (w < 2.25 || d < 2.25);
+    const bw = large ? (1.72 + rng() * 0.32) : (tight ? Math.max(1.06, Math.min(1.32, w - 0.72)) : Math.max(1.22, Math.min(1.56, w - 0.86)));
+    const bd = large ? (1.88 + rng() * 0.34) : (tight ? Math.max(1.08, Math.min(1.36, d - 0.72)) : Math.max(1.26, Math.min(1.62, d - 0.86)));
     const bh = large ? (2.22 + rng() * 0.14) : 2.14;
     // Choose orientation so the doorway (+Z in local bulkhead space) opens toward the widest clear roof area.
     let yaw = 0;
@@ -8978,8 +9034,9 @@ function dressRoof(x, z, w, d, h) {
     const rot90 = Math.abs(Math.sin(yaw)) > 0.5;
     const hx = (rot90 ? bd : bw) * 0.5;
     const hz = (rot90 ? bw : bd) * 0.5;
-    const mX = hx + 0.46;
-    const mZ = hz + 0.46;
+    const padEdge = tight ? 0.34 : 0.46;
+    const mX = hx + padEdge;
+    const mZ = hz + padEdge;
     if (w >= mX * 2 + 0.05 && d >= mZ * 2 + 0.05) {
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
       let sx = x + mX + rng() * (w - mX * 2);
@@ -9792,8 +9849,15 @@ function dressAlleys() {
     }
     return false;
   }
+  const apronParts = [];
   VOIDS.forEach((v, vi) => {
     if (v.court || v.notch) return;
+    if (v.apron) {
+      const aw = (v.x2 - v.x) + 0.24;
+      const ad = (v.z2 - v.z) + 0.24;
+      apronParts.push({ sx: aw, sy: 0.02, sz: ad, x: (v.x + v.x2) * 0.5, y: TOP - 0.0108, z: (v.z + v.z2) * 0.5 });
+      return;
+    }
     const dx = v.x2 - v.x, dz = v.z2 - v.z;
     const thick = Math.min(dx, dz), long = Math.max(dx, dz);
     if (thick > 6 || long < (v.link ? 3 : 8)) return;
@@ -10855,6 +10919,14 @@ function dressAlleys() {
       if (narrow) litterBase(start, end, roofRand(cx + 2.8, span[0] + 5.4, 0xD3B5));
     });
   });
+  if (apronParts.length) {
+    const apronMesh = new THREE.Mesh(mergedBoxes(apronParts), wearMat);
+    apronMesh.receiveShadow = true;
+    apronMesh.castShadow = false;
+    apronMesh.userData.street = 1;
+    apronMesh.userData.pave = 1;
+    city.add(apronMesh);
+  }
   function splitLong(list) {
     const out = [];
     list.forEach(box => {
@@ -12086,6 +12158,73 @@ function fillUntracedParcels() {
   }
   linkInfillAlleys(baseCount);
   indexBuiltMasses();
+  // Register walkable interior corridors/aprons reachable from mapped alleys or the city edge
+  // so dressAlleys() pours continuous concrete pavement (0.285 m) and shops never sit on unpoured gaps.
+  (function paveWalkableCorridors() {
+    const N = W * D;
+    const openG = new Uint8Array(N);
+    const inVoid = new Uint8Array(N);
+    for (let z = 0; z < D; z++) {
+      for (let x = 0; x < W; x++) {
+        const cx = x + 0.5, cz = z + 0.5;
+        if (!cityContains(cx, cz)) continue;
+        if (massCovers(cx, cz, -99, -99, 0, 0)) continue;
+        if (inTempleCourt(cx, cz)) continue;
+        const idx = z * W + x;
+        openG[idx] = 1;
+        for (let i = 0; i < VOIDS.length; i++) {
+          const v = VOIDS[i];
+          if (v.court || v.notch) continue;
+          if (cx >= v.x && cx <= v.x2 && cz >= v.z && cz <= v.z2) { inVoid[idx] = 1; break; }
+        }
+      }
+    }
+    const reach = new Uint8Array(N);
+    const q = [];
+    for (let z = 0; z < D; z++) {
+      for (let x = 0; x < W; x++) {
+        const idx = z * W + x;
+        if (!openG[idx]) continue;
+        const atRim = x === 0 || z === 0 || x === W - 1 || z === D - 1
+          || !cityContains(x - 0.5, z + 0.5) || !cityContains(x + 1.5, z + 0.5)
+          || !cityContains(x + 0.5, z - 0.5) || !cityContains(x + 0.5, z + 1.5);
+        if (inVoid[idx] || atRim) { reach[idx] = 1; q.push(x, z); }
+      }
+    }
+    for (let h = 0; h < q.length; h += 2) {
+      const cx = q[h], cz = q[h + 1];
+      const nbs = [[cx - 1, cz], [cx + 1, cz], [cx, cz - 1], [cx, cz + 1]];
+      for (let k = 0; k < 4; k++) {
+        const nx = nbs[k][0], nz = nbs[k][1];
+        if (nx < 0 || nz < 0 || nx >= W || nz >= D) continue;
+        const ni = nz * W + nx;
+        if (openG[ni] && !reach[ni]) { reach[ni] = 1; q.push(nx, nz); }
+      }
+    }
+    const used = new Uint8Array(N);
+    for (let z = 0; z < D; z++) {
+      for (let x = 0; x < W; x++) {
+        const idx = z * W + x;
+        if (!openG[idx] || !reach[idx] || inVoid[idx] || used[idx]) continue;
+        let rw = 0;
+        while (x + rw < W && rw < 6 && openG[z * W + x + rw] && reach[z * W + x + rw] && !inVoid[z * W + x + rw] && !used[z * W + x + rw]) rw++;
+        let rd = 1;
+        while (z + rd < D && rd < 24) {
+          let ok = true;
+          for (let k = 0; k < rw; k++) {
+            const ci = (z + rd) * W + x + k;
+            if (!openG[ci] || !reach[ci] || inVoid[ci] || used[ci]) { ok = false; break; }
+          }
+          if (!ok) break;
+          rd++;
+        }
+        for (let zz = z; zz < z + rd; zz++) for (let xx = x; xx < x + rw; xx++) used[zz * W + xx] = 1;
+        if (Math.max(rw, rd) >= 2) {
+          VOIDS.push({ x: x, z: z, x2: x + rw, z2: z + rd, link: true, apron: true });
+        }
+      }
+    }
+  })();
 }
 // Every parcel from the sheet, plus the holes the trace left inside the wall.
 // Slivers are kept: the old carve dropped anything under about 4.6 m, which
@@ -12158,7 +12297,8 @@ function dressOuterBlades() {
   const WORDS = {
     n: ["牙科", "牙醫", "鑲牙", "脫牙", "醫務", "西醫", "跌打", "藥房", "涼茶", "診所", "牙科診所", "鑲牙脫牙"],
     e: ["牙科", "醫務", "藥房", "士多", "涼茶", "理髮", "五金", "冰室", "米舖", "診所", "跌打"],
-    s: ["士多", "冰室", "米舖", "理髮", "藥房", "涼茶", "醫務", "燒味"]
+    s: ["士多", "冰室", "米舖", "理髮", "藥房", "涼茶", "醫務", "燒味"],
+    w: ["牙科", "牙醫", "鑲牙", "醫務", "士多", "冰室", "涼茶", "理髮", "五金", "藥房", "跌打"]
   };
   const PAL = [
     ["#f4f1ea", "#1a1612", 0.22],
@@ -12190,6 +12330,15 @@ function dressOuterBlades() {
       }
       return true;
     }
+    if (face === "w") {
+      if (x > 4.2 && !marginOpen(x, z, w, d, face)) return false;
+      for (let i = 0; i < FOOT_LOTS.length; i++) {
+        const L = FOOT_LOTS[i];
+        const east = L[0] + L[2];
+        if (east <= x + 0.08 && east > x - 3.6 && L[1] < z + d - 0.3 && L[1] + L[3] > z + 0.3) return false;
+      }
+      return true;
+    }
     const wall = z + d;
     if (wall < SITE_D - 4.2 && !marginOpen(x, z, w, d, face)) return false;
     for (let i = 0; i < FOOT_LOTS.length; i++) {
@@ -12215,6 +12364,8 @@ function dressOuterBlades() {
       x = ax + along; z = wall - proj / 2; rot = Math.PI / 2 + jitter;
     } else if (face === "s") {
       x = ax + along; z = wall + proj / 2; rot = -Math.PI / 2 + jitter;
+    } else if (face === "w") {
+      x = wall - proj / 2; z = ax + along; rot = Math.PI + jitter;
     } else {
       x = wall + proj / 2; z = ax + along; rot = jitter;
     }
@@ -12252,22 +12403,22 @@ function dressOuterBlades() {
     const x = L[0], z = L[1], w = L[2], d = L[3];
     if (x < court.x2 && x + w > court.x && z < court.z2 && z + d > court.z) return;
     if (x < TEMPLE_X + TEMPLE_W && x + w > TEMPLE_X && z < TEMPLE_Z + TEMPLE_D && z + d > TEMPLE_Z) return;
-    ["n", "e", "s"].forEach(face => {
+    ["n", "e", "s", "w"].forEach(face => {
       if (!openOutside(x, z, w, d, face)) return;
-      const span = face === "e" ? d : w;
+      const span = (face === "e" || face === "w") ? d : w;
       if (span < 2.4) return;
       const rng = mulberry32((Math.floor((x + 3) * 8) * 374761393) ^ (Math.floor((z + 5) * 8) * 668265263) ^ (face.charCodeAt(0) * 97));
       const words = WORDS[face];
-      const wall = face === "n" ? z : face === "s" ? z + d : x + w;
-      const ax = face === "e" ? z : x;
+      const wall = face === "n" ? z : face === "s" ? z + d : face === "w" ? x : x + w;
+      const ax = (face === "e" || face === "w") ? z : x;
       let cursor = 0.25 + rng() * 0.55;
-      const gap = face === "n" ? 0.85 : face === "e" ? 1.35 : 2.1;
+      const gap = face === "n" ? 0.85 : (face === "e" || face === "w") ? 1.35 : 2.1;
       while (cursor < span - 0.35) {
         if (rng() < (face === "n" ? 0.06 : 0.2)) {
           cursor += 0.7 + rng() * 2.4;
           continue;
         }
-        const count = face === "n" ? 2 + Math.floor(rng() * 4) : face === "e" ? 2 + Math.floor(rng() * 3) : 1 + Math.floor(rng() * 2);
+        const count = face === "n" ? 2 + Math.floor(rng() * 4) : (face === "e" || face === "w") ? 2 + Math.floor(rng() * 3) : 1 + Math.floor(rng() * 2);
         for (let i = 0; i < count; i++) {
           const along = cursor + (rng() - 0.25) * 1.15;
           if (along < 0.18 || along > span - 0.18) continue;
@@ -12288,12 +12439,12 @@ function dressOuterBlades() {
             h = 0.34 + rng() * 0.08;
             proj = h * texA;
           }
-          const cap = face === "e" ? 1.05 : 1.32;
+          const cap = (face === "e" || face === "w") ? 1.05 : 1.32;
           if (proj > cap) {
             h *= cap / proj;
             proj = cap;
           }
-          const reach = face === "n" ? 6.6 : face === "e" ? 4.8 : 3.4;
+          const reach = face === "n" ? 6.6 : (face === "e" || face === "w") ? 4.8 : 3.4;
           const wallTop = faceWallTop(x, z, w, d, face);
           let y = 2.05 + Math.pow(rng(), 1.2) * reach + h * 0.5;
           if (y + h * 0.5 > wallTop - 0.2) y = wallTop - 0.2 - h * 0.5;
