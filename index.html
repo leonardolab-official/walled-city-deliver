@@ -16858,7 +16858,7 @@ const traffic = [];
     r.ride.tails.push(tail);
     r.wheel(front, 0, Rw, 0.038, true, false);
     r.wheel(rear, 0, Rw, 0.038, true, false);
-    r.ride.cruise = 10.4;
+    r.ride.cruise = 4.6;
     r.ride.amp = 0.08;
     r.ride.weave = 1.4;
     r.ride.lean = 1.1;
@@ -17000,6 +17000,8 @@ const traffic = [];
         if (gap <= 0.05) gap += span;
         a.gap = gap;
         a.aheadLen = b.len;
+        a.aheadSpeed = b.speed;
+        a.laneRef = lane;
       }
     }
     for (let i = 0; i < traffic.length; i++) {
@@ -17013,17 +17015,42 @@ const traffic = [];
       let target = ride.cruise * ride.mood;
       if (wxNow.rain > 0) target *= 1 - wxNow.rain * 0.14;
       if (!ride.free) {
-        const need = (ride.len + ride.aheadLen) * 0.5 + 6.2;
-        if (ride.gap < need * 1.2) target = Math.min(target, Math.max(1.5, ride.cruise * Math.max(0.22, (ride.gap - 1.2) / need)));
-        else if (ride.gap > need * 2.5 && ride.mood > 0.92) target = Math.min(ride.cruise * 1.12, target * 1.08);
+        const halfSum = (ride.len + ride.aheadLen) * 0.5;
+        const bumperGap = ride.gap - halfSum;
+        const safeBuf = 6.2;
+        if (bumperGap <= 1.2) {
+          target = 0;
+        } else if (bumperGap < safeBuf * 1.45) {
+          const frac = Math.max(0, (bumperGap - 1.2) / (safeBuf * 1.35));
+          const pace = (ride.aheadSpeed != null ? ride.aheadSpeed : ride.cruise * 0.5) * Math.min(1, frac * 1.35);
+          target = Math.min(target, Math.min(ride.cruise * frac, pace + (bumperGap - 1.2) * 0.35));
+        } else if (bumperGap > safeBuf * 2.5 && ride.mood > 0.92) {
+          target = Math.min(ride.cruise * 1.12, target * 1.08);
+        }
       }
       const prev = ride.speed;
-      ride.speed += (target - ride.speed) * Math.min(1, dt * 1.7);
+      const rate = target < ride.speed ? 3.2 : 1.7;
+      ride.speed += (target - ride.speed) * Math.min(1, dt * rate);
+      if (ride.speed < 0.02 && target <= 0.02) ride.speed = 0;
       const raw = dt > 1e-4 ? (ride.speed - prev) / dt : 0;
       ride.accel = ride.accel * 0.62 + raw * 0.38;
-      ride.x += ride.dir * ride.speed * dt;
-      if (ride.x > ride.x1) ride.x = ride.x0;
-      if (ride.x < ride.x0) ride.x = ride.x1;
+      const nextX = ride.x + ride.dir * ride.speed * dt;
+      if (nextX > ride.x1 || nextX < ride.x0) {
+        const wrapX = nextX > ride.x1 ? ride.x0 : ride.x1;
+        let entryClear = true;
+        const lane = ride.laneRef;
+        if (lane) {
+          for (let j = 0; j < lane.length; j++) {
+            const other = lane[j].userData.ride;
+            if (other === ride) continue;
+            if (Math.abs(other.x - wrapX) < (ride.len + other.len) * 0.5 + 4.5) { entryClear = false; break; }
+          }
+        }
+        if (entryClear) ride.x = wrapX;
+        else { ride.x = nextX > ride.x1 ? ride.x1 : ride.x0; ride.speed = 0; }
+      } else {
+        ride.x = nextX;
+      }
       root.position.x = ride.x;
       const weave = Math.sin(now * ride.weave + ride.phase) * ride.amp;
       root.position.z = ride.z0 + weave;
@@ -21642,6 +21669,9 @@ const walkers = [];
 // Residents of the lanes. The record keeps walking when the figure is gone.
 const cityFolk = [];
 const GROUND_Y = 0.27;
+function groundFootAt(x, z) {
+  return pourTopAt(x, z) > 0.05 ? GROUND_Y : 0.015;
+}
 const THIGH_L = 0.42, SHIN_L = 0.4, UPPER_L = 0.28, FORE_L = 0.26;
 const FIG_SCALE = 0.82;
 // Eye of a standing resident, metres above the feet, after the figure is
@@ -25231,6 +25261,17 @@ function poseIdle(rig, ud, now, w, rainUp) {
     poseGangFight(rig, ud, now, w);
     return;
   }
+  if (ud.stance === "sit") {
+    seatKeeper(rig);
+    const n = now + (ud.offset || 0);
+    const s = Math.sin(n * 1.15);
+    rig.torso.rotation.x = 0.05 + s * 0.015;
+    rig.head.rotation.x = 0.04 + Math.sin(n * 1.7) * 0.03;
+    rig.head.rotation.y = s * 0.14;
+    poseToward(rig.armL, -0.58, -0.18, -0.88, 0.04, w);
+    poseToward(rig.armR, -0.54, 0.18, -0.84, -0.04, w);
+    return;
+  }
   const act = ud.act;
   const side = (ud.bias || 0) >= 0 ? 1 : -1;
   if (!act) {
@@ -25513,6 +25554,7 @@ function tryGreet(ud, now) {
   let postD = KEEPER_MEET_D2;
   for (let i = 0; i < keeperPosts.length; i++) {
     const p = keeperPosts[i];
+    if (!shopOpenNow(p.kind)) continue;
     const dx = ud.x - p.x, dz = ud.z - p.z;
     if (dx * p.fx + dz * p.fz < 0.35) continue;
     const d2 = dx * dx + dz * dz;
@@ -25535,6 +25577,7 @@ function tryLook(ud, now) {
   let postD = KEEPER_MEET_D2;
   for (let i = 0; i < keeperPosts.length; i++) {
     const p = keeperPosts[i];
+    if (!shopOpenNow(p.kind)) continue;
     const dx = ud.x - p.x, dz = ud.z - p.z;
     if (dx * p.fx + dz * p.fz < 0.3) continue;
     const d2 = dx * dx + dz * dz;
@@ -25596,21 +25639,30 @@ function advanceWalker(ud, now, fig) {
     let speed = ud.speed;
     ud.held = false;
     const crowd = ud.inside ? cityFolk : walkers;
+    let blockedByWait = false;
     for (let i = 0; i < crowd.length; i++) {
       const other = ud.inside ? crowd[i] : crowd[i].userData;
       if (other === ud || other.heat || other.path !== path || other.along == null || walkerHome(other)) continue;
       if (other.day && !dayCrowdNow() && !other.fig) continue;
       const ahead = (other.along - ud.along) * ud.dir;
       if (other.wait > 0 && ahead > 0.04 && ahead < 0.55) {
+        blockedByWait = true;
+      } else if (ahead > 0.08 && ahead < 1.15) {
+        speed *= Math.max(0.35, (ahead - 0.08) / 1.05);
+      }
+    }
+    if (blockedByWait) {
+      ud.heldT = (ud.heldT || 0) + dt;
+      if (ud.heldT > 2.5) {
+        ud.held = false;
+        speed = ud.speed * 0.65;
+        if (ud.heldT > 3.6) ud.heldT = 0;
+      } else {
         speed *= 0.15;
         ud.held = true;
-        ud.heldT = (ud.heldT || 0) + dt;
-        // Stuck too long: try to step past.
-        if (ud.heldT > 2.5) { ud.held = false; speed = ud.speed * 0.6; ud.heldT = 0; }
-      } else {
-        ud.heldT = 0;
-        if (ahead > 0.08 && ahead < 1.15) speed *= Math.max(0.35, (ahead - 0.08) / 1.05);
       }
+    } else {
+      ud.heldT = 0;
     }
     speed = runBellSlow(ud, speed);
     if (ud.wait <= 0 && !ud.heat && (tryGreet(ud, now) || tryLook(ud, now))) {
@@ -26753,6 +26805,15 @@ function noteShopHours() {
   shopsHourFlip = stamp !== shopHourStamp;
   if (shopsHourFlip) shopHourStamp = stamp;
 }
+function runIsKeeperJobPost(postIdx) {
+  const jobs = (typeof run !== "undefined" && run && run.jobs) ? run.jobs : null;
+  if (!jobs) return false;
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if ((j.state === "carried" || j.state === "dropped") && j.keeper && j.post === postIdx) return true;
+  }
+  return false;
+}
 function syncKeepers(now) {
   noteShopHours();
   refreshFigureView();
@@ -26761,8 +26822,8 @@ function syncKeepers(now) {
   for (let i = 0; i < keeperPosts.length; i++) {
     const post = keeperPosts[i];
     const py = post.y + 0.85;
-    // A delivery never keeps a keeper standing once the gate is down.
-    const want = walkMode && shopOpenNow(post.kind);
+    // Keep a targeted delivery recipient at their post until handoff finishes so the arrow & keeper never vanish mid-run.
+    const want = walkMode && (shopOpenNow(post.kind) || runIsKeeperJobPost(post.i));
     const held = figureRemember(post, post.x, py, post.z);
     const away = npcAway(post.x, post.z) && !held;
     if (post.fig) {
@@ -30149,7 +30210,7 @@ function walkBlocked(x, z, opts) {
     }
   }
   if (opts && opts.bodies === false) return false;
-  for (let i = 0; i < traffic.length; i++) {
+  if (z < -1.5) for (let i = 0; i < traffic.length; i++) {
     const root = traffic[i];
     const ride = root.userData && root.userData.ride;
     if (!ride) continue;
@@ -30478,36 +30539,42 @@ function buildRoofLinks() {
     const a = roofDecks[i];
     for (let j = i + 1; j < roofDecks.length; j++) {
       const b = roofDecks[j];
-      if (Math.abs(a.y - b.y) > 3.0) continue;
+      const dy = Math.abs(a.y - b.y);
+      // Only link rooftops within a traversable 1.4 m height step (eliminates 2.5 m vertical cliffs & >45 deg planks).
+      if (dy > 1.4) continue;
       const gx = Math.max(0, Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w)));
       const gz = Math.max(0, Math.max(a.z - (b.z + b.d), b.z - (a.z + a.d)));
       const ovX0 = Math.max(a.x + 0.45, b.x + 0.45), ovX1 = Math.min(a.x + a.w - 0.45, b.x + b.w - 0.45);
       const ovZ0 = Math.max(a.z + 0.45, b.z + 0.45), ovZ1 = Math.min(a.z + a.d - 0.45, b.z + b.d - 0.45);
       let linkA = null, linkB = null;
       if (gx <= 2.2 && gz === 0 && ovZ1 - ovZ0 >= 1.1) {
+        if (dy > 0.4 && Math.atan2(dy, Math.max(0.9, gx + 0.6)) > 0.72) continue;
         const aLeft = (a.x + a.w * 0.5) < (b.x + b.w * 0.5);
         const midZ = (ovZ0 + ovZ1) * 0.5;
         const xA = aLeft ? a.x + a.w : a.x;
         const xB = aLeft ? b.x : b.x + b.w;
         linkA = { to: b, axis: "x", edge: xA, span0: ovZ0, span1: ovZ1, landX: aLeft ? b.x + 0.55 : b.x + b.w - 0.55, landZ: midZ };
         linkB = { to: a, axis: "x", edge: xB, span0: ovZ0, span1: ovZ1, landX: aLeft ? a.x + a.w - 0.55 : a.x + 0.55, landZ: midZ };
-        if (gx > 0.35) {
-          const plank = new THREE.Mesh(new THREE.BoxGeometry(gx + 0.6, 0.08, 0.95), bridgeMat);
+        if (gx > 0.25 || dy > 0.35) {
+          const spanLen = Math.hypot(Math.max(0.8, gx + 0.6), dy);
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(spanLen, 0.08, 0.95), bridgeMat);
           plank.position.set((xA + xB) * 0.5, (a.y + b.y) * 0.5, midZ);
-          plank.rotation.z = Math.atan2(aLeft ? (b.y - a.y) : (a.y - b.y), Math.max(0.4, gx));
+          plank.rotation.z = Math.atan2(aLeft ? (b.y - a.y) : (a.y - b.y), Math.max(0.8, gx + 0.6));
           city.add(plank);
         }
       } else if (gz <= 2.2 && gx === 0 && ovX1 - ovX0 >= 1.1) {
+        if (dy > 0.4 && Math.atan2(dy, Math.max(0.9, gz + 0.6)) > 0.72) continue;
         const aNorth = (a.z + a.d * 0.5) < (b.z + b.d * 0.5);
         const midX = (ovX0 + ovX1) * 0.5;
         const zA = aNorth ? a.z + a.d : a.z;
         const zB = aNorth ? b.z : b.z + b.d;
         linkA = { to: b, axis: "z", edge: zA, span0: ovX0, span1: ovX1, landX: midX, landZ: aNorth ? b.z + 0.55 : b.z + b.d - 0.55 };
         linkB = { to: a, axis: "z", edge: zB, span0: ovX0, span1: ovX1, landX: midX, landZ: aNorth ? a.z + a.d - 0.55 : a.z + 0.55 };
-        if (gz > 0.35) {
-          const plank = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, gz + 0.6), bridgeMat);
+        if (gz > 0.25 || dy > 0.35) {
+          const spanLen = Math.hypot(Math.max(0.8, gz + 0.6), dy);
+          const plank = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, spanLen), bridgeMat);
           plank.position.set(midX, (a.y + b.y) * 0.5, (zA + zB) * 0.5);
-          plank.rotation.x = Math.atan2(aNorth ? (a.y - b.y) : (b.y - a.y), Math.max(0.4, gz));
+          plank.rotation.x = Math.atan2(aNorth ? (a.y - b.y) : (b.y - a.y), Math.max(0.8, gz + 0.6));
           city.add(plank);
         }
       }
@@ -30531,6 +30598,18 @@ function buildRoofLinks() {
     cid++;
   }
 }
+function roofDeckSpotClear(deck, x, z) {
+  const x0 = deck.x + 0.42, x1 = deck.x + deck.w - 0.42;
+  const z0 = deck.z + 0.42, z1 = deck.z + deck.d - 0.42;
+  if (x < x0 || x > x1 || z < z0 || z > z1) return false;
+  const blocks = deck.blocks || [];
+  const pad = 0.28;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (x > b.x - pad && x < b.x2 + pad && z > b.z - pad && z < b.z2 + pad) return false;
+  }
+  return true;
+}
 function tryRoofCross(nx, nz) {
   if (!roofStay || !roofStay.deck || !roofStay.deck.links) return false;
   const links = roofStay.deck.links;
@@ -30539,16 +30618,31 @@ function tryRoofCross(nx, nz) {
     const hitX = lk.axis === "x" && Math.abs(nx - lk.edge) < 0.55 && nz >= lk.span0 && nz <= lk.span1;
     const hitZ = lk.axis === "z" && Math.abs(nz - lk.edge) < 0.55 && nx >= lk.span0 && nx <= lk.span1;
     if (!hitX && !hitZ) continue;
-    const prevCluster = roofStay.deck ? roofStay.deck.cluster : -1;
     const next = lk.to;
+    // Validate destination bridge landing against water tanks/stairheads so crossing never traps the player.
+    let lx = lk.landX, lz = lk.landZ;
+    let found = roofDeckSpotClear(next, lx, lz);
+    if (!found) {
+      for (let ring = 1; ring <= 8 && !found; ring++) {
+        const step = 0.32 * ring;
+        for (let k = 0; k < 8; k++) {
+          const a = k * Math.PI / 4;
+          const cx = lk.landX + Math.cos(a) * step;
+          const cz = lk.landZ + Math.sin(a) * step;
+          if (roofDeckSpotClear(next, cx, cz)) { lx = cx; lz = cz; found = true; break; }
+        }
+      }
+    }
+    if (!found) continue;
+    const prevCluster = roofStay.deck ? roofStay.deck.cluster : -1;
     const exitDoor = (next.doors && next.doors.length) ? next.doors[0] : roofStay.door;
     roofStay = {
       deck: next, door: exitDoor, y: next.y, blocks: next.blocks,
       x0: next.x + 0.42, z0: next.z + 0.42,
       x1: next.x + next.w - 0.42, z1: next.z + next.d - 0.42
     };
-    walkX = lk.landX;
-    walkZ = lk.landZ;
+    walkX = lx;
+    walkZ = lz;
     const need = next.y + 4.5;
     if (floorPlane.constant < need) floorPlane.constant = need;
     if (prevCluster < 0 || prevCluster !== next.cluster || !roofVisit.length) spawnRoofVisit();
@@ -30575,7 +30669,7 @@ function roofDoorNear() {
 }
 function runCamPos(x, z, yaw, pitch) {
   const sin = Math.sin(yaw), cos = Math.cos(yaw);
-  const foot = roofStay ? roofStay.y : GROUND_Y;
+  const foot = roofStay ? roofStay.y : groundFootAt(x, z);
   // The boom orbits the upper body, so the runner stays in frame. Pitch 0
   // holds the lens just above the crowd and looks along the street. Negative
   // drops the camera and looks up. Positive lifts it and looks down.
@@ -30924,7 +31018,7 @@ function runPlaceRider(dt, moving, travel, ux, uz) {
   const fig = run.rider;
   if (!walkMode) { fig.visible = false; return; }
   fig.visible = true;
-  const foot = roofStay ? roofStay.y : GROUND_Y;
+  const foot = roofStay ? roofStay.y : groundFootAt(walkX, walkZ);
   fig.position.set(walkX, foot, walkZ);
   // Standing still, the body keeps its facing so the camera can look around it.
   // A step turns the body smoothly onto the direction it is moving.
@@ -31408,7 +31502,11 @@ function runStepOutOfShop(job) {
   if (!out) return;
   job.x = out.x;
   job.z = out.z;
-  if (job.fig && !job.roof) job.fig.position.set(job.x - SHEAR_K * job.z, GROUND_Y, job.z);
+  if (job.fig && !job.roof) {
+    const fy = groundFootAt(job.x, job.z);
+    job.fig.position.set(job.x - SHEAR_K * job.z, fy, job.z);
+    if (job.stool) job.stool.position.set(job.x - SHEAR_K * job.z, fy, job.z);
+  }
 }
 function runSpotTaken(x, z) {
   const lim = 2.4 * 2.4;
@@ -31824,6 +31922,7 @@ function runOffer(now) {
   const shops = runShops();
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
+    if (s.slip && !runShopTrading(s.kind)) s.slip = null;
     if (s.slip && Math.hypot(walkX - s.x, walkZ - s.z) > 115) s.slip = null;
     if (s.slip && runDestClosed(s.slip.dest)) s.slip = null;
   }
@@ -32228,15 +32327,20 @@ function runDeliver(job, now) {
   if (job.second) run.intro = 3;
 }
 function runRemoveBody(job) {
+  if (job.stool) {
+    if (job.stool.parent) job.stool.parent.remove(job.stool);
+    job.stool = null;
+  }
   if (job.fig) {
-    city.remove(job.fig);
+    disposeOwned(job.fig);
     job.fig = null;
   }
   if (job.box) {
-    city.remove(job.box);
+    disposeOwned(job.box);
     job.box = null;
   }
   runDropArrow(job);
+  job._route = null;
   job.depart = null;
 }
 function runForgetJobs() {
@@ -32251,7 +32355,7 @@ function runHoldReceiver(job) {
   if (!fig) return;
   if (!walkMode) { runRemoveBody(job); return; }
   refreshFigureView();
-  const foot = job.roof ? job.y : GROUND_Y;
+  const foot = job.roof ? job.y : groundFootAt(job.x, job.z);
   if (!figurePlaying(job.x, foot + 0.85, job.z)) { runRemoveBody(job); return; }
   fig.visible = true;
   const ud = fig.userData;
@@ -32282,9 +32386,18 @@ function runTake(slip, now) {
     first: false, second: false,
     fig: null, box: null
   };
-  const detour = job.roof ? 1.45 : (slip.dest.alley ? 1.42 : 1.32);
-  const pathM = Math.max(18, job.dist * detour);
-  job.window = (pathM / 3.2) * 1.32 + 16 + (job.roof ? 22 : 0) + (slip.dest.alley ? 5 : 0);
+  // Measure true walkable alley route distance via A* pathfinder for fair delivery windows.
+  const goalPt = (job.roof && job.door >= 0 && roofDoors[job.door])
+    ? { x: roofDoors[job.door].x, z: roofDoors[job.door].z }
+    : { x: job.x, z: job.z };
+  const route = runFindPath(walkX, walkZ, goalPt.x, goalPt.z);
+  const roofExtraM = (job.roof && job.door >= 0 && roofDoors[job.door])
+    ? Math.hypot(job.x - roofDoors[job.door].upX, job.z - roofDoors[job.door].upZ)
+    : 0;
+  const fallbackM = job.dist * (job.roof ? 1.45 : (slip.dest.alley ? 1.42 : 1.32));
+  const pathM = Math.max(18, (route ? route.dist : fallbackM) + roofExtraM);
+  job.window = (pathM / 3.0) * 1.35 + 16 + (job.roof ? 22 : 0) + (slip.dest.alley ? 5 : 0);
+  if (route) job._route = { sx: walkX, sz: walkZ, gx: goalPt.x, gz: goalPt.z, pts: route.pts };
   run.jobs.push(job);
   slip.shop.slip = null;
   if (run.intro === 0) run.intro = 1;
@@ -32320,20 +32433,28 @@ function runPerson(job) {
   if (!job.roof && runInClosedShop(job.x, job.z)) return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
   const onDeck = job.roof && job.door >= 0 && roofSameDeck(roofDoors[job.door]);
-  const foot = job.roof ? job.y : GROUND_Y;
+  const foot = job.roof ? job.y : groundFootAt(job.x, job.z);
   const viewed = figurePlaying(job.x, foot + 0.85, job.z);
   if (!walkMode || (here > NPC_AWAY && !onDeck && !viewed)) return;
   const wear = wearCopy(studioPick(STUDIO_STREET, job.id), { gait: "walk", role: null, prop: null });
+  if (job.sit && (wear.hair === "bob" || wear.hair === "bun")) wear.skirt = false;
   const fig = makeCitizen(wear);
   const rig = fig.userData.rig;
   fig.userData = {
     errand: true, act: "gaze", stance: job.sit ? "sit" : "idle",
     offset: job.id * 0.37, bias: 1, scale: wear.scale || 1, rig: rig
   };
-  // The group sits on the pavement. Legs hang from the hip, so the hip has to
-  // stand at leg length or the waist is what meets the ground.
-  rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
-  fig.position.set(job.x - SHEAR_K * job.z, job.roof ? job.y : GROUND_Y, job.z);
+  if (job.sit) {
+    seatKeeper(rig);
+    const stool = new THREE.Mesh(shopGeo.stool, shopFinish.timber);
+    stool.scale.setScalar(1.22);
+    stool.position.set(job.x - SHEAR_K * job.z, foot, job.z);
+    city.add(stool);
+    job.stool = stool;
+  } else {
+    rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
+  }
+  fig.position.set(job.x - SHEAR_K * job.z, foot, job.z);
   fig.rotation.y = job.yaw || 0;
   city.add(fig);
   wakeFigure(fig);
@@ -32352,7 +32473,7 @@ function runReceiverOf(job) {
     return null;
   }
   if (!job.fig) return null;
-  return { fig: job.fig, home: job.yaw || 0, seated: false };
+  return { fig: job.fig, home: job.yaw || 0, seated: !!job.sit };
 }
 // Same hexes as the slip border and the order-slider fill.
 function runLevelHex(cls) {
@@ -32572,7 +32693,7 @@ function runShowHolo(shop, now) {
     shop.holoInner.material.color.setHex(hex);
     shop.holoRipple.material.color.setHex(hex);
   }
-  g.position.set(shop.x - SHEAR_K * shop.z, GROUND_Y + 0.03, shop.z);
+  g.position.set(shop.x - SHEAR_K * shop.z, groundFootAt(shop.x, shop.z) + 0.03, shop.z);
   const t = now + (shop.post || 0) * 0.37;
   const breath = 0.5 + 0.5 * Math.sin(t * 2.6);
   shop.holoSpin.rotation.y = t * 0.9;
@@ -32630,7 +32751,7 @@ function runPosePeople(now, dt) {
     const ud = job.fig.userData;
     if (job.pointUntil && now < job.pointUntil) ud.act = "point";
     else ud.act = "gaze";
-    const foot = job.roof ? job.y : GROUND_Y;
+    const foot = job.roof ? job.y : groundFootAt(job.x, job.z);
     const wantWave = figurePlaying(job.x, foot + 0.85, job.z);
     job.waveMix = (job.waveMix || 0) + ((wantWave ? 1 : 0) - (job.waveMix || 0)) * Math.min(1, (dt || 0.016) * 5);
     if (job.fig.studio) job.fig.studio.wave = job.waveMix || 0;
@@ -32649,6 +32770,7 @@ function runPosePeople(now, dt) {
   runSpotReceivers(now, dt);
 }
 function runUnderAwning() {
+  if (roofStay) return false;
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
     const spec = SHOP_KIND[shops[i].kind];
@@ -32666,6 +32788,18 @@ function runWeather(dt) {
 }
 function runBodyNear() {
   function close(x, z) { return x != null && Math.hypot(walkX - x, walkZ - z) < 0.5; }
+  if (roofStay) {
+    for (let i = 0; i < roofVisit.length; i++) {
+      const f = roofVisit[i];
+      if (!f || !f.visible) continue;
+      if (close(f.position.x, f.position.z)) return true;
+    }
+    for (let i = 0; i < run.jobs.length; i++) {
+      const j = run.jobs[i];
+      if (j.state === "carried" && j.roof && j.door >= 0 && roofSameDeck(roofDoors[j.door]) && j.fig && j.fig.visible && close(j.x, j.z)) return true;
+    }
+    return false;
+  }
   for (let i = 0; i < walkers.length; i++) {
     const f = walkers[i];
     if (!f.visible || !f.userData || f.userData.errand || f.userData.heat) continue;
@@ -32680,16 +32814,30 @@ function runBodyNear() {
   }
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
-    if (j.state === "carried" && j.fig && j.fig.visible && close(j.x, j.z)) return true;
+    if (j.state === "carried" && !j.roof && j.fig && j.fig.visible && close(j.x, j.z)) return true;
   }
   return false;
 }
 function runDropTop(now, hard) {
-  if (Math.random() >= (hard ? 0.05 : 0.08)) return;
+  if (Math.random() >= (hard ? 0.08 : 0.10)) return;
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried") continue;
     j.dock = (j.dock || 0) + (hard ? 6 : 4);
+    if (hard && j.drop) {
+      // Spill droppable cargo onto the ground/deck so the player must stop and lift it back up.
+      j.state = "dropped";
+      j.dx = walkX;
+      j.dz = walkZ;
+      j.onRoof = !!roofStay;
+      j.roofDoor = roofStay ? roofStay.door : null;
+      const box = runGroundProp(j.item);
+      const foot = roofStay ? roofStay.y : groundFootAt(walkX, walkZ);
+      box.position.set(walkX - SHEAR_K * walkZ, foot + (box.userData.foot || 0.14), walkZ);
+      box.rotation.y = (run.riderFace || 0) + 0.35;
+      city.add(box);
+      j.box = box;
+    }
     return;
   }
 }
@@ -32784,7 +32932,9 @@ function runNearJob() {
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried" || j.roof) continue;
-    if (Math.hypot(walkX - j.x, walkZ - j.z) < 1.3) return j;
+    if (Math.hypot(walkX - j.x, walkZ - j.z) >= 1.3) continue;
+    if (!runShopSight(walkX, walkZ, j.x, j.z)) continue;
+    return j;
   }
   return null;
 }
@@ -32816,7 +32966,7 @@ function runPoint(now) {
 }
 function runLift(job) {
   job.state = "carried";
-  if (job.box) { city.remove(job.box); job.box = null; }
+  if (job.box) { disposeOwned(job.box); job.box = null; }
 }
 // The one action in reach. Take, give, and lift each keep their range, and
 // the nearest of those wins so two prompts never show at once.
@@ -32848,7 +32998,8 @@ function runPromptTarget() {
     } else if (j.roof) continue;
     const d = Math.hypot(walkX - j.x, walkZ - j.z);
     if (d >= 1.3) continue;
-    const foot = j.roof ? j.y : GROUND_Y;
+    if (!roofStay && !runShopSight(walkX, walkZ, j.x, j.z)) continue;
+    const foot = j.roof ? j.y : groundFootAt(j.x, j.z);
     consider("give", d, j.x, foot + WALK_EYE * 0.62, j.z, j, null);
   }
   const shop = runNearOrderShop();
@@ -33215,20 +33366,181 @@ function runWaves() {
     run.waving.push(post);
   }
 }
-function runAim(job) {
+// Lazy 1 m walkable alley navigation grid + 8-connected A* pathfinder with string-pulling
+// so HUD arrows, minimap routes, and delivery timers follow real alleys around tenement blocks.
+const runNav = {
+  x0: -4, z0: -4, w: 218, h: 128,
+  grid: null, gScore: null, parent: null, stamp: null, runId: 0
+};
+function runEnsureNavGrid() {
+  if (runNav.grid) return runNav.grid;
+  const W = runNav.w, H = runNav.h, N = W * H;
+  const g = new Uint8Array(N);
+  for (let iz = 0; iz < H; iz++) {
+    const wz = runNav.z0 + iz + 0.5;
+    for (let ix = 0; ix < W; ix++) {
+      const wx = runNav.x0 + ix + 0.5;
+      if (walkInside(wx, wz) && !walkBlocked(wx, wz, { pad: 0.06, bodies: false })) g[iz * W + ix] = 1;
+    }
+  }
+  runNav.grid = g;
+  runNav.gScore = new Float32Array(N);
+  runNav.parent = new Int32Array(N);
+  runNav.stamp = new Int32Array(N);
+  return g;
+}
+function runSnapNavCell(x, z) {
+  const g = runEnsureNavGrid();
+  const W = runNav.w, H = runNav.h;
+  const ix0 = Math.max(0, Math.min(W - 1, Math.floor(x - runNav.x0)));
+  const iz0 = Math.max(0, Math.min(H - 1, Math.floor(z - runNav.z0)));
+  if (g[iz0 * W + ix0]) return iz0 * W + ix0;
+  for (let r = 1; r <= 5; r++) {
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+        const nx = ix0 + dx, nz = iz0 + dz;
+        if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+        if (g[nz * W + nx]) return nz * W + nx;
+      }
+    }
+  }
+  return -1;
+}
+function runFindPath(sx, sz, tx, tz) {
+  if (runShopSight(sx, sz, tx, tz)) {
+    return { pts: [{ x: sx, z: sz }, { x: tx, z: tz }], dist: Math.hypot(tx - sx, tz - sz) };
+  }
+  const g = runEnsureNavGrid();
+  const sIdx = runSnapNavCell(sx, sz);
+  const tIdx = runSnapNavCell(tx, tz);
+  if (sIdx < 0 || tIdx < 0) return null;
+  if (sIdx === tIdx) return { pts: [{ x: sx, z: sz }, { x: tx, z: tz }], dist: Math.hypot(tx - sx, tz - sz) };
+  const W = runNav.w, H = runNav.h;
+  const gScore = runNav.gScore, parent = runNav.parent, stamp = runNav.stamp;
+  const id = ++runNav.runId;
+  const txC = tIdx % W, tzC = (tIdx / W) | 0;
+  const heapIdx = [sIdx];
+  const heapF = [Math.hypot(txC - (sIdx % W), tzC - ((sIdx / W) | 0))];
+  stamp[sIdx] = id;
+  gScore[sIdx] = 0;
+  parent[sIdx] = -1;
+  const dirs = [[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,1.414],[1,-1,1.414],[-1,1,1.414],[1,1,1.414]];
+  let found = false;
+  let pops = 0;
+  while (heapIdx.length && pops++ < 14000) {
+    const cur = heapIdx[0];
+    const lastI = heapIdx.pop();
+    const lastF = heapF.pop();
+    if (heapIdx.length) {
+      heapIdx[0] = lastI;
+      heapF[0] = lastF;
+      let p = 0;
+      const n = heapIdx.length;
+      while (true) {
+        let l = p * 2 + 1, r = l + 1, best = p;
+        if (l < n && heapF[l] < heapF[best]) best = l;
+        if (r < n && heapF[r] < heapF[best]) best = r;
+        if (best === p) break;
+        const ti = heapIdx[p], tf = heapF[p];
+        heapIdx[p] = heapIdx[best]; heapF[p] = heapF[best];
+        heapIdx[best] = ti; heapF[best] = tf;
+        p = best;
+      }
+    }
+    if (cur === tIdx) { found = true; break; }
+    const cx = cur % W, cz = (cur / W) | 0;
+    const baseG = gScore[cur];
+    for (let k = 0; k < 8; k++) {
+      const dx = dirs[k][0], dz = dirs[k][1];
+      const nx = cx + dx, nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+      const ni = nz * W + nx;
+      if (!g[ni]) continue;
+      if (dx && dz && (!g[cz * W + nx] || !g[nz * W + cx])) continue;
+      const ng = baseG + dirs[k][2];
+      if (stamp[ni] === id && ng >= gScore[ni]) continue;
+      stamp[ni] = id;
+      gScore[ni] = ng;
+      parent[ni] = cur;
+      const f = ng + Math.hypot(txC - nx, tzC - nz);
+      let pos = heapIdx.length;
+      heapIdx.push(ni);
+      heapF.push(f);
+      while (pos > 0) {
+        const up = (pos - 1) >> 1;
+        if (heapF[up] <= heapF[pos]) break;
+        const ti = heapIdx[up], tf = heapF[up];
+        heapIdx[up] = heapIdx[pos]; heapF[up] = heapF[pos];
+        heapIdx[pos] = ti; heapF[pos] = tf;
+        pos = up;
+      }
+    }
+  }
+  if (!found) return null;
+  const raw = [];
+  let c = tIdx;
+  while (c >= 0 && raw.length < 600) {
+    raw.push({ x: runNav.x0 + (c % W) + 0.5, z: runNav.z0 + ((c / W) | 0) + 0.5 });
+    c = parent[c];
+  }
+  raw.reverse();
+  raw[0] = { x: sx, z: sz };
+  raw[raw.length - 1] = { x: tx, z: tz };
+  // String-pull straight line-of-sight runs so the path turns only at real alley corners.
+  const smooth = [raw[0]];
+  let a = 0;
+  while (a < raw.length - 1) {
+    let best = a + 1;
+    for (let b = Math.min(raw.length - 1, a + 28); b > a + 1; b--) {
+      if (runShopSight(raw[a].x, raw[a].z, raw[b].x, raw[b].z)) { best = b; break; }
+    }
+    smooth.push(raw[best]);
+    a = best;
+  }
+  let dist = 0;
+  for (let i = 1; i < smooth.length; i++) {
+    dist += Math.hypot(smooth[i].x - smooth[i - 1].x, smooth[i].z - smooth[i - 1].z);
+  }
+  return { pts: smooth, dist: dist };
+}
+function runRawGoal(job) {
   if (job.state === "dropped") {
     if (job.onRoof && job.roofDoor && !roofSameDeck(job.roofDoor)) {
-      return { x: job.roofDoor.x, z: job.roofDoor.z };
+      return { x: job.roofDoor.x, z: job.roofDoor.z, ground: true };
     }
-    return { x: job.dx, z: job.dz };
+    return { x: job.dx, z: job.dz, ground: !job.onRoof };
   }
   if (job.roof && job.door >= 0 && roofDoors[job.door]) {
     const targetDoor = roofDoors[job.door];
     const onDeck = roofSameDeck(targetDoor);
     const sameCluster = !!(roofStay && roofStay.deck && targetDoor.deck && roofStay.deck.cluster >= 0 && roofStay.deck.cluster === targetDoor.deck.cluster);
-    if (!onDeck && !sameCluster) return { x: targetDoor.x, z: targetDoor.z };
+    if (!onDeck && !sameCluster) return { x: targetDoor.x, z: targetDoor.z, ground: true };
   }
-  return { x: job.x, z: job.z };
+  return { x: job.x, z: job.z, ground: !job.roof };
+}
+function runJobRoute(job) {
+  const goal = runRawGoal(job);
+  if (roofStay || !goal.ground) return [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }];
+  const r = job._route;
+  const need = !r || !r.pts || r.pts.length < 2
+    || Math.hypot(r.gx - goal.x, r.gz - goal.z) > 0.6
+    || Math.hypot(r.sx - walkX, r.sz - walkZ) > 1.8;
+  if (need) {
+    const solved = runFindPath(walkX, walkZ, goal.x, goal.z);
+    job._route = {
+      sx: walkX, sz: walkZ, gx: goal.x, gz: goal.z,
+      pts: solved ? solved.pts : [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }]
+    };
+  }
+  return job._route.pts;
+}
+function runAim(job) {
+  const pts = runJobRoute(job);
+  for (let i = 1; i < pts.length - 1; i++) {
+    if (Math.hypot(pts[i].x - walkX, pts[i].z - walkZ) > 1.6) return pts[i];
+  }
+  return pts[pts.length - 1];
 }
 function runBearing(x, z) {
   const dx = x - walkX, dz = z - walkZ;
@@ -33468,39 +33780,48 @@ function miniMapAims(ctx, pxPerM, cx, cy) {
   const pad = 16;
   const yaw = miniMapYaw();
   const c = Math.cos(yaw), s = Math.sin(yaw);
+  function toMap(x, z) {
+    const wx = (x - walkX) * pxPerM;
+    const wz = (z - walkZ) * pxPerM;
+    return { x: cx + wx * c - wz * s, y: cy + wx * s + wz * c };
+  }
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried" && j.state !== "dropped") continue;
-    const aim = runAim(j);
-    const wx = (aim.x - walkX) * pxPerM;
-    const wz = (aim.z - walkZ) * pxPerM;
-    const dx = wx * c - wz * s;
-    const dy = wx * s + wz * c;
-    const px = cx + dx, py = cy + dy;
+    const pts = runJobRoute(j);
+    const goal = pts[pts.length - 1];
+    const gMap = toMap(goal.x, goal.z);
+    const dx = gMap.x - cx, dy = gMap.y - cy;
     const dist = Math.hypot(dx, dy);
     if (dist < 1) continue;
     const ux = dx / dist, uy = dy / dist;
-    let ex = px, ey = py, inside = true;
+    let ex = gMap.x, ey = gMap.y, inside = true;
     if (Math.abs(dx) > w / 2 - pad || Math.abs(dy) > h / 2 - pad) {
-      const fitX = (w / 2 - pad) / Math.abs(dx);
-      const fitY = (h / 2 - pad) / Math.abs(dy);
-      const fit = Math.min(fitX, fitY);
+      const fit = Math.min((w / 2 - pad) / Math.abs(dx), (h / 2 - pad) / Math.abs(dy));
       ex = cx + dx * fit;
       ey = cy + dy * fit;
       inside = false;
     }
-    const late = now > j.t0 + j.window;
-    const color = late ? "#ff5a42" : "#3dff88";
+    const hue = runFareHue(j, now);
+    const color = hue === "hot" ? "#ff5a42" : hue === "warm" ? "#ffc56a" : "#3dff88";
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
-    if (dist > 22) {
-      ctx.beginPath();
-      ctx.moveTo(cx + ux * 16, cy + uy * 16);
-      ctx.lineTo(ex - ux * (inside ? 14 : 10), ey - uy * (inside ? 14 : 10));
-      ctx.stroke();
+    ctx.lineJoin = "round";
+    // Trace the real multi-segment alley route polyline inside the minimap frame.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(4, 4, w - 8, h - 8);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    for (let k = 1; k < pts.length; k++) {
+      const mp = toMap(pts[k].x, pts[k].z);
+      ctx.lineTo(mp.x, mp.y);
     }
+    ctx.stroke();
+    ctx.restore();
     if (inside) {
       ctx.beginPath();
       ctx.arc(ex, ey, 9, 0, Math.PI * 2);
@@ -33816,9 +34137,9 @@ function seatPavement() {
 seatPavement();
 (function crowdAtShops() {
   // Clear of the eight taps, which stand on z = -1.15. The kerb is at -2.86.
-  const north = { axis: "x", c: -2.16, a: 6, b: 204, keep: 0.24, thick: 2.4, world: true };
-  const south = { axis: "x", c: 121.55, a: 4, b: 200, keep: 0.4, thick: 2.4, world: true };
-  const east = { axis: "z", c: 211.5, a: 8, b: 110, y: 0.32, keep: 0.26, thick: 2.2, world: true };
+  const north = { axis: "x", c: -2.16, a: 6, b: 204, y: 0.015, keep: 0.24, thick: 2.4, world: true };
+  const south = { axis: "x", c: 121.55, a: 4, b: 200, y: 0.015, keep: 0.4, thick: 2.4, world: true };
+  const east = { axis: "z", c: 211.5, a: 8, b: 110, y: 0.015, keep: 0.26, thick: 2.2, world: true };
   [[north, 0], [north, 1], [north, 4], [north, 6], [north, 8], [south, 2], [south, 3], [south, 5], [south, 7], [south, 9], [east, 1], [east, 6]].forEach(([path, outfit], i) => {
     addWalker(path, outfits[outfit], 40 + i);
   });
@@ -33873,7 +34194,7 @@ seatPavement();
     return path;
   }
   const schoolLane = streetPaths.find(p => p.axis === "z" && Math.abs(p.c - 80.78) < 0.3);
-  const southFront = track({ axis: "x", c: 86.2, a: 85, b: 118, keep: 0.12, pause: 6.2 });
+  const southFront = track({ axis: "x", c: 86.65, a: 85, b: 118, keep: 0.10, pause: 6.2 });
   const people = [
     { path: southFront, outfit: 6, dir: 1, along: 0.28, wait: 0, speed: 0.5 },
     { path: southFront, outfit: 9, dir: -1, along: 0.62, wait: 14, speed: 0.42 },
@@ -35935,105 +36256,6 @@ function roofKidsOut() {
   return hour + 1e-4 >= 13 && hour < 18;
 }
 const roofKids = [];
-const roofGroups = [];
-function raiseRoofChildren() {
-  const rand = mulberry32(20261105);
-  const obstacles = [];
-  ["yagi", "stair", "tank", "stand", "shed", "cyl", "cylStand", "pot"].forEach(function (key) {
-    const list = roofQ[key] || [];
-    for (let i = 0; i < list.length; i++) {
-      const it = list[i];
-      let r = 0.85;
-      if (key === "yagi" || key === "pot") r = 0.38;
-      else if (it.sx && it.sz) r = 0.45 * Math.hypot(it.sx, it.sz) + 0.16;
-      obstacles.push({ x: it.x, z: it.z, r: r });
-    }
-  });
-  const roofs = [];
-  for (let i = 0; i < roofMeshes.length; i++) {
-    const mesh = roofMeshes[i];
-    const p = mesh.geometry.parameters;
-    if (!p || p.width < 5.4 || p.depth < 4.8) continue;
-    const top = mesh.position.y + p.height * 0.5;
-    if (top < 9) continue;
-    const inset = 0.7;
-    if (p.width < inset * 2 + 1.6 || p.depth < inset * 2 + 1.6) continue;
-    roofs.push({
-      x: mesh.position.x, z: mesh.position.z,
-      y: top + 0.02,
-      minX: mesh.position.x - p.width * 0.5 + inset,
-      maxX: mesh.position.x + p.width * 0.5 - inset,
-      minZ: mesh.position.z - p.depth * 0.5 + inset,
-      maxZ: mesh.position.z + p.depth * 0.5 - inset,
-      area: p.width * p.depth
-    });
-  }
-  for (let i = roofs.length - 1; i > 0; i--) {
-    const j = (rand() * (i + 1)) | 0;
-    const swap = roofs[i];
-    roofs[i] = roofs[j];
-    roofs[j] = swap;
-  }
-  const styles = STUDIO_KIDS.map(function (key) { return STUDIO[key]; });
-  function clearSpot(roof, x, z, taken) {
-    if (x < roof.minX || x > roof.maxX || z < roof.minZ || z > roof.maxZ) return false;
-    for (let i = 0; i < obstacles.length; i++) {
-      const o = obstacles[i];
-      if (Math.abs(o.x - roof.x) > 8 || Math.abs(o.z - roof.z) > 8) continue;
-      const dx = o.x - x, dz = o.z - z;
-      if (dx * dx + dz * dz < (o.r + 0.42) * (o.r + 0.42)) return false;
-    }
-    for (let i = 0; i < taken.length; i++) {
-      const dx = taken[i].x - x, dz = taken[i].z - z;
-      if (dx * dx + dz * dz < 0.85 * 0.85) return false;
-    }
-    return true;
-  }
-  for (let i = 0; i < roofs.length && roofGroups.length < 8; i++) {
-    const roof = roofs[i];
-    let far = true;
-    for (let j = 0; j < roofGroups.length; j++) {
-      const dx = roofGroups[j].x - roof.x, dz = roofGroups[j].z - roof.z;
-      if (dx * dx + dz * dz < 16 * 16) far = false;
-    }
-    if (!far) continue;
-    const local = [];
-    for (let k = 0; k < obstacles.length; k++) {
-      const o = obstacles[k];
-      if (o.x > roof.minX - 0.4 && o.x < roof.maxX + 0.4 && o.z > roof.minZ - 0.4 && o.z < roof.maxZ + 0.4) local.push(o);
-    }
-    const spots = [];
-    for (let n = 0; n < 48 && spots.length < 3; n++) {
-      const x = roof.minX + rand() * (roof.maxX - roof.minX);
-      const z = roof.minZ + rand() * (roof.maxZ - roof.minZ);
-      if (clearSpot(roof, x, z, spots)) spots.push({ x: x, z: z });
-    }
-    if (spots.length < 2) continue;
-    const group = {
-      x: roof.x, z: roof.z, y: roof.y,
-      minX: roof.minX, maxX: roof.maxX, minZ: roof.minZ, maxZ: roof.maxZ,
-      obstacles: local, kids: [], mode: "play", until: 0, it: 0, tagAt: 0,
-      rand: mulberry32((roof.x * 13 + roof.z * 17 + roof.y) | 0)
-    };
-    const gi = roofGroups.length;
-    spots.forEach(function (spot, si) {
-      const src = styles[(gi * 3 + si * 2) % styles.length];
-      const spec = { gait: "walk" };
-      for (const k in src) spec[k] = src[k];
-      const fig = makeCitizen(spec);
-      fig.visible = false;
-      fig.userData.play = spec.play || null;
-      fig.userData.roof = { x: spot.x, z: spot.z, y: roof.y, group: group, goalX: spot.x, goalZ: spot.z };
-      fig.userData.scale = spec.scale || 1;
-      fig.userData.offset = gi * 1.7 + si * 0.8;
-      fig.position.set(spot.x, roof.y, spot.z);
-      vfx.add(fig);
-      roofKids.push(fig);
-      group.kids.push(fig);
-    });
-    roofGroups.push(group);
-  }
-}
 function roofPick(group) {
   const roof = group;
   for (let n = 0; n < 8; n++) {
@@ -36187,7 +36409,9 @@ function spawnRoofVisit() {
     if (b.x == null || b.z == null) continue;
     const cx = b.x2 != null ? (b.x + b.x2) * 0.5 : b.x;
     const cz = b.z2 != null ? (b.z + b.z2) * 0.5 : b.z;
-    obstacles.push({ x: cx, z: cz, r: 0.7 });
+    const bw = b.x2 != null ? Math.abs(b.x2 - b.x) : 0.9;
+    const bd = b.z2 != null ? Math.abs(b.z2 - b.z) : 0.9;
+    obstacles.push({ x: cx, z: cz, r: Math.max(0.45, 0.5 * Math.hypot(bw, bd) + 0.14) });
   }
   const group = {
     minX: x0, maxX: x1, minZ: z0, maxZ: z1,
@@ -36199,16 +36423,16 @@ function spawnRoofVisit() {
     const key = STUDIO_KIDS[(Math.random() * STUDIO_KIDS.length) | 0];
     const spec = wearCopy(STUDIO[key], { gait: "walk" });
     const fig = makeCitizen(spec);
-    let x = x0 + Math.random() * (x1 - x0);
-    let z = z0 + Math.random() * (z1 - z0);
-    if (door && Math.hypot(x - door.upX, z - door.upZ) < 1.4) {
-      x = Math.min(x1, Math.max(x0, door.upX + 1.8));
-      z = Math.min(z1, Math.max(z0, door.upZ + 1.2));
+    let spot = roofPick(group);
+    for (let t = 0; t < 6 && door && Math.hypot(spot.x - door.upX, spot.z - door.upZ) < 1.3; t++) {
+      spot = roofPick(group);
     }
-    fig.userData.roof = { x: x, z: z, y: roofStay.y, group: group, goalX: x, goalZ: z };
+    const home = { x: spot.x, z: spot.z, y: roofStay.y, group: group, goalX: spot.x, goalZ: spot.z };
+    roofClamp(group, home);
+    fig.userData.roof = home;
     fig.userData.offset = i * 0.85;
     fig.userData.play = spec.play || (i % 2 ? "wave" : "work");
-    fig.position.set(x, roofStay.y, z);
+    fig.position.set(home.x, home.y, home.z);
     vfx.add(fig);
     roofKids.push(fig);
     roofVisit.push(fig);
@@ -36307,120 +36531,6 @@ function stepRoofKids(now) {
   }
   if (roofVisit.length) stepRoofVisit(now);
   return;
-  if (stepRoofKids.prev == null) stepRoofKids.prev = now;
-  const dt = Math.min(0.05, Math.max(0, now - stepRoofKids.prev));
-  stepRoofKids.prev = now;
-  const show = roofKidsOut();
-  const plane = !!(airliner.visible);
-  const px = airliner.position.x, py = airliner.position.y, pz = airliner.position.z;
-  for (let g = 0; g < roofGroups.length; g++) {
-    const group = roofGroups[g];
-    if (now >= group.until) {
-      const roll = group.rand();
-      group.mode = plane && roll < 0.42 ? "watch" : (roll < 0.72 ? "chase" : "play");
-      if (!plane && group.mode === "watch") group.mode = "play";
-      group.until = now + 9 + group.rand() * 8;
-      if (group.mode === "chase") group.it = (group.rand() * group.kids.length) | 0;
-      if (group.mode === "play") {
-        for (let k = 0; k < group.kids.length; k++) {
-          const goal = roofPick(group);
-          const home = group.kids[k].userData.roof;
-          home.goalX = goal.x;
-          home.goalZ = goal.z;
-        }
-      }
-    }
-  }
-  refreshFigureView();
-  for (let i = 0; i < roofKids.length; i++) {
-    const fig = roofKids[i];
-    const home = fig.userData.roof;
-    const gap = figureViewGap(home.x, home.y + 0.8, home.z, 0.95);
-    const want = show && !walkMode;
-    if (walkMode && (!show || npcAway(home.x, home.z)) && !figureRemember(fig.userData, home.x, home.y + 0.8, home.z)) {
-      if (fig.visible) fig.visible = false;
-      dozeFigure(fig);
-      continue;
-    }
-    if (walkMode) fig.visible = true;
-    else if (want) {
-      if (!fig.visible && gap >= FIGURE_CLEAR) { dozeFigure(fig); continue; }
-      fig.visible = true;
-    } else if (fig.visible && gap >= 0) {
-      // Day has ended, or the street has the camera, but they are still in shot.
-    } else {
-      fig.visible = false;
-    }
-    if (!fig.visible) { dozeFigure(fig); continue; }
-    wakeFigure(fig);
-    const ud = fig.userData;
-    const group = home.group;
-    const rig = ud.rig;
-    let mode = group.mode;
-    if (mode === "watch" && !plane) mode = "play";
-    let yaw = fig.rotation.y;
-    let moving = 0;
-    let lookX = Math.sin(now * 0.7 + ud.offset) * 0.06;
-    let lookY = Math.sin(now * 0.45 + ud.offset * 2) * 0.18;
-    if (mode === "watch") {
-      yaw = Math.atan2(px - home.x, pz - home.z);
-      const up = Math.atan2(py - home.y - 0.7, Math.hypot(px - home.x, pz - home.z));
-      lookX = -Math.min(0.95, Math.max(0.2, up));
-      lookY = Math.sin(now * 0.6 + ud.offset) * 0.08;
-      moving = 0;
-    } else if (mode === "chase") {
-      const it = group.kids[group.it] || fig;
-      const quarry = it.userData.roof;
-      if (fig === it) {
-        let best = null, bestD = 1e9, bestI = 0;
-        for (let k = 0; k < group.kids.length; k++) {
-          if (group.kids[k] === fig) continue;
-          const other = group.kids[k].userData.roof;
-          const d = Math.hypot(other.x - home.x, other.z - home.z);
-          if (d < bestD) { bestD = d; best = other; bestI = k; }
-        }
-        if (best && bestD < 0.46 && now > group.tagAt) {
-          group.it = bestI;
-          group.tagAt = now + 1.6;
-        }
-        yaw = roofSteer(group, home, best ? best.x : group.x, best ? best.z : group.z, 1.25, dt);
-        moving = 1;
-      } else {
-        const awayX = home.x - quarry.x, awayZ = home.z - quarry.z;
-        const ad = Math.hypot(awayX, awayZ) || 1;
-        const tx = home.x + awayX / ad * 1.4 - awayZ / ad * 0.55;
-        const tz = home.z + awayZ / ad * 1.4 + awayX / ad * 0.55;
-        yaw = roofSteer(group, home, tx, tz, 1.15, dt);
-        moving = 1;
-      }
-      for (let k = 0; k < group.kids.length; k++) {
-        const other = group.kids[k].userData.roof;
-        if (other === home) continue;
-        const dx = home.x - other.x, dz = home.z - other.z;
-        const d = Math.hypot(dx, dz);
-        if (d < 0.42 && d > 0.001) {
-          home.x += dx / d * (0.42 - d);
-          home.z += dz / d * (0.42 - d);
-        }
-      }
-      roofClamp(group, home);
-    } else {
-      let gx = home.goalX, gz = home.goalZ;
-      if (Math.hypot(gx - home.x, gz - home.z) < 0.4) {
-        const goal = roofPick(group);
-        home.goalX = gx = goal.x;
-        home.goalZ = gz = goal.z;
-      }
-      yaw = roofSteer(group, home, gx, gz, 0.72, dt);
-      moving = 0.72;
-    }
-    fig.position.set(home.x, home.y, home.z);
-    const dy = Math.atan2(Math.sin(yaw - fig.rotation.y), Math.cos(yaw - fig.rotation.y));
-    fig.rotation.y += dy * Math.min(1, dt * 7);
-    ud.roofMoving = moving;
-    poseRoofBody(rig, ud, now, moving, lookX, lookY);
-    flushFigure(fig);
-  }
 }
 // Roof children are born when the player steps onto a deck, and leave with them.
 
