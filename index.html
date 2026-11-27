@@ -12224,6 +12224,9 @@ function fillUntracedParcels() {
         }
       }
     }
+    // Continuous concrete apron along the Yamen / Old People's Centre south street and Tin Hau Temple forecourt mouth.
+    VOIDS.push({ x: 82.0, z: 84.55, x2: 123.22, z2: 87.05, link: true, apron: true });
+    VOIDS.push({ x: TEMPLE_X - 0.05, z: TEMPLE_Z + TEMPLE_D, x2: TEMPLE_X + TEMPLE_W + 0.35, z2: TEMPLE_Z + TEMPLE_D + 4.6, link: true, apron: true });
   })();
 }
 // Every parcel from the sheet, plus the holes the trace left inside the wall.
@@ -12624,50 +12627,62 @@ function qingPeak(d, eaveY) {
   const run = d / 2 + 0.85;
   return eaveY + Math.sin(pitch) * (run / Math.cos(pitch)) + 0.4;
 }
-function qingRoof(x, z, w, d, eaveY, ornament) {
+function qingRoof(x, z, w, d, eaveY, ornament, over) {
+  const ov = over || {};
+  const overN = ov.n != null ? ov.n : 0.85;
+  const overS = ov.s != null ? ov.s : 0.85;
+  const overW = ov.w != null ? ov.w : 0.08;
+  const overE = ov.e != null ? ov.e : 0.08;
   const pitch = 0.55;
-  const run = d / 2 + 0.85;
-  const slopeLen = run / Math.cos(pitch);
-  const rise = Math.sin(pitch) * slopeLen;
+  const runN = d / 2 + overN;
+  const runS = d / 2 + overS;
+  const runRef = Math.max(runN, runS);
+  const slopeN = runN / Math.cos(pitch);
+  const slopeS = runS / Math.cos(pitch);
+  const rise = Math.sin(pitch) * (runRef / Math.cos(pitch));
   const cx = x + w / 2;
+  const roofW = w + overW + overE;
+  const roofCx = x - overW + roofW / 2;
   const midZ = z + d / 2;
-  const tileMat = mappedMat(greyTileMap(Math.max(1.4, w / 2.6), Math.max(1.1, slopeLen / 2.2)), 0.96, 1.05);
-  const ridgeMat = mappedMat(greyTileMap(Math.max(2, w / 1.4), 1.2), 0.86, 0.72);
+  const tileMat = mappedMat(greyTileMap(Math.max(1.4, roofW / 2.6), Math.max(1.1, (runRef / Math.cos(pitch)) / 2.2)), 0.96, 1.05);
+  const ridgeMat = mappedMat(greyTileMap(Math.max(2, roofW / 1.4), 1.2), 0.86, 0.72);
   ridgeMat.color.setHex(0x9a958c);
-  [-1, 1].forEach(sign => {
-    const geo = new THREE.BoxGeometry(w + 0.15, 0.14, slopeLen);
-    geo.translate(0, 0, sign * slopeLen / 2);
+  [[-1, slopeN], [1, slopeS]].forEach(([sign, sLen]) => {
+    const geo = new THREE.BoxGeometry(roofW, 0.14, sLen);
+    geo.translate(0, 0, sign * sLen / 2);
     const mesh = new THREE.Mesh(geo, tileMat);
-    mesh.position.set(cx, eaveY + rise, midZ);
+    mesh.position.set(roofCx, eaveY + rise, midZ);
     mesh.rotation.x = sign * pitch;
     mesh.castShadow = true;
     city.add(mesh);
-    const eave = new THREE.Mesh(new THREE.BoxGeometry(w + 0.28, 0.1, 0.16), woodMat);
-    const along = slopeLen - 0.02;
+    const eave = new THREE.Mesh(new THREE.BoxGeometry(roofW + 0.08, 0.1, 0.16), woodMat);
+    const along = sLen - 0.02;
     const cy = eaveY + rise - Math.sin(pitch) * along;
     const cz = midZ + sign * Math.cos(pitch) * along;
-    eave.position.set(cx, cy - 0.08, cz);
+    eave.position.set(roofCx, cy - 0.08, cz);
     eave.rotation.x = sign * pitch;
     city.add(eave);
   });
-  const ridge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.05, 0.16, 0.28), tileMat);
-  ridge.position.set(cx, eaveY + rise + 0.04, midZ);
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(roofW - 0.04, 0.16, 0.28), tileMat);
+  ridge.position.set(roofCx, eaveY + rise + 0.04, midZ);
   ridge.castShadow = true;
   city.add(ridge);
-  const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, w + 0.02, 8), ridgeMat);
+  const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, roofW - 0.06, 8), ridgeMat);
   roll.rotation.z = Math.PI / 2;
-  roll.position.set(cx, eaveY + rise + 0.16, midZ);
+  roll.position.set(roofCx, eaveY + rise + 0.16, midZ);
   roll.castShadow = true;
   city.add(roll);
-  const nRoll = Math.max(3, Math.round(w / 1.35));
+  const nRoll = Math.max(3, Math.round(roofW / 1.35));
   for (let i = 0; i < nRoll; i++) {
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.22), ridgeMat);
-    cap.position.set(cx - w / 2 + 0.4 + i * (w - 0.5) / nRoll, eaveY + rise + 0.22, midZ);
+    cap.position.set(roofCx - roofW / 2 + 0.4 + i * (roofW - 0.5) / nRoll, eaveY + rise + 0.22, midZ);
     city.add(cap);
   }
   [-1, 1].forEach(sign => {
+    if (sign === 1 && overE < 0) return;
+    if (sign === -1 && overW < 0) return;
     const end = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.12, 0.28), ridgeMat);
-    end.position.set(cx + sign * (w / 2 - 0.02), eaveY + rise + 0.2, midZ);
+    end.position.set(roofCx + sign * (roofW / 2 - 0.06), eaveY + rise + 0.2, midZ);
     end.rotation.z = sign * -0.62;
     city.add(end);
   });
@@ -12675,14 +12690,15 @@ function qingRoof(x, z, w, d, eaveY, ornament) {
   attachWetWall(gableMat);
   [-1, 1].forEach(sign => {
     const steps = 6;
+    const gx = sign === -1 ? (x + 0.16) : (x + w - 0.16);
     for (let i = 0; i < steps; i++) {
       const t0 = i / steps;
       const t1 = (i + 1) / steps;
       const y0 = eaveY + rise * t0;
       const y1 = eaveY + rise * t1;
-      const half = (d / 2 + 0.08) * (1 - t0 * 0.9);
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(0.34, y1 - y0 + 0.04, half * 2), gableMat);
-      slab.position.set(cx + sign * (w / 2), (y0 + y1) / 2, midZ);
+      const half = (d / 2 + 0.02) * (1 - t0 * 0.9);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(0.32, y1 - y0 + 0.04, half * 2), gableMat);
+      slab.position.set(gx, (y0 + y1) / 2, midZ);
       slab.castShadow = true;
       city.add(slab);
     }
@@ -12721,21 +12737,30 @@ function lattice(px, py, pz, rotY, w, h) {
   g.rotation.y = rotY;
   city.add(g);
 }
-function porchPosts(cx, zFace, span) {
+function porchPosts(cx, zFace, span, floorY, beamY) {
+  const baseBot = floorY == null ? 0.525 : floorY;
+  const topY = beamY == null ? 3.18 : beamY;
+  const baseH = 0.20;
+  const colBot = baseBot + baseH;
+  const colH = Math.max(1.8, topY - colBot);
   [-1, 1].forEach(sign => {
     const px = cx + sign * span;
-    const base = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.34), yamenStone);
-    base.position.set(px, 0.16, zFace);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.34, baseH, 0.34), yamenStone);
+    base.position.set(px, baseBot + baseH * 0.5, zFace);
     city.add(base);
-    const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.85, 0.16), woodMat);
-    col.position.set(px, 1.7, zFace);
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.16, colH, 0.16), woodMat);
+    col.position.set(px, colBot + colH * 0.5, zFace);
     col.castShadow = true;
     city.add(col);
+    walkSolids.push({ x: px - 0.20, z: zFace - 0.20, x2: px + 0.20, z2: zFace + 0.20 });
   });
 }
 function hall(x, z, w, d, name, opts) {
   opts = opts || {};
   const h = 3.6;
+  const flanks = opts.flank == null ? ["w", "e"] : opts.flank;
+  const openW = flanks.indexOf("w") >= 0;
+  const openE = flanks.indexOf("e") >= 0;
   const wall = mappedMat(greyBrickMap(Math.max(1.5, w / 1.8), Math.max(1.2, h / 1.6)), 0.93, 1.55);
   attachWetWall(wall);
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wall);
@@ -12748,15 +12773,20 @@ function hall(x, z, w, d, name, opts) {
   addAnchor(x, z, w, d, squareAnchor);
   noteViewSolid(x, z, w, d, qingPeak(d, h - 0.05));
   walkSolids.push({ x, z, x2: x + w, z2: z + d });
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 0.26, d + 0.12), yamenStone);
-  plinth.position.set(x + w / 2, 0.13, z + d / 2);
+  // Extend plinth only on exposed faces so it never clips into neighbouring plates.
+  const plW = w + (openW ? 0.06 : 0) + (openE ? 0.06 : 0);
+  const plCx = x + (openW ? -0.06 : 0) + plW * 0.5;
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(plW, 0.34, d + 0.06), yamenStone);
+  plinth.position.set(plCx, 0.17, z + (d + 0.06) * 0.5);
   city.add(plinth);
-  qingRoof(x, z, w, d, h - 0.05, false);
+  qingRoof(x, z, w, d, h - 0.05, false, opts.roofOver || { n: 0.02, s: 0.85, e: openE ? 0.10 : -0.04, w: openW ? 0.10 : -0.04 });
   const cx = x + w / 2;
   const zFace = z + d;
   const opening = Math.min(2.05, w * 0.2);
-  const hole = new THREE.Mesh(new THREE.PlaneGeometry(opening, 2.15), darkHole);
-  hole.position.set(cx, 1.2, zFace + 0.03);
+  const doorBase = 0.525;
+  const doorH = 2.02;
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(opening, doorH), darkHole);
+  hole.position.set(cx, doorBase + doorH * 0.5, zFace + 0.015);
   city.add(hole);
   const wornDoor = hall.wornDoor || (hall.wornDoor = new THREE.MeshStandardMaterial({
     map: plainWear(64, 128, (g, w, h) => {
@@ -12778,49 +12808,57 @@ function hall(x, z, w, d, name, opts) {
     }),
     color: 0xffffff, roughness: 0.9, metalness: 0, clippingPlanes: clips
   }));
+  // Hinge wooden door leaves at the stone jambs swinging outward (+Z) by ~106 deg so zero edge clips the brick wall.
+  const leafW = opening * 0.46;
+  const openAng = 1.85;
   [-1, 1].forEach(sign => {
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(opening * 0.48, 2.05, 0.06), wornDoor);
-    leaf.position.set(cx + sign * opening * 0.3, 1.18, zFace + 0.16);
-    leaf.rotation.y = sign * 0.62;
+    const hx = cx + sign * (opening * 0.48);
+    const hz = zFace + 0.14;
+    const ux = -sign * Math.cos(openAng);
+    const uz = Math.sin(openAng);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, doorH - 0.06, 0.06), wornDoor);
+    leaf.position.set(hx + ux * leafW * 0.5, doorBase + (doorH - 0.06) * 0.5, hz + uz * leafW * 0.5);
+    leaf.rotation.y = Math.atan2(-uz, ux);
     city.add(leaf);
   });
   const postSpan = Math.min(w * 0.32, opening * 0.95);
-  porchPosts(cx, zFace + 0.55, postSpan);
+  const beamY = h - 0.42;
+  porchPosts(cx, zFace + 0.58, postSpan, doorBase, beamY);
   const lintelBeam = new THREE.Mesh(new THREE.BoxGeometry(postSpan * 2 + 0.4, 0.16, 0.2), woodMat);
-  lintelBeam.position.set(cx, h - 0.42, zFace + 0.55);
+  lintelBeam.position.set(cx, beamY, zFace + 0.58);
   city.add(lintelBeam);
   const jambMat = yamenStone;
+  const jambH = doorH + 0.06;
   [-1, 1].forEach(sign => {
-    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.35, 0.22), jambMat);
-    jamb.position.set(cx + sign * (opening * 0.55), 1.22, zFace + 0.06);
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.16, jambH, 0.22), jambMat);
+    jamb.position.set(cx + sign * (opening * 0.5 + 0.08), doorBase + jambH * 0.5, zFace + 0.06);
     city.add(jamb);
   });
-  const head = new THREE.Mesh(new THREE.BoxGeometry(opening + 0.36, 0.16, 0.22), jambMat);
-  head.position.set(cx, 2.42, zFace + 0.06);
+  const headY = doorBase + jambH + 0.08;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(opening + 0.32, 0.16, 0.22), jambMat);
+  head.position.set(cx, headY, zFace + 0.06);
   city.add(head);
+  // Granite entry steps raised cleanly above the 0.285 m south street slab (outer top 0.405 m, porch top 0.525 m).
   const stepStone = hall.stepStone || (hall.stepStone = mappedMat(graniteStepMap(), 0.96));
-  const tread = new THREE.Mesh(new THREE.BoxGeometry(Math.min(5.2, w * 0.52), 0.14, 1.7), stepStone);
-  tread.position.set(cx, 0.08, zFace + 1.15);
+  const tread = new THREE.Mesh(new THREE.BoxGeometry(Math.min(5.2, w * 0.52), 0.14, 1.65), stepStone);
+  tread.position.set(cx, 0.335, zFace + 1.02);
   city.add(tread);
-  // A flank against another plate would put the lattice through that wall.
-  const flanks = opts.flank == null ? ["w", "e"] : opts.flank;
-  if (flanks.indexOf("w") >= 0) {
-    lattice(x + 0.04, 1.7, z + d * 0.35, -Math.PI / 2, 0.7, 1.05);
-    lattice(x + 0.04, 1.7, z + d * 0.7, -Math.PI / 2, 0.7, 1.05);
-  }
-  if (flanks.indexOf("e") >= 0) {
-    lattice(x + w - 0.04, 1.7, z + d * 0.35, Math.PI / 2, 0.7, 1.05);
-    lattice(x + w - 0.04, 1.7, z + d * 0.7, Math.PI / 2, 0.7, 1.05);
-  }
-  const step = new THREE.Mesh(new THREE.BoxGeometry(Math.min(4.6, w * 0.46), 0.2, 1.05), stepStone);
-  step.position.set(cx, 0.22, zFace + 0.62);
+  const step = new THREE.Mesh(new THREE.BoxGeometry(Math.min(4.6, w * 0.46), 0.14, 1.08), stepStone);
+  step.position.set(cx, 0.455, zFace + 0.54);
   city.add(step);
+  // Mount flank wooden lattice windows flush onto the exterior brick face (never buried inside wall).
+  if (openW) {
+    lattice(x - 0.03, 1.82, z + d * 0.35, -Math.PI / 2, 0.72, 1.05);
+    lattice(x - 0.03, 1.82, z + d * 0.7, -Math.PI / 2, 0.72, 1.05);
+  }
+  if (openE) {
+    lattice(x + w + 0.03, 1.82, z + d * 0.35, Math.PI / 2, 0.72, 1.05);
+    lattice(x + w + 0.03, 1.82, z + d * 0.7, Math.PI / 2, 0.72, 1.05);
+  }
   if (opts.lintel) {
-    // The stone head tops out at 2.50 and stands proud of the wall, so a
-    // close look up the door still ate the lower edge of the plaque.
-    // The whole board now sits on the brick, clear of that frame.
-    const board = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.42, 0.08), signMat("ALMSHOUSE", "#cfc6b6", "#2a241c", 2.6, 0.42));
-    board.position.set(cx, 3.06, zFace + 0.08);
+    // Seated flush on the brick facade (back at zFace - 0.002) between stone head (2.665) and porch beam (3.10).
+    const board = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.36, 0.08), signMat("ALMSHOUSE", "#cfc6b6", "#2a241c", 2.5, 0.36));
+    board.position.set(cx, 2.88, zFace + 0.038);
     city.add(board);
   }
 }
@@ -12917,7 +12955,7 @@ function lowBlock(x, z, w, d, h, name, opt) {
     pickables.push(mesh);
   });
   addAnchor(x, z, w, d, squareAnchor);
-  walkSolids.push({ x, z, x2: x + w, z2: z + d });
+  walkSolids.push({ x, z, x2: x + w, z2: z + d, ground: open.join("") });
   const deckMat = mappedMat(concreteRoofMap(), 0.96, 0.72);
   if (opt.wet) {
     deckMat.color.setHex(0xd2cdc4);
@@ -12930,30 +12968,50 @@ function lowBlock(x, z, w, d, h, name, opt) {
   slab.position.set(x + w / 2, h + 0.08, z + d / 2);
   slab.receiveShadow = true;
   city.add(slab);
+  const slabTop = h + 0.14;
   const galv = new THREE.MeshStandardMaterial({ map: roofKitTexOf("rust"), color: 0xb09080, roughness: 0.92, metalness: 0.08, clippingPlanes: clips });
   attachTriTile(galv, 0.64);
+  const standMatY = new THREE.MeshStandardMaterial({ map: roofKitTexOf("rust"), color: 0x6a5848, roughness: 0.94, metalness: 0.06, clippingPlanes: clips });
+  attachBoxTile(standMatY, 0.64, 0, 0);
+  // Grounded steel stand flush on roof slab (slabTop), tank seated flush on stand, lid flush on tank.
+  const stand = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.14, 1.2), standMatY);
+  stand.position.set(x + w - 1.85, slabTop + 0.07, z + 1.7);
+  city.add(stand);
   const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.72, 12), galv);
-  tank.position.set(x + w - 1.85, h + 0.7, z + 1.7);
+  tank.position.set(x + w - 1.85, slabTop + 0.14 + 0.36, z + 1.7);
   tank.castShadow = true;
   city.add(tank);
   const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.06, 12), galv);
-  lid.position.set(x + w - 1.85, h + 1.08, z + 1.7);
+  lid.position.set(x + w - 1.85, slabTop + 0.14 + 0.72 + 0.03, z + 1.7);
   city.add(lid);
-  const standMatY = new THREE.MeshStandardMaterial({ map: roofKitTexOf("rust"), color: 0x6a5848, roughness: 0.94, metalness: 0.06, clippingPlanes: clips });
-  attachBoxTile(standMatY, 0.64, 0, 0);
-  const stand = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.14, 1.2), standMatY);
-  stand.position.set(x + w - 1.85, h + 0.28, z + 1.7);
-  city.add(stand);
   if (!opt.cement) {
-    const pipe = new THREE.Mesh(new THREE.BoxGeometry(0.07, h - 0.15, 0.07), galv);
-    pipe.position.set(x + 0.22, h / 2 + 0.1, z + d * 0.38);
-    city.add(pipe);
+    // Follow the recessed ground wall (x+0.48) and upper wall (x+0.28) with a flush elbow so the downpipe never floats.
+    const floorH0 = h / floors;
+    const pipeZ = z + d * 0.24;
+    const openWest = open.indexOf("w") >= 0;
+    if (openWest) {
+      const lowH = Math.max(0.4, floorH0 - 0.28);
+      const lowPipe = new THREE.Mesh(new THREE.BoxGeometry(0.07, lowH, 0.07), galv);
+      lowPipe.position.set(x + 0.445, 0.28 + lowH * 0.5, pipeZ);
+      city.add(lowPipe);
+      const elbow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.07, 0.07), galv);
+      elbow.position.set(x + 0.345, floorH0 - 0.02, pipeZ);
+      city.add(elbow);
+      const upH = Math.max(0.4, h - floorH0);
+      const upPipe = new THREE.Mesh(new THREE.BoxGeometry(0.07, upH, 0.07), galv);
+      upPipe.position.set(x + 0.245, floorH0 + upH * 0.5, pipeZ);
+      city.add(upPipe);
+    } else {
+      const pipe = new THREE.Mesh(new THREE.BoxGeometry(0.07, h - 0.28, 0.07), galv);
+      pipe.position.set(x, 0.28 + (h - 0.28) * 0.5, pipeZ);
+      city.add(pipe);
+    }
   }
   const signFace = opt.sign || "s";
   const signWide = signFace === "w" || signFace === "e";
   const doorPlate = opt.plaque === "door" && signFace === "w";
   const plateW = doorPlate ? 1.36 : (signWide ? Math.min(3.4, d * 0.42) : Math.min(3.4, w * 0.42));
-  const plateH = doorPlate ? 0.32 : 0.42;
+  const plateH = doorPlate ? 0.20 : 0.42;
   const plateThin = doorPlate ? 0.045 : 0.06;
   const plate = new THREE.Mesh(
     new THREE.BoxGeometry(
@@ -12963,11 +13021,10 @@ function lowBlock(x, z, w, d, h, name, opt) {
     ),
     signMat(name, doorPlate ? "#c4b49a" : "#3c342c", doorPlate ? "#2a221c" : "#efe6d4", plateW, plateH)
   );
-  // An open face is set back from the lot line. The plate sits on that plaster,
-  // not out in the lane with a gap behind it. A tenement name is over the door.
-  const recess = open.indexOf(signFace) >= 0 ? 0.25 : -0.05;
-  // The board stays on the cement, clear of the door head below it.
-  if (doorPlate) plate.position.set(x + 0.445, 2.08, z + d * 0.5);
+  // An open face is set back from the lot line. Seat plate flush on that plaster (0 mm air gap).
+  const recess = open.indexOf(signFace) >= 0 ? (0.28 - plateThin * 0.5) : (-0.035 - plateThin * 0.5);
+  // For 義學大樓, seat door plaque flush on groundWall (x + 0.48) between headTop (2.10) and f=1 spandrel (2.33).
+  if (doorPlate) plate.position.set(x + 0.48 - plateThin * 0.5, 2.21, z + d * 0.5);
   else if (signFace === "n") plate.position.set(x + w * 0.5, h - 0.55, z + recess);
   else if (signFace === "w") plate.position.set(x + recess, h - 0.55, z + d * 0.5);
   else if (signFace === "e") plate.position.set(x + w - recess, h - 0.55, z + d * 0.5);
@@ -12976,24 +13033,27 @@ function lowBlock(x, z, w, d, h, name, opt) {
   const rackZ = z + d * 0.62;
   [-1.15, 1.15].forEach(dx => {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 1.05, 5), woodMat);
-    post.position.set(x + w * 0.46 + dx, h + 0.66, rackZ);
+    post.position.set(x + w * 0.46 + dx, slabTop + 0.525, rackZ);
     city.add(post);
   });
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.5, 6), woodMat);
   pole.rotation.z = Math.PI / 2;
-  pole.position.set(x + w * 0.46, h + 1.16, rackZ);
+  pole.position.set(x + w * 0.46, slabTop + 1.02, rackZ);
   city.add(pole);
   noteViewSolid(x, z, w, d, h + 1.35);
   massCount += 1;
 }
-// North bar, two storeys, door on the west lane. South and east are party
-// walls (the school and the old people's centre, then the east tenements).
+// North bar, two storeys (5.6 m), recessed west entrance door onto the school lane.
+// South and east are party walls (the school and the old people's centre, then the east tenements).
 // The school is the west plate and stops at the gate. Its door is the same lane.
-lowBlock(82, 39.05, 41.18, 12.43, 4.0, "青年中心", { sign: "w", open: ["w"] });
+lowBlock(82, 39.05, 41.18, 12.43, 5.6, "青年中心", {
+  floors: 2, sign: "w", open: ["w"], cement: true, wet: true,
+  door: { face: "w", along0: 12.43 * 0.5 - 0.72, width: 1.44, notch: 0.85, capY: 2.18 }
+});
 lowBlock(82, 51.43, 17.24, 26.87, 20.0, "義學大樓", {
   floors: 8, open: ["w"], wet: true, sign: "w", cement: true, plaque: "door",
-  // Same centre as the gate in schoolWestFace. The slot is the lobby.
-  door: { face: "w", along0: 6.5 * (26.87 / 13) - 0.54, width: 1.08, notch: 0.72, capY: 1.84 }
+  // Same centre as the gate in schoolWestFace. Full-height lobby cutout (capY 2.10 m).
+  door: { face: "w", along0: 6.5 * (26.87 / 13) - 0.56, width: 1.12, notch: 0.85, capY: 2.10 }
 });
 function schoolMosaicMap() {
   // 20 mm paper tiles. The map is one 0.40 m square of the 1970s dado.
@@ -13046,16 +13106,17 @@ function schoolWestFace() {
     if (sx < 0.015 || sy < 0.015 || sz < 0.015) return;
     list.push({ x: x, y: y, z: z, sx: sx, sy: sy, sz: sz });
   }
-  function casement(face, along, floor, ww, hh, sillH, withCage) {
+  function casement(face, along, floor, ww, hh, sillH, withCage, withBars) {
     const west = face === "w";
+    const wallX = floor === 0 ? groundWall : westWall;
     const y0 = floor * floorH + sillH;
     const yMid = y0 + hh / 2;
-    const gx = west ? westWall - 0.07 : along;
-    const gz = west ? along : southWall + 0.06;
-    put(dark, west ? westWall - 0.02 : along, yMid, west ? along : southWall + 0.02, west ? 0.025 : ww + 0.02, hh + 0.02, west ? ww + 0.02 : 0.025);
+    const gx = west ? wallX - 0.035 : along;
+    const gz = west ? along : southWall + 0.045;
+    put(dark, west ? wallX - 0.012 : along, yMid, west ? along : southWall + 0.015, west ? 0.025 : ww + 0.02, hh + 0.02, west ? ww + 0.02 : 0.025);
     put(glass, gx, yMid, gz, west ? 0.02 : ww - 0.08, hh - 0.08, west ? ww - 0.08 : 0.02);
-    const fx = west ? westWall - 0.09 : along;
-    const fz = west ? along : southWall + 0.075;
+    const fx = west ? wallX - 0.05 : along;
+    const fz = west ? along : southWall + 0.055;
     put(frame, fx, y0 + hh, fz, west ? 0.05 : ww + 0.06, 0.045, west ? ww + 0.06 : 0.05);
     put(frame, fx, y0, fz, west ? 0.05 : ww + 0.06, 0.045, west ? ww + 0.06 : 0.05);
     put(frame, west ? fx : along - ww / 2, yMid, west ? along - ww / 2 : fz, west ? 0.05 : 0.045, hh, west ? 0.045 : 0.05);
@@ -13063,56 +13124,99 @@ function schoolWestFace() {
     if (ww > 0.7) {
       put(frame, fx, yMid, fz, west ? 0.04 : 0.028, hh - 0.08, west ? 0.028 : 0.04);
     }
-    put(sill, west ? westWall - 0.12 : along, y0 - 0.02, west ? along : southWall + 0.1, west ? 0.1 : ww + 0.18, 0.05, west ? ww + 0.18 : 0.1);
-    if (!withCage) return;
-    const depth = 0.34;
-    const xA = west ? westWall - 0.1 : along - ww / 2 - 0.04;
-    const xB = west ? westWall - 0.1 - depth : along + ww / 2 + 0.04;
-    const zA = west ? along - ww / 2 - 0.04 : southWall + 0.08;
-    const zB = west ? along + ww / 2 + 0.04 : southWall + 0.08 + depth;
-    const yA = y0 + 0.04, yB = y0 + hh - 0.02;
-    const bars = 4;
-    for (let i = 0; i <= bars; i++) {
-      const t = i / bars;
-      if (west) put(cage, (xA + xB) / 2, (yA + yB) / 2, zA + (zB - zA) * t, depth, yB - yA, 0.012);
-      else put(cage, xA + (xB - xA) * t, (yA + yB) / 2, (zA + zB) / 2, 0.012, yB - yA, depth);
+    put(sill, west ? wallX - 0.06 : along, y0 - 0.02, west ? along : southWall + 0.065, west ? 0.10 : ww + 0.16, 0.05, west ? ww + 0.16 : 0.10);
+    if (withBars) {
+      for (let b = 0; b < 3; b++) {
+        const by = y0 + hh * (0.24 + b * 0.26);
+        if (west) put(cage, wallX - 0.075, by, along, 0.016, 0.016, ww - 0.04);
+        else put(cage, along, by, southWall + 0.075, ww - 0.04, 0.016, 0.016);
+      }
     }
-    for (let i = 0; i <= 2; i++) {
-      const yy = yA + (yB - yA) * (i / 2);
-      if (west) put(cage, (xA + xB) / 2, yy, (zA + zB) / 2, depth, 0.012, zB - zA);
-      else put(cage, (xA + xB) / 2, yy, (zA + zB) / 2, xB - xA, 0.012, depth);
+    if (!withCage) return;
+    // Authentic slender-bar iron flower cage (花籠): perimeter frame + front vertical/horizontal bars + thin rain hood.
+    const depth = 0.34;
+    const barT = 0.016;
+    const yA = y0 + 0.03, yB = y0 + hh - 0.02;
+    const ch = yB - yA, cy = (yA + yB) * 0.5;
+    const halfSpan = ww * 0.5 + 0.04;
+    const spanW = halfSpan * 2;
+    if (west) {
+      const xIn = wallX - 0.04;
+      const xOut = wallX - 0.04 - depth;
+      const xMid = (xIn + xOut) * 0.5;
+      const zA = along - halfSpan, zB = along + halfSpan;
+      // Front vertical bars (at xOut) + side return vertical bars
+      for (let i = 0; i <= 5; i++) {
+        put(cage, xOut, cy, zA + spanW * (i / 5), barT, ch, barT);
+      }
+      put(cage, xMid, cy, zA, barT, ch, barT);
+      put(cage, xMid, cy, zB, barT, ch, barT);
+      // Horizontal front rails & side return rails (bottom, mid, top)
+      for (let i = 0; i <= 2; i++) {
+        const yy = yA + ch * (i / 2);
+        put(cage, xOut, yy, along, barT, barT, spanW);
+        put(cage, xMid, yy, zA, depth, barT, barT);
+        put(cage, xMid, yy, zB, depth, barT, barT);
+      }
+      // Thin sheet rain hood at top of cage
+      put(cage, xMid, yB + 0.01, along, depth + 0.02, 0.016, spanW + 0.02);
+    } else {
+      const zIn = southWall + 0.04;
+      const zOut = southWall + 0.04 + depth;
+      const zMid = (zIn + zOut) * 0.5;
+      const xA = along - halfSpan, xB = along + halfSpan;
+      for (let i = 0; i <= 5; i++) {
+        put(cage, xA + spanW * (i / 5), cy, zOut, barT, ch, barT);
+      }
+      put(cage, xA, cy, zMid, barT, ch, barT);
+      put(cage, xB, cy, zMid, barT, ch, barT);
+      for (let i = 0; i <= 2; i++) {
+        const yy = yA + ch * (i / 2);
+        put(cage, along, yy, zOut, spanW, barT, barT);
+        put(cage, xA, yy, zMid, barT, barT, depth);
+        put(cage, xB, yy, zMid, barT, barT, depth);
+      }
+      put(cage, along, yB + 0.01, zMid, spanW + 0.02, 0.016, depth + 0.02);
     }
   }
   for (let i = 0; i < westBays; i++) {
     const zc = z0 + (i + 0.5) * zBay;
     const stair = i === doorBay;
+    // Ground-floor barred classroom/office windows above the 1.08 m green mosaic dado (skipping door & noticeboard).
+    if (!stair && i !== 7 && i !== 0 && i !== 12) {
+      casement("w", zc, 0, 1.04, 0.94, 1.20, false, true);
+    }
     for (let f = 1; f < floors; f++) {
       const cageOn = !stair && ((i * 3 + f) % 5) < 3;
-      casement("w", zc, f, stair ? 0.46 : 1.12, stair ? 1.4 : 1.22, stair ? 0.82 : 0.7, cageOn);
+      casement("w", zc, f, stair ? 0.46 : 1.12, stair ? 1.4 : 1.22, stair ? 0.82 : 0.7, cageOn, false);
     }
   }
   for (let i = 0; i < southBays; i++) {
     const xc = x0 + (i + 0.5) * xBay;
-    const exposed = xc < gateX - 0.35;
+    const exposed = xc < gateX - 0.55;
+    if (exposed) casement("s", xc, 0, 0.98, 0.94, 1.20, false, true);
     for (let f = 1; f < floors; f++) {
-      if (!exposed && f < 4) continue;
+      if (!exposed && f < 3) continue;
       const cageOn = f >= 2 && ((i + f) % 4) !== 0;
-      casement("s", xc, f, 1.05, 1.18, 0.72, cageOn);
+      casement("s", xc, f, 1.05, 1.18, 0.72, cageOn, false);
     }
   }
   for (let i = 0; i <= westBays; i++) {
     put(pier, 82.24, h / 2, z0 + i * zBay, 0.46, h, 0.16);
   }
+  // South piers flush on southWall; piers over the gatehouse seat down into its roof slope (5.4 m) so none hover.
   for (let i = 0; i <= southBays; i++) {
     const px = x0 + i * xBay;
-    if (px < gateX - 0.05) put(pier, px, h / 2, southWall + 0.08, 0.15, h, 0.18);
-    else put(pier, px, 7.2 + (h - 7.2) / 2, southWall + 0.08, 0.15, h - 7.2, 0.18);
+    if (px < gateX - 0.05) put(pier, px, h / 2, southWall + 0.03, 0.15, h, 0.10);
+    else put(pier, px, 5.4 + (h - 5.4) / 2, southWall + 0.03, 0.15, h - 5.4, 0.10);
   }
   [3, 11].forEach(function (i) {
     const pz = z0 + i * zBay;
-    put(pipe, westWall - 0.2, h / 2, pz, 0.08, h, 0.08);
-    put(pipe, westWall - 0.2, h - 0.08, pz, 0.16, 0.1, 0.16);
-    put(sill, westWall - 0.28, 0.12, pz, 0.18, 0.08, 0.14);
+    // Follow the recessed ground wall and upper wall flush so west downpipes stay anchored.
+    put(pipe, groundWall - 0.04, 1.4, pz, 0.07, 2.24, 0.07);
+    put(pipe, (groundWall + westWall) * 0.5 - 0.04, 2.48, pz, 0.24, 0.07, 0.07);
+    put(pipe, westWall - 0.04, 2.5 + (h - 2.5) / 2, pz, 0.07, h - 2.5, 0.07);
+    put(pipe, westWall - 0.04, h - 0.08, pz, 0.14, 0.1, 0.14);
   });
   const mosaicMat = mappedMat(schoolMosaicMap(), 0.94, 0.4);
   mosaicMat.color.setRGB(0.92, 0.94, 0.9);
@@ -13126,28 +13230,32 @@ function schoolWestFace() {
     mesh.receiveShadow = true;
     city.add(mesh);
   }
-  // The ground shell is slotted on this bay. The mosaic stops on the jambs,
-  // and the bars sit back in the slot so the cement does not show through them.
-  const mouthW = 1.08;
+  // Full-height 義學大樓 lobby entrance (clear height 1.71 m, 1.69 m collapsible gate, flush threshold & soffit light).
+  const mouthW = 1.12;
   const jambT = 0.09;
   const jambOut = mouthW / 2 + jambT / 2;
-  const notch = 0.72;
-  const headBot = 1.72;
-  const headTop = 1.84;
-  dado(groundWall - 0.03, (z0 + 0.12 + doorZ - jambOut - jambT / 2) / 2, 0.05, doorZ - jambOut - jambT / 2 - (z0 + 0.12));
-  dado(groundWall - 0.03, (doorZ + jambOut + jambT / 2 + z0 + bd - 0.12) / 2, 0.05, z0 + bd - 0.12 - (doorZ + jambOut + jambT / 2));
-  dado((x0 + 0.2 + gateX - 0.45) / 2, southWall + 0.04, gateX - 0.45 - (x0 + 0.2), 0.05);
+  const notch = 0.85;
+  const headBot = 2.02;
+  const headTop = 2.10;
+  dado(groundWall - 0.025, (z0 + 0.12 + doorZ - jambOut - jambT / 2) / 2, 0.05, doorZ - jambOut - jambT / 2 - (z0 + 0.12));
+  dado(groundWall - 0.025, (doorZ + jambOut + jambT / 2 + z0 + bd - 0.12) / 2, 0.05, z0 + bd - 0.12 - (doorZ + jambOut + jambT / 2));
+  dado((x0 + 0.2 + gateX - 0.45) / 2, southWall + 0.025, gateX - 0.45 - (x0 + 0.2), 0.05);
+  // Framed institutional noticeboard (佈告欄) on bay 7 beside the entrance.
+  const nbZ = z0 + 7.5 * zBay;
+  const nbBoard = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.82, 1.16), signMat("通告", "#344638", "#e8e2cf", 1.16, 0.82));
+  nbBoard.position.set(groundWall - 0.02, 1.56, nbZ);
+  city.add(nbBoard);
   const gateMat = new THREE.MeshStandardMaterial({ color: 0x2c3832, roughness: 0.52, metalness: 0.42, clippingPlanes: clips });
   attachWetFilm(gateMat);
   const voidMat = new THREE.MeshBasicMaterial({ color: 0x050403, clippingPlanes: clips });
   const cheekMat = new THREE.MeshBasicMaterial({ color: 0x141210, clippingPlanes: clips });
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.06, headTop - 0.26, mouthW - 0.04), voidMat);
-  back.position.set(groundWall + notch - 0.05, (0.26 + headTop) / 2, doorZ);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.06, headTop - 0.28, mouthW - 0.04), voidMat);
+  back.position.set(groundWall + notch - 0.05, (0.28 + headTop) / 2, doorZ);
   city.add(back);
-  const soffit = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.1, 0.12, mouthW - 0.06), cheekMat);
-  soffit.position.set(groundWall + (notch - 0.1) / 2 + 0.02, headTop - 0.07, doorZ);
+  const soffit = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.08, 0.10, mouthW - 0.04), cheekMat);
+  soffit.position.set(groundWall + (notch - 0.08) / 2 + 0.02, headTop - 0.05, doorZ);
   city.add(soffit);
-  const lobbyFloor = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.1, 0.04, mouthW - 0.06), cheekMat);
+  const lobbyFloor = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.08, 0.04, mouthW - 0.04), cheekMat);
   lobbyFloor.position.set(groundWall + notch / 2, 0.30, doorZ);
   city.add(lobbyFloor);
   [-1, 1].forEach(function (s) {
@@ -13157,15 +13265,15 @@ function schoolWestFace() {
   });
   const jambMatDoor = new THREE.MeshStandardMaterial({ color: 0x3a342e, roughness: 0.72, metalness: 0.16, clippingPlanes: clips });
   attachWetFilm(jambMatDoor);
-  const jambH = headTop - 0.27;
+  const jambH = headTop - 0.28;
   [-1, 1].forEach(function (s) {
     const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.1, jambH, jambT), jambMatDoor);
-    jamb.position.set(groundWall - 0.04 + 0.05, 0.27 + jambH / 2, doorZ + s * jambOut);
+    jamb.position.set(groundWall - 0.04 + 0.05, 0.28 + jambH / 2, doorZ + s * jambOut);
     jamb.castShadow = true;
     jamb.receiveShadow = true;
     city.add(jamb);
-    const ret = new THREE.Mesh(new THREE.BoxGeometry(0.26, jambH, 0.045), jambMatDoor);
-    ret.position.set(groundWall + 0.13, 0.27 + jambH / 2, doorZ + s * (mouthW / 2 - 0.02));
+    const ret = new THREE.Mesh(new THREE.BoxGeometry(0.28, jambH, 0.045), jambMatDoor);
+    ret.position.set(groundWall + 0.14, 0.28 + jambH / 2, doorZ + s * (mouthW / 2 - 0.02));
     ret.receiveShadow = true;
     city.add(ret);
   });
@@ -13176,11 +13284,11 @@ function schoolWestFace() {
   const sillMat = mappedMat(elderPaintMap(), 0.9, 0.48);
   sillMat.color.setRGB(0.55, 0.52, 0.48);
   attachWetWall(sillMat);
-  const threshold = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.05, mouthW + 0.02), sillMat);
-  threshold.position.set(groundWall + 0.05, 0.295, doorZ);
+  const threshold = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, mouthW + 0.02), sillMat);
+  threshold.position.set(groundWall + 0.04, 0.295, doorZ);
   threshold.receiveShadow = true;
   city.add(threshold);
-  const gateW = mouthW - 0.16, gateH = 1.28;
+  const gateW = mouthW - 0.10, gateH = 1.69;
   const gateGeos = [];
   function gateBox(sx, sy, sz, x, y, z, spin) {
     const g = new THREE.BoxGeometry(sx, sy, sz);
@@ -13188,7 +13296,7 @@ function schoolWestFace() {
     g.translate(x, y, z);
     gateGeos.push(g);
   }
-  const gateN = Math.max(4, Math.round(gateW / 0.11));
+  const gateN = Math.max(5, Math.round(gateW / 0.11));
   const gateStep = gateW / (gateN - 1);
   for (let i = 0; i < gateN; i++) {
     const gx = -gateW / 2 + gateStep * i;
@@ -13210,15 +13318,15 @@ function schoolWestFace() {
   }
   const gateMesh = new THREE.Mesh(mergeGeos(gateGeos), gateMat);
   gateMesh.rotation.y = -Math.PI / 2;
-  gateMesh.position.set(groundWall + 0.24, 0.33 + gateH / 2, doorZ);
+  gateMesh.position.set(groundWall + 0.18, 0.31 + gateH / 2, doorZ);
   gateMesh.castShadow = true;
   city.add(gateMesh);
   const bulbMat = new THREE.MeshStandardMaterial({
     color: 0xf0e6c8, emissive: 0xf0e2b0, emissiveIntensity: 0.35, roughness: 0.4, metalness: 0, clippingPlanes: clips
   });
   shopGlow.push({ mat: bulbMat, day: 0.1, night: 1.35 });
-  const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.03, 0.46), bulbMat);
-  bulb.position.set(groundWall + 0.12, 1.675, doorZ);
+  const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.03, 0.48), bulbMat);
+  bulb.position.set(groundWall + 0.42, headBot - 0.04, doorZ);
   city.add(bulb);
   [2, 8, 11].forEach(function (i, n) {
     const zc = z0 + (i + 0.5) * zBay;
@@ -13233,7 +13341,8 @@ function schoolWestFace() {
     color: 0xc8bfb0, roughness: 0.92, metalness: 0, side: THREE.DoubleSide, clippingPlanes: clips
   });
   const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.7), clothMat);
-  cloth.position.set(westWall - 0.55, 3 * floorH + 0.95, z0 + (2.5) * zBay);
+  // Top edge at 3 * floorH + 1.35 = 8.85 m, attached directly onto the bamboo pole.
+  cloth.position.set(westWall - 0.55, 3 * floorH + 1.00, z0 + (2.5) * zBay);
   cloth.rotation.y = 0.15;
   city.add(cloth);
   const pipeMat = new THREE.MeshStandardMaterial({
@@ -13271,23 +13380,158 @@ function schoolWestFace() {
   drop(cage, cageMat);
   drop(pier, pierMat);
   drop(pipe, pipeMat);
+  // Second roof water tank seated flush on a steel stand over roof slab (h + 0.14 = 20.14 m).
   const galv = new THREE.MeshStandardMaterial({ map: roofKitTexOf("rust"), color: 0xa88878, roughness: 0.9, metalness: 0.1, clippingPlanes: clips });
   attachTriTile(galv, 0.55);
+  const tankStand = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.16, 1.0), frameMat);
+  tankStand.position.set(x0 + 3.4, h + 0.14 + 0.08, z0 + bd - 2.6);
+  city.add(tankStand);
   const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.62, 10), galv);
-  tank.position.set(x0 + 3.4, h + 0.62, z0 + bd - 2.6);
+  tank.position.set(x0 + 3.4, h + 0.30 + 0.31, z0 + bd - 2.6);
   tank.castShadow = true;
   city.add(tank);
   const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.05, 10), galv);
-  lid.position.set(x0 + 3.4, h + 0.95, z0 + bd - 2.6);
+  lid.position.set(x0 + 3.4, h + 0.30 + 0.62 + 0.025, z0 + bd - 2.6);
   city.add(lid);
   const aerialMat = new THREE.MeshStandardMaterial({ color: 0x2e2a26, roughness: 0.7, metalness: 0.35, clippingPlanes: clips });
   const yagi = new THREE.Mesh(makeYagi(), aerialMat);
-  yagi.position.set(x0 + 2.4, h + 0.2, z0 + 3.2);
+  yagi.position.set(x0 + 2.4, h + 0.14, z0 + 3.2);
   yagi.rotation.y = 0.6;
   yagi.castShadow = true;
   city.add(yagi);
 }
 schoolWestFace();
+function youthCentreFace() {
+  // 青年中心 (82..123.18, 39.05..51.48, h=5.6 m, 2 storeys x 2.8 m): recessed west entrance + west/north/east institutional windows.
+  const x0 = 82, z0 = 39.05, bw = 41.18, bd = 12.43, floorH = 2.8;
+  const groundW = x0 + 0.48, upperW = x0 + 0.28;
+  const northZ = z0 + 0.035, eastX = x0 + bw - 0.035;
+  const glass = [], frame = [], dark = [], sill = [], bar = [];
+  function put(list, x, y, z, sx, sy, sz) {
+    list.push({ x: x, y: y, z: z, sx: sx, sy: sy, sz: sz });
+  }
+  function win(face, along, floor, ww, hh, sillH, barred) {
+    const y0 = floor * floorH + sillH;
+    const yMid = y0 + hh * 0.5;
+    if (face === "w") {
+      const wx = floor === 0 ? groundW : upperW;
+      put(dark, wx - 0.012, yMid, along, 0.024, hh + 0.02, ww + 0.02);
+      put(glass, wx - 0.032, yMid, along, 0.02, hh - 0.08, ww - 0.08);
+      put(frame, wx - 0.045, y0 + hh, along, 0.05, 0.045, ww + 0.06);
+      put(frame, wx - 0.045, y0, along, 0.05, 0.045, ww + 0.06);
+      put(frame, wx - 0.045, yMid, along - ww * 0.5, 0.05, hh, 0.045);
+      put(frame, wx - 0.045, yMid, along + ww * 0.5, 0.05, hh, 0.045);
+      put(frame, wx - 0.045, yMid, along, 0.038, hh - 0.08, 0.028);
+      put(sill, wx - 0.055, y0 - 0.02, along, 0.10, 0.05, ww + 0.14);
+      if (barred) {
+        for (let b = 0; b < 3; b++) put(bar, wx - 0.068, y0 + hh * (0.24 + b * 0.26), along, 0.016, 0.016, ww - 0.04);
+      }
+    } else if (face === "n") {
+      put(dark, along, yMid, northZ - 0.012, ww + 0.02, hh + 0.02, 0.024);
+      put(glass, along, yMid, northZ - 0.032, ww - 0.08, hh - 0.08, 0.02);
+      put(frame, along, y0 + hh, northZ - 0.045, ww + 0.06, 0.045, 0.05);
+      put(frame, along, y0, northZ - 0.045, ww + 0.06, 0.045, 0.05);
+      put(frame, along - ww * 0.5, yMid, northZ - 0.045, 0.045, hh, 0.05);
+      put(frame, along + ww * 0.5, yMid, northZ - 0.045, 0.045, hh, 0.05);
+      put(frame, along, yMid, northZ - 0.045, 0.028, hh - 0.08, 0.038);
+      put(sill, along, y0 - 0.02, northZ - 0.055, ww + 0.14, 0.05, 0.10);
+      if (barred) {
+        for (let b = 0; b < 3; b++) put(bar, along, y0 + hh * (0.24 + b * 0.26), northZ - 0.068, ww - 0.04, 0.016, 0.016);
+      }
+    } else {
+      put(dark, eastX + 0.012, yMid, along, 0.024, hh + 0.02, ww + 0.02);
+      put(glass, eastX + 0.032, yMid, along, 0.02, hh - 0.08, ww - 0.08);
+      put(frame, eastX + 0.045, y0 + hh, along, 0.05, 0.045, ww + 0.06);
+      put(frame, eastX + 0.045, y0, along, 0.05, 0.045, ww + 0.06);
+      put(frame, eastX + 0.045, yMid, along - ww * 0.5, 0.05, hh, 0.045);
+      put(frame, eastX + 0.045, yMid, along + ww * 0.5, 0.05, hh, 0.045);
+      put(sill, eastX + 0.055, y0 - 0.02, along, 0.10, 0.05, ww + 0.14);
+      if (barred) {
+        for (let b = 0; b < 3; b++) put(bar, eastX + 0.068, y0 + hh * (0.24 + b * 0.26), along, 0.016, 0.016, ww - 0.04);
+      }
+    }
+  }
+  // West facade: 4 ground windows (2 flanking each side of door at z=45.265) + 5 upper windows (clear of sign at z=45.265, y=5.05).
+  [40.6, 42.9, 47.6, 49.9].forEach(zc => {
+    win("w", zc, 0, 1.32, 1.18, 0.96, true);
+    win("w", zc, 1, 1.32, 1.24, 0.72, false);
+  });
+  // Open west half of north facade (x=82..106.5, clear of tenements starting at x=108).
+  [85.2, 89.8, 94.4, 99.0, 103.6].forEach(xc => {
+    win("n", xc, 0, 1.48, 1.20, 0.96, true);
+    win("n", xc, 1, 1.48, 1.26, 0.76, false);
+  });
+  // East lane facade (1.4 m clear lane).
+  [41.4, 45.3, 49.2].forEach(zc => {
+    win("e", zc, 0, 1.25, 1.12, 1.02, true);
+    win("e", zc, 1, 1.25, 1.18, 0.80, true);
+  });
+  // Recessed west main entrance matching lowBlock door cutout (z=45.265, width=1.44, notch=0.85, capY=2.18).
+  const doorZ = z0 + bd * 0.5;
+  const mouthW = 1.44, notch = 0.85, headBot = 2.08, headTop = 2.18;
+  const jambMatY = new THREE.MeshStandardMaterial({ color: 0x3a342e, roughness: 0.72, metalness: 0.16, clippingPlanes: clips });
+  attachWetFilm(jambMatY);
+  const voidMatY = new THREE.MeshBasicMaterial({ color: 0x050403, clippingPlanes: clips });
+  const cheekMatY = new THREE.MeshBasicMaterial({ color: 0x161412, clippingPlanes: clips });
+  const yBack = new THREE.Mesh(new THREE.BoxGeometry(0.06, headTop - 0.28, mouthW - 0.04), voidMatY);
+  yBack.position.set(groundW + notch - 0.05, (0.28 + headTop) * 0.5, doorZ);
+  city.add(yBack);
+  const ySoffit = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.08, 0.10, mouthW - 0.04), cheekMatY);
+  ySoffit.position.set(groundW + (notch - 0.08) * 0.5 + 0.02, headTop - 0.05, doorZ);
+  city.add(ySoffit);
+  const yFloor = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.06, 0.04, mouthW - 0.04), cheekMatY);
+  yFloor.position.set(groundW + notch * 0.5, 0.30, doorZ);
+  city.add(yFloor);
+  [-1, 1].forEach(s => {
+    const ch = new THREE.Mesh(new THREE.BoxGeometry(notch - 0.06, headTop - 0.28, 0.06), cheekMatY);
+    ch.position.set(groundW + notch * 0.5, (0.28 + headTop) * 0.5, doorZ + s * (mouthW * 0.5 - 0.015));
+    city.add(ch);
+    const jb = new THREE.Mesh(new THREE.BoxGeometry(0.10, headTop - 0.28, 0.08), jambMatY);
+    jb.position.set(groundW + 0.01, (0.28 + headTop) * 0.5, doorZ + s * (mouthW * 0.5 + 0.04));
+    city.add(jb);
+  });
+  const yHead = new THREE.Mesh(new THREE.BoxGeometry(0.24, headTop - headBot, mouthW + 0.16), jambMatY);
+  yHead.position.set(groundW + 0.08, (headBot + headTop) * 0.5, doorZ);
+  city.add(yHead);
+  const yThresh = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, mouthW + 0.04), yamenStone);
+  yThresh.position.set(groundW + 0.04, 0.295, doorZ);
+  city.add(yThresh);
+  // Partially folded green iron collapsible gate & lobby fluorescent tube.
+  const yGateMat = new THREE.MeshStandardMaterial({ color: 0x26382e, roughness: 0.56, metalness: 0.36, clippingPlanes: clips });
+  attachWetFilm(yGateMat);
+  const yGateH = headBot - 0.32;
+  for (let i = 0; i < 6; i++) {
+    const barM = new THREE.Mesh(new THREE.BoxGeometry(0.022, yGateH, 0.014), yGateMat);
+    barM.position.set(groundW + 0.14 + (i % 2 ? 0.008 : -0.008), 0.32 + yGateH * 0.5, doorZ - mouthW * 0.5 + 0.07 + i * 0.026);
+    city.add(barM);
+  }
+  const yBulbMat = new THREE.MeshStandardMaterial({ color: 0xf0e6c8, emissive: 0xf0e2b0, emissiveIntensity: 0.35, roughness: 0.4, clippingPlanes: clips });
+  shopGlow.push({ mat: yBulbMat, day: 0.1, night: 1.35 });
+  const yBulb = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.03, 0.56), yBulbMat);
+  yBulb.position.set(groundW + 0.40, headBot - 0.04, doorZ);
+  city.add(yBulb);
+  const pane = elderPaneMaps();
+  const yGlassMat = new THREE.MeshStandardMaterial({
+    map: pane.map, roughnessMap: pane.rough, color: 0xffffff,
+    roughness: 1, metalness: 0.05, emissive: 0xc4b090, emissiveIntensity: 0.018, clippingPlanes: clips
+  });
+  attachWetFilm(yGlassMat);
+  shopGlow.push({ mat: yGlassMat, day: 0.02, night: 0.18 });
+  const ySillMat = mappedMat(elderPaintMap(), 0.94, 0.48);
+  ySillMat.color.setRGB(0.72, 0.68, 0.62);
+  attachWetWall(ySillMat);
+  const yDarkMat = new THREE.MeshStandardMaterial({ color: 0x161410, roughness: 1, metalness: 0, clippingPlanes: clips });
+  [
+    [dark, yDarkMat], [glass, yGlassMat], [frame, jambMatY], [sill, ySillMat], [bar, yGateMat]
+  ].forEach(([list, mat]) => {
+    if (!list.length) return;
+    const m = new THREE.Mesh(mergedBoxes(list), mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    city.add(m);
+  });
+}
+youthCentreFace();
 function elderPaintMap() {
   if (elderPaintMap.tex) return elderPaintMap.tex;
   // One tile is 0.48 m of trowelled cement. Sand and short trowel arcs only.
@@ -13594,7 +13838,11 @@ function elderCentre() {
     addBox(deck, Math.max(0.3, b[2] - b[0] - 0.2), 0.08, Math.max(0.3, b[3] - b[1] - 0.2), x + (b[0] + b[2]) / 2, wallH + 0.04, z + (b[1] + b[3]) / 2);
   });
   wells.forEach(b => {
-    addBox(deck, b[2] - b[0] - 0.2, 0.06, b[3] - b[1] - 0.2, x + (b[0] + b[2]) / 2, 0.08, z + (b[1] + b[3]) / 2);
+    const wCx = x + (b[0] + b[2]) / 2, wCz = z + (b[1] + b[3]) / 2;
+    const wW = b[2] - b[0], wD = b[3] - b[1];
+    // Raise courtyard floor slabs to street grade (top 0.30 m) and span wire rubbish nets below the parapet.
+    addBox(deck, wW - 0.2, 0.06, wD - 0.2, wCx, 0.27, wCz);
+    refuseNet(wCx, wCz, wW - 0.22, wD - 0.22, wallH - 0.16, false, 0.36);
   });
   const ph = 0.64, pt = 0.16, py = wallH + ph / 2;
   addBox(paint, w + pt, ph, pt, x + w / 2, py, z + pt / 2);
@@ -13660,20 +13908,19 @@ function elderCentre() {
   row("s", southAt, uSill, uH);
   row("e", eastAt, gSill, gH);
   row("e", eastAt, uSill, uH);
-  // Concrete piers on the two faces that meet a street. They sit between
-  // the casements, clear of the door.
+  // Concrete piers anchored flush into the south and east street faces (zero air gap).
   [6.2, 9.0, 12.3, 16.0, 19.4, 22.6].forEach(function (along) {
-    addBox(bandMat, 0.16, wallH, 0.08, x + along, wallH / 2, z + d + 0.05);
+    addBox(bandMat, 0.16, wallH, 0.10, x + along, wallH / 2, z + d + 0.04);
   });
   [0.7, 5.8, 10.2, 14.1, 18.8, 23.0, 29.2, 32.5].forEach(function (along) {
-    addBox(bandMat, 0.08, wallH, 0.16, x + w + 0.05, wallH / 2, z + along);
+    addBox(bandMat, 0.10, wallH, 0.16, x + w + 0.04, wallH / 2, z + along);
   });
   function sillRun(face, y0) {
     if (face === "s") {
-      addBox(bandMat, 13.2 - notchX - 0.3, 0.06, 0.1, x + (notchX + 0.2 + 13.05) / 2, y0, z + d + 0.09);
-      addBox(bandMat, w - 15.2, 0.06, 0.1, x + (15.2 + w - 0.25) / 2, y0, z + d + 0.09);
+      addBox(bandMat, 13.2 - notchX - 0.3, 0.06, 0.14, x + (notchX + 0.2 + 13.05) / 2, y0, z + d + 0.06);
+      addBox(bandMat, w - 15.2, 0.06, 0.14, x + (15.2 + w - 0.25) / 2, y0, z + d + 0.06);
     } else {
-      addBox(bandMat, 0.1, 0.06, d - 0.5, x + w + 0.09, y0, z + d / 2);
+      addBox(bandMat, 0.14, 0.06, d - 0.5, x + w + 0.06, y0, z + d / 2);
     }
   }
   sillRun("s", gSill - 0.02);
@@ -13699,39 +13946,46 @@ function elderCentre() {
   const copeY = wallH + ph + 0.04;
   addBox(baseMat, w - notchX + 0.08, 0.07, 0.22, x + (notchX + w) / 2, copeY, z + d - 0.02);
   addBox(baseMat, 0.22, 0.07, d, x + w - 0.02, copeY, z + d / 2);
-  // Door on the south wing, onto the street east of the yamen gate.
-  const doorW = 1.55, doorH = 2.45;
+  // South wing double entrance seated on raised granite landing (top 0.525 m, clear of 0.285 m street pour).
+  const doorBase = 0.525;
+  const doorW = 1.55, doorH = 2.12;
+  const doorTop = doorBase + doorH;
   const dx = x + doorCx;
-  const dz = z + d + 0.04;
-  addBox(frameMat, doorW + 0.14, 0.06, 0.08, dx, doorH, dz);
-  addBox(frameMat, 0.06, doorH, 0.08, dx - doorW / 2, doorH / 2, dz);
-  addBox(frameMat, 0.06, doorH, 0.08, dx + doorW / 2, doorH / 2, dz);
-  addBox(glassMat, doorW * 0.44, doorH - 0.14, 0.03, dx - doorW * 0.24, (doorH - 0.14) / 2 + 0.02, dz);
-  addBox(glassMat, doorW * 0.44, doorH - 0.14, 0.03, dx + doorW * 0.24, (doorH - 0.14) / 2 + 0.02, dz);
+  const dz = z + d + 0.035;
+  addBox(darkHole, doorW - 0.04, doorH - 0.04, 0.02, dx, doorBase + doorH * 0.5, z + d + 0.008);
+  addBox(frameMat, doorW + 0.14, 0.06, 0.10, dx, doorTop, dz - 0.01);
+  addBox(frameMat, 0.06, doorH, 0.10, dx - doorW / 2, doorBase + doorH * 0.5, dz - 0.01);
+  addBox(frameMat, 0.06, doorH, 0.10, dx + doorW / 2, doorBase + doorH * 0.5, dz - 0.01);
+  addBox(glassMat, doorW * 0.44, doorH - 0.10, 0.03, dx - doorW * 0.24, doorBase + doorH * 0.5, dz);
+  addBox(glassMat, doorW * 0.44, doorH - 0.10, 0.03, dx + doorW * 0.24, doorBase + doorH * 0.5, dz);
   [dx - doorW * 0.24, dx + doorW * 0.24].forEach(function (gx) {
-    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.38, doorH - 0.28), paneRainMat);
-    leaf.position.set(gx, (doorH - 0.14) / 2 + 0.02, dz + 0.03);
+    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.38, doorH - 0.22), paneRainMat);
+    leaf.position.set(gx, doorBase + doorH * 0.5, dz + 0.025);
     leaf.renderOrder = 4;
     leaf.castShadow = false;
     city.add(leaf);
   });
-  addBox(barMat, 0.04, doorH - 0.12, 0.045, dx, doorH / 2, dz + 0.03);
-  addBox(bandMat, 3.4, 0.1, 1.12, dx, 2.74, z + d + 0.58);
-  addBox(bandMat, 3.4, 0.16, 0.08, dx, 2.62, z + d + 1.1);
+  addBox(barMat, 0.04, doorH - 0.08, 0.045, dx, doorBase + doorH * 0.5, dz + 0.025);
+  // Concrete entrance canopy anchored 2 cm into the south wall (back at z+d-0.02, zero air gap).
+  addBox(bandMat, 3.4, 0.1, 1.16, dx, 2.74, z + d + 0.56);
+  addBox(bandMat, 3.4, 0.16, 0.08, dx, 2.62, z + d + 1.10);
+  // Window-unit AC boxes mounted cleanly below the upper window sill (y=3.86 m) on steel brackets, clear of window bars.
   [17.6, 21.2].forEach(function (along) {
     const ux = x + along;
-    const uy = uSill + uH * 0.28;
-    addBox(frameMat, 0.62, 0.36, 0.32, ux, uy, z + d + 0.18);
-    addBox(barMat, 0.5, 0.02, 0.34, ux, uy + 0.08, z + d + 0.2);
-    addBox(barMat, 0.5, 0.02, 0.34, ux, uy - 0.06, z + d + 0.2);
+    const uy = 3.84;
+    addBox(frameMat, 0.62, 0.34, 0.32, ux, uy, z + d + 0.14);
+    addBox(barMat, 0.50, 0.02, 0.34, ux, uy + 0.07, z + d + 0.15);
+    addBox(barMat, 0.50, 0.02, 0.34, ux, uy - 0.05, z + d + 0.15);
+    [-0.24, 0.24].forEach(bx => addBox(barMat, 0.024, 0.024, 0.30, ux + bx, uy - 0.18, z + d + 0.13));
   });
   const plate = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.56, 0.06), centreSign(name, 3.4, 0.56));
-  plate.position.set(dx, 3.58, z + d + 0.08);
+  plate.position.set(dx, 3.58, z + d + 0.028);
   city.add(plate);
+  // Two granite steps rising cleanly above the 0.285 m south street slab (outer top 0.405 m, landing top 0.525 m).
   const stepMat = mappedMat(graniteStepMap(), 0.96, 1.2);
   attachWetWall(stepMat);
-  addBox(stepMat, 2.25, 0.12, 0.48, dx, 0.18, z + d + 0.3);
-  addBox(stepMat, 2.55, 0.12, 0.7, dx, 0.06, z + d + 0.82);
+  addBox(stepMat, 2.25, 0.14, 0.56, dx, 0.455, z + d + 0.28);
+  addBox(stepMat, 2.55, 0.14, 0.72, dx, 0.335, z + d + 0.84);
   const pipeMat = new THREE.MeshStandardMaterial({
     map: pipeStainMap(), color: 0x6a6860, roughness: 0.78, metalness: 0.12, clippingPlanes: clips
   });
@@ -13988,6 +14242,7 @@ squareAnchor = null;
   plug.receiveShadow = true;
   city.add(plug);
   pickables.push(plug);
+  walkSolids.push({ x: x - 0.70, z: z - 0.70, x2: x + 0.70, z2: z + 0.70 });
 })();
 
 (function templeHall() {
@@ -14047,47 +14302,68 @@ squareAnchor = null;
   const plinth = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 0.28, d + 0.1), yamenStone);
   plinth.position.set(cx, 0.14, z + d / 2);
   city.add(plinth);
-  qingRoof(x, z, w, d, h - 0.05, true);
+  // Trim north eave to 0.22 m so it stays 6 cm clear of the adjacent north tenement (z2 = 19.40).
+  qingRoof(x, z, w, d, h - 0.05, true, { n: 0.22, s: 0.85, e: 0.12, w: 0.12 });
+  const tFloorTop = 0.35;
+  const tOpenH = doorH - tFloorTop;
+  const tLeafW = doorW * 0.46;
+  const tOpenAng = 1.88;
   [-1, 1].forEach(sign => {
-    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.12, doorH + 0.06, 0.16), yamenStone);
-    jamb.position.set(cx + sign * (doorW / 2 + 0.02), doorH / 2 + 0.16, zFace + 0.02);
+    // Align granite jambs & lintel cleanly with the brick opening (doorH = 2.20 m) down to paved court (0.285 m).
+    const jambH = doorH - 0.285;
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.12, jambH, 0.16), yamenStone);
+    jamb.position.set(cx + sign * (doorW / 2 + 0.06), 0.285 + jambH * 0.5, zFace + 0.02);
     city.add(jamb);
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(doorW * 0.46, doorH - 0.06, 0.05), templeDoor);
-    leaf.position.set(cx + sign * doorW * 0.26, doorH / 2 + 0.16, zFace + 0.14);
-    leaf.rotation.y = sign * 0.9;
+    // Hinge red temple doors at the inner jambs swinging outward (+Z) with zero brick clipping.
+    const hx = cx + sign * (doorW * 0.48);
+    const hz = zFace + 0.08;
+    const ux = -sign * Math.cos(tOpenAng);
+    const uz = Math.sin(tOpenAng);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(tLeafW, tOpenH - 0.04, 0.05), templeDoor);
+    leaf.position.set(hx + ux * tLeafW * 0.5, tFloorTop + (tOpenH - 0.04) * 0.5, hz + uz * tLeafW * 0.5);
+    leaf.rotation.y = Math.atan2(-uz, ux);
     city.add(leaf);
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.62), darkHole);
-    win.position.set(cx + sign * Math.min(1.55, w * 0.3), 1.9, zFace + 0.02);
-    city.add(win);
+    // Framed wooden lattice side windows with granite sills (replacing flat black planes).
+    const wx = cx + sign * Math.min(1.55, w * 0.31);
+    lattice(wx, 1.72, zFace + 0.03, 0, 0.56, 0.72);
+    const wSill = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.06, 0.10), yamenStone);
+    wSill.position.set(wx, 1.33, zFace + 0.04);
+    city.add(wSill);
+    // Wall-bracketed hanging lanterns anchored directly into the front brick facade (zero floating gap).
     const lx = cx + sign * 1.02;
     const lantern = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.26, 0.14), lanternMat);
-    lantern.position.set(lx, 2.12, zFace + 0.18);
+    lantern.position.set(lx, 2.08, zFace + 0.18);
     city.add(lantern);
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.18), woodMat);
-    cap.position.set(lx, 2.27, zFace + 0.18);
+    cap.position.set(lx, 2.23, zFace + 0.18);
     city.add(cap);
-    const hang = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.14, 0.018), woodMat);
-    hang.position.set(lx, 2.36, zFace + 0.18);
+    const hang = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.18, 0.018), woodMat);
+    hang.position.set(lx, 2.33, zFace + 0.18);
     city.add(hang);
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.24), woodMat);
+    bracket.position.set(lx, 2.41, zFace + 0.08);
+    city.add(bracket);
   });
-  const head = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.28, 0.12, 0.16), yamenStone);
-  head.position.set(cx, doorH + 0.2, zFace + 0.02);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.24, 0.12, 0.16), yamenStone);
+  head.position.set(cx, doorH + 0.06, zFace + 0.02);
   city.add(head);
   const plaque = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.4, 0.06), signMat("天后廟", "#5c2420", "#f0ddb0", 2.15, 0.4));
-  plaque.position.set(cx, doorH + 0.52, zFace + 0.06);
+  plaque.position.set(cx, doorH + 0.46, zFace + 0.028);
   city.add(plaque);
+  // Ground interior altar flush on floor (0.35 m), tabletop (0.93..0.98 m), and deity/tablet/candles flush on tabletop (0.98 m).
   const az = z + 1.05;
-  put(1.5, 0.58, 0.46, cx, 0.66, az, woodMat);
-  put(1.58, 0.05, 0.52, cx, 0.97, az, doorRed);
+  put(1.5, 0.58, 0.46, cx, tFloorTop + 0.29, az, woodMat);
+  const tableTop = tFloorTop + 0.58 + 0.05;
+  put(1.58, 0.05, 0.52, cx, tableTop - 0.025, az, doorRed);
   const gold = new THREE.MeshStandardMaterial({ color: 0xb89a5c, roughness: 0.48, metalness: 0.4, clippingPlanes: clips });
   const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.15, 0.34, 8), gold);
-  robe.position.set(cx, 1.18, az + 0.12);
+  robe.position.set(cx, tableTop + 0.17, az + 0.12);
   city.add(robe);
   const headN = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 6), gold);
-  headN.position.set(cx, 1.4, az + 0.12);
+  headN.position.set(cx, tableTop + 0.34 + 0.055, az + 0.12);
   city.add(headN);
   const tablet = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.42, 0.04), signMat("天后", "#6a1814", "#f3e6c4", 0.32, 0.42));
-  tablet.position.set(cx, 1.22, az - 0.18);
+  tablet.position.set(cx, tableTop + 0.21, az - 0.18);
   city.add(tablet);
   const flameMat = new THREE.MeshStandardMaterial({
     color: 0xffb060, emissive: new THREE.Color(0xff7a32), emissiveIntensity: 0.35,
@@ -14096,10 +14372,10 @@ squareAnchor = null;
   shopGlow.push({ mat: flameMat, day: 0.25, night: 1.25 });
   [-1, 1].forEach(sign => {
     const candle = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.07), doorRed);
-    candle.position.set(cx + sign * 0.4, 1.1, az + 0.1);
+    candle.position.set(cx + sign * 0.4, tableTop + 0.10, az + 0.1);
     city.add(candle);
     const flame = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.03), flameMat);
-    flame.position.set(cx + sign * 0.4, 1.23, az + 0.1);
+    flame.position.set(cx + sign * 0.4, tableTop + 0.225, az + 0.1);
     city.add(flame);
   });
   const coilC = document.createElement("canvas");
@@ -14137,49 +14413,64 @@ squareAnchor = null;
     cord.position.set(cx + p[0], p[1] + drop / 2, zFace - 1.15);
     city.add(cord);
   });
-  const courtZ = z + d + 0.55;
-  const flags = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.06, 1.15), yamenStone);
-  flags.position.set(cx, 0.2, courtZ);
+  // Forecourt granite flagstones raised cleanly above the 0.285 m paved apron (top 0.345 m).
+  const flagTop = 0.345;
+  const flags = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.06, 1.35), yamenStone);
+  flags.position.set(cx, flagTop - 0.03, z + d + 0.65);
   flags.receiveShadow = true;
   city.add(flags);
   const ding = new THREE.MeshStandardMaterial({ color: 0x4a463e, roughness: 0.58, metalness: 0.38, clippingPlanes: clips });
   const iron = new THREE.MeshStandardMaterial({ color: 0x3a3834, roughness: 0.74, metalness: 0.22, clippingPlanes: clips });
-  const censerZ = z + d + 0.42;
+  const ashBedMat = new THREE.MeshStandardMaterial({ color: 0x625d56, roughness: 0.96, metalness: 0, clippingPlanes: clips });
+  const censerZ = z + d + 0.46;
   for (let i = 0; i < 3; i++) {
     const a = -Math.PI / 2 + i * Math.PI * 2 / 3;
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.08), ding);
-    foot.position.set(cx + Math.cos(a) * 0.16, 0.3, censerZ + Math.sin(a) * 0.16);
+    foot.position.set(cx + Math.cos(a) * 0.16, flagTop + 0.11, censerZ + Math.sin(a) * 0.16);
     city.add(foot);
   }
   const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.2, 0.2, 10), ding);
-  bowl.position.set(cx, 0.5, censerZ);
+  bowl.position.set(cx, flagTop + 0.31, censerZ);
   city.add(bowl);
   const lip = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.3, 0.05, 10), ding);
-  lip.position.set(cx, 0.6, censerZ);
+  lip.position.set(cx, flagTop + 0.41, censerZ);
   city.add(lip);
+  const ashBed = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.25, 0.04, 10), ashBedMat);
+  ashBed.position.set(cx, flagTop + 0.39, censerZ);
+  city.add(ashBed);
   [-1, 0, 1].forEach(i => {
-    const stick = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.36, 0.02), woodMat);
-    stick.position.set(cx + i * 0.05, 0.82, censerZ);
+    const stick = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.34, 0.018), woodMat);
+    stick.position.set(cx + i * 0.05, flagTop + 0.54, censerZ);
     stick.rotation.z = i * 0.12;
     city.add(stick);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.024, 0.022), flameMat);
+    tip.position.set(cx + i * 0.05 - Math.sin(i * 0.12) * 0.17, flagTop + 0.54 + Math.cos(i * 0.12) * 0.17, censerZ);
+    city.add(tip);
   });
   walkSolids.push({ x: cx - 0.36, z: censerZ - 0.28, x2: cx + 0.36, z2: censerZ + 0.28 });
-  const gateZ = z + d + 1.05;
+  // Iron court gate grounded at 0.285 m with outward-hinged leaves clear of censer and posts.
+  const gateZ = z + d + 1.12;
+  const postH = 1.65;
+  const gLeafW = 0.78;
+  const gAng = 2.02;
   [-1, 1].forEach(sign => {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), iron);
-    post.position.set(cx + sign * 0.92, 0.95, gateZ);
+    const px = cx + sign * 0.92;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, postH, 0.08), iron);
+    post.position.set(px, 0.285 + postH * 0.5, gateZ);
     city.add(post);
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.78, 1.35, 0.04), iron);
-    leaf.position.set(cx + sign * 0.48, 0.82, gateZ + 0.06);
-    leaf.rotation.y = sign * 0.7;
+    const ux = -sign * Math.cos(gAng);
+    const uz = Math.sin(gAng);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(gLeafW, 1.35, 0.04), iron);
+    leaf.position.set(px - sign * 0.04 + ux * gLeafW * 0.5, 0.36 + 1.35 * 0.5, gateZ + uz * gLeafW * 0.5);
+    leaf.rotation.y = Math.atan2(-uz, ux);
     city.add(leaf);
     walkSolids.push({
-      x: cx + sign * 0.92 - 0.08, z: gateZ - 0.08,
-      x2: cx + sign * 0.92 + 0.08, z2: gateZ + 0.08
+      x: px - 0.08, z: gateZ - 0.08,
+      x2: px + 0.08, z2: gateZ + 0.08
     });
   });
-  const gateHead = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.08, 0.08), iron);
-  gateHead.position.set(cx, 1.78, gateZ);
+  const gateHead = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.08, 0.08), iron);
+  gateHead.position.set(cx, 0.285 + postH + 0.02, gateZ);
   city.add(gateHead);
   // Under the south eave, and only as wide as the street in front of the door.
   // The lot to the west starts at the same kerb; a wider net would enter it.
@@ -14223,20 +14514,58 @@ dressAlleys();
 placeSlitNets();
 
 (function shrine() {
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.7, 0.75), brick);
-  base.position.set(21.2, 0.61, 99);
+  const sx = 21.2, sz = 99;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.70, 0.75), brick);
+  base.position.set(sx, 0.61, sz);
   base.userData = { zone: "szkung", street: "社公街", name: "社壇", floors: 0 };
   city.add(base);
   pickables.push(base);
-  const niche = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.34), darkHole);
-  niche.position.set(21.74, 0.66, 99);
+  // Pitched grey-tile eave cap & ridge over the brick Earth God shrine (top of base = 0.96 m).
+  const capMat = mappedMat(greyTileMap(1.2, 1.0), 0.92, 0.65);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.09, 0.88), capMat);
+  roof.position.set(sx + 0.02, 1.005, sz);
+  city.add(roof);
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.09, 0.90), capMat);
+  ridge.position.set(sx - 0.04, 1.09, sz);
+  city.add(ridge);
+  // Framed shrine niche with red "社公" spirit tablet & twin altar candles facing east into Sz Kung Street.
+  const niche = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.40), darkHole);
+  niche.position.set(sx + 0.532, 0.68, sz);
   niche.rotation.y = Math.PI / 2;
   city.add(niche);
+  const sFrame = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.44, 0.50), woodMat);
+  sFrame.position.set(sx + 0.522, 0.68, sz);
+  city.add(sFrame);
+  const tablet = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.34, 0.24), signMat("社公", "#6e1814", "#f3e2b0", 0.24, 0.34));
+  tablet.position.set(sx + 0.542, 0.68, sz);
+  city.add(tablet);
+  const sFlame = new THREE.MeshStandardMaterial({ color: 0xffb060, emissive: new THREE.Color(0xff7a32), emissiveIntensity: 0.4, roughness: 0.4, clippingPlanes: clips });
+  shopGlow.push({ mat: sFlame, day: 0.25, night: 1.25 });
+  const ledge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.52), yamenStone);
+  ledge.position.set(sx + 0.58, 0.46, sz);
+  city.add(ledge);
+  [-0.17, 0.17].forEach(dz => {
+    const cdl = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.035), doorRed);
+    cdl.position.set(sx + 0.59, 0.535, sz + dz);
+    city.add(cdl);
+    const fl = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.02), sFlame);
+    fl.position.set(sx + 0.59, 0.605, sz + dz);
+    city.add(fl);
+  });
   const ash = new THREE.MeshStandardMaterial({ color: 0x2e2c28, roughness: 0.94, metalness: 0.04, clippingPlanes: clips });
   const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.06, 8), ash);
-  cup.position.set(21.8, 0.30, 99);
+  cup.position.set(sx + 0.60, 0.315, sz);
   city.add(cup);
-  walkSolids.push({ x: 21.2 - 0.56, z: 99 - 0.42, x2: 21.2 + 0.56, z2: 99 + 0.42 });
+  [-1, 0, 1].forEach(i => {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.20, 0.012), woodMat);
+    st.position.set(sx + 0.60, 0.43, sz + i * 0.022);
+    st.rotation.x = i * 0.10;
+    city.add(st);
+    const tp = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.016, 0.016), sFlame);
+    tp.position.set(sx + 0.60, 0.535, sz + i * 0.032);
+    city.add(tp);
+  });
+  walkSolids.push({ x: sx - 0.56, z: sz - 0.42, x2: sx + 0.64, z2: sz + 0.42 });
   massCount += 1;
 })();
 
