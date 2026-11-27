@@ -18007,8 +18007,10 @@ addEventListener("keydown", e => {
   if (e.key === "1" && !deliveryOn) go("air");
   if (e.code === "KeyF") { runUse(); e.preventDefault(); }
   if (e.code === "KeyE" && walkMode && !walkGlide && !run.sheet && !runPaused()) {
-    if (roofStay) { leaveRoof(); syncRoofButton(); e.preventDefault(); }
-    else if (roofOffer) { enterRoof(roofOffer); syncRoofButton(); e.preventDefault(); }
+    if (roofStay) {
+      const exDoor = roofExitNear();
+      if (exDoor) { leaveRoof(false, exDoor); syncRoofButton(); e.preventDefault(); }
+    } else if (roofOffer) { enterRoof(roofOffer); syncRoofButton(); e.preventDefault(); }
   }
 });
 addEventListener("keyup", e => walkHeld.delete(e.code));
@@ -31208,26 +31210,86 @@ function roofSameDeck(door) {
   if (roofStay.door === door) return true;
   return !!(roofStay.deck && door.deck && roofStay.deck === door.deck);
 }
+function roofSameCluster(deckA, deckB) {
+  if (!deckA || !deckB) return false;
+  if (deckA === deckB) return true;
+  return deckA.cluster >= 0 && deckA.cluster === deckB.cluster;
+}
+function roofJobDeck(job) {
+  if (!job) return null;
+  if (job.roofDeck) return job.roofDeck;
+  if (job.door >= 0 && roofDoors[job.door]) return roofDoors[job.door].deck || null;
+  return null;
+}
 function roofOnDeck(deck, door) {
   if (!roofStay) return false;
   if (deck) return roofStay.deck === deck;
   return roofSameDeck(door);
 }
-function roofClusterExitDoor(fromDeck) {
-  if (!fromDeck) return roofStay ? roofStay.door : null;
-  if (fromDeck.doors && fromDeck.doors.length) return fromDeck.doors[0];
+function roofClusterDoors(fromDeck) {
+  if (!fromDeck) return [];
+  const list = [];
   const seen = new Set([fromDeck]);
-  const q = [fromDeck];
+  const q = [{ deck: fromDeck, hops: 0 }];
   while (q.length) {
-    const cur = q.shift();
-    if (cur.doors && cur.doors.length) return cur.doors[0];
+    const item = q.shift();
+    const cur = item.deck;
+    const doors = cur.doors || [];
+    for (let i = 0; i < doors.length; i++) {
+      if (doors[i] && doors[i].live) list.push({ door: doors[i], deck: cur, hops: item.hops });
+    }
     const links = cur.links || [];
     for (let i = 0; i < links.length; i++) {
       const nb = links[i].to;
-      if (nb && !seen.has(nb)) { seen.add(nb); q.push(nb); }
+      if (nb && !seen.has(nb)) { seen.add(nb); q.push({ deck: nb, hops: item.hops + 1 }); }
     }
   }
-  return roofStay ? roofStay.door : null;
+  return list;
+}
+function roofClusterExitDoor(fromDeck, targetX, targetZ) {
+  if (!fromDeck) return roofStay ? roofStay.door : null;
+  const entries = roofClusterDoors(fromDeck);
+  if (!entries.length) return roofStay ? roofStay.door : null;
+  if (targetX != null && targetZ != null) {
+    let best = entries[0].door, bestScore = Infinity;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const sc = e.hops * 8 + Math.hypot(e.door.x - targetX, e.door.z - targetZ);
+      if (sc < bestScore) { bestScore = sc; best = e.door; }
+    }
+    return best;
+  }
+  return entries[0].door;
+}
+function roofBestClusterEntry(targetDeck, fromX, fromZ) {
+  if (!targetDeck) return null;
+  const entries = roofClusterDoors(targetDeck);
+  if (!entries.length) return null;
+  let best = entries[0].door, bestScore = Infinity;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const sc = Math.hypot(e.door.x - fromX, e.door.z - fromZ) + e.hops * 5;
+    if (sc < bestScore) { bestScore = sc; best = e.door; }
+  }
+  return best;
+}
+function roofExitNear() {
+  if (!roofStay || !roofStay.deck) return null;
+  const doors = roofStay.deck.doors || [];
+  let best = null, bestD = 2.85;
+  for (let i = 0; i < doors.length; i++) {
+    const d = doors[i];
+    if (!d || !d.live) continue;
+    const dist = Math.hypot(walkX - d.upX, walkZ - d.upZ);
+    if (dist > bestD) continue;
+    if (dist > 1.65 && !runRoofSight(walkX, walkZ, d.upX, d.upZ, roofStay.deck)) continue;
+    bestD = dist;
+    best = d;
+  }
+  if (best) return best;
+  // Safety net: if a cluster somehow has no live doors, never trap the player on the roof.
+  if (!roofClusterDoors(roofStay.deck).length) return roofStay.door;
+  return null;
 }
 function roofDeckSpotClear(deck, x, z) {
   const x0 = deck.x + 0.42, x1 = deck.x + deck.w - 0.42;
@@ -31239,6 +31301,166 @@ function roofDeckSpotClear(deck, x, z) {
     if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return false;
   }
   return true;
+}
+// Cached 0.35 m intra-deck walkable grid for obstacle-aware rooftop pathfinding & flood-fill reachability.
+function roofDeckNav(deck) {
+  if (!deck) return null;
+  if (deck._nav) return deck._nav;
+  const step = 0.35;
+  const x0 = deck.x + 0.42, x1 = deck.x + deck.w - 0.42;
+  const z0 = deck.z + 0.42, z1 = deck.z + deck.d - 0.42;
+  if (x1 - x0 < 0.25 || z1 - z0 < 0.25) return null;
+  const w = Math.max(1, Math.ceil((x1 - x0) / step));
+  const h = Math.max(1, Math.ceil((z1 - z0) / step));
+  const sx = (x1 - x0) / w;
+  const sz = (z1 - z0) / h;
+  const n = w * h;
+  const g = new Uint8Array(n);
+  for (let iz = 0; iz < h; iz++) {
+    const wz = z0 + (iz + 0.5) * sz;
+    for (let ix = 0; ix < w; ix++) {
+      const wx = x0 + (ix + 0.5) * sx;
+      if (roofDeckSpotClear(deck, wx, wz)) g[iz * w + ix] = 1;
+    }
+  }
+  deck._nav = {
+    deck: deck, x0: x0, z0: z0, sx: sx, sz: sz, w: w, h: h, grid: g,
+    gScore: new Float32Array(n), parent: new Int32Array(n), stamp: new Int32Array(n), runId: 0
+  };
+  return deck._nav;
+}
+function roofDeckSnapCell(nav, x, z) {
+  if (!nav) return -1;
+  const w = nav.w, h = nav.h, g = nav.grid;
+  const ix0 = Math.max(0, Math.min(w - 1, Math.floor((x - nav.x0) / nav.sx)));
+  const iz0 = Math.max(0, Math.min(h - 1, Math.floor((z - nav.z0) / nav.sz)));
+  if (g[iz0 * w + ix0]) return iz0 * w + ix0;
+  for (let r = 1; r <= 6; r++) {
+    let best = -1, bestD2 = Infinity;
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+        const nx = ix0 + dx, nz = iz0 + dz;
+        if (nx < 0 || nz < 0 || nx >= w || nz >= h) continue;
+        const idx = nz * w + nx;
+        if (!g[idx]) continue;
+        const cx = nav.x0 + (nx + 0.5) * nav.sx, cz = nav.z0 + (nz + 0.5) * nav.sz;
+        if (!runRoofSight(x, z, cx, cz, nav.deck)) continue;
+        const d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
+        if (d2 < bestD2) { bestD2 = d2; best = idx; }
+      }
+    }
+    if (best >= 0) return best;
+  }
+  for (let r = 1; r <= 3; r++) {
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+        const nx = ix0 + dx, nz = iz0 + dz;
+        if (nx < 0 || nz < 0 || nx >= w || nz >= h) continue;
+        if (g[nz * w + nx]) return nz * w + nx;
+      }
+    }
+  }
+  return -1;
+}
+function roofDeckPath(deck, sx, sz, tx, tz) {
+  if (!deck) return null;
+  if (runRoofSight(sx, sz, tx, tz, deck)) {
+    return { pts: [{ x: sx, z: sz }, { x: tx, z: tz }], dist: Math.hypot(tx - sx, tz - sz) };
+  }
+  const nav = roofDeckNav(deck);
+  if (!nav) return null;
+  const sIdx = roofDeckSnapCell(nav, sx, sz);
+  const tIdx = roofDeckSnapCell(nav, tx, tz);
+  if (sIdx < 0 || tIdx < 0) return null;
+  if (sIdx === tIdx) return { pts: [{ x: sx, z: sz }, { x: tx, z: tz }], dist: Math.hypot(tx - sx, tz - sz) };
+  const w = nav.w, h = nav.h, g = nav.grid;
+  const gScore = nav.gScore, parent = nav.parent, stamp = nav.stamp;
+  const id = ++nav.runId;
+  const txC = tIdx % w, tzC = (tIdx / w) | 0;
+  const heapIdx = [sIdx];
+  const heapF = [Math.hypot((txC - (sIdx % w)) * nav.sx, (tzC - ((sIdx / w) | 0)) * nav.sz)];
+  stamp[sIdx] = id;
+  gScore[sIdx] = 0;
+  parent[sIdx] = -1;
+  const diag = Math.hypot(nav.sx, nav.sz);
+  const dirs = [[-1,0,nav.sx],[1,0,nav.sx],[0,-1,nav.sz],[0,1,nav.sz],[-1,-1,diag],[1,-1,diag],[-1,1,diag],[1,1,diag]];
+  let found = false;
+  let pops = 0;
+  while (heapIdx.length && pops++ < 4000) {
+    const cur = heapIdx[0];
+    const lastI = heapIdx.pop();
+    const lastF = heapF.pop();
+    if (heapIdx.length) {
+      heapIdx[0] = lastI; heapF[0] = lastF;
+      let p = 0;
+      const n = heapIdx.length;
+      while (true) {
+        let l = p * 2 + 1, r = l + 1, best = p;
+        if (l < n && heapF[l] < heapF[best]) best = l;
+        if (r < n && heapF[r] < heapF[best]) best = r;
+        if (best === p) break;
+        const ti = heapIdx[p], tf = heapF[p];
+        heapIdx[p] = heapIdx[best]; heapF[p] = heapF[best];
+        heapIdx[best] = ti; heapF[best] = tf;
+        p = best;
+      }
+    }
+    if (cur === tIdx) { found = true; break; }
+    const cx = cur % w, cz = (cur / w) | 0;
+    const baseG = gScore[cur];
+    for (let k = 0; k < 8; k++) {
+      const dx = dirs[k][0], dz = dirs[k][1];
+      const nx = cx + dx, nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= w || nz >= h) continue;
+      const ni = nz * w + nx;
+      if (!g[ni]) continue;
+      if (dx && dz && (!g[cz * w + nx] || !g[nz * w + cx])) continue;
+      const ng = baseG + dirs[k][2];
+      if (stamp[ni] === id && ng >= gScore[ni]) continue;
+      stamp[ni] = id;
+      gScore[ni] = ng;
+      parent[ni] = cur;
+      const f = ng + Math.hypot((txC - nx) * nav.sx, (tzC - nz) * nav.sz);
+      let pos = heapIdx.length;
+      heapIdx.push(ni); heapF.push(f);
+      while (pos > 0) {
+        const up = (pos - 1) >> 1;
+        if (heapF[up] <= heapF[pos]) break;
+        const ti = heapIdx[up], tf = heapF[up];
+        heapIdx[up] = heapIdx[pos]; heapF[up] = heapF[pos];
+        heapIdx[pos] = ti; heapF[pos] = tf;
+        pos = up;
+      }
+    }
+  }
+  if (!found) return null;
+  const raw = [];
+  let c = tIdx;
+  while (c >= 0 && raw.length < 400) {
+    raw.push({ x: nav.x0 + ((c % w) + 0.5) * nav.sx, z: nav.z0 + (((c / w) | 0) + 0.5) * nav.sz });
+    c = parent[c];
+  }
+  raw.reverse();
+  raw[0] = { x: sx, z: sz };
+  raw[raw.length - 1] = { x: tx, z: tz };
+  const smooth = [raw[0]];
+  let a = 0;
+  while (a < raw.length - 1) {
+    let best = a + 1;
+    for (let b = Math.min(raw.length - 1, a + 24); b > a + 1; b--) {
+      if (runRoofSight(raw[a].x, raw[a].z, raw[b].x, raw[b].z, deck)) { best = b; break; }
+    }
+    smooth.push(raw[best]);
+    a = best;
+  }
+  let dist = 0;
+  for (let i = 1; i < smooth.length; i++) dist += Math.hypot(smooth[i].x - smooth[i - 1].x, smooth[i].z - smooth[i - 1].z);
+  return { pts: smooth, dist: dist };
+}
+function roofDeckReachable(deck, ax, az, bx, bz) {
+  return !!roofDeckPath(deck, ax, az, bx, bz);
 }
 function buildRoofLinks() {
   for (let i = 0; i < roofDecks.length; i++) {
@@ -31290,14 +31512,18 @@ function buildRoofLinks() {
           const cz = centerZ + tries[t];
           if (cz < ovZ0 + 0.48 || cz > ovZ1 - 0.48) continue;
           if (!roofDeckSpotClear(a, landAX, cz) || !roofDeckSpotClear(b, landBX, cz)) continue;
+          if (a.doors.length && !roofDeckReachable(a, a.doors[0].upX, a.doors[0].upZ, landAX, cz)) continue;
+          if (b.doors.length && !roofDeckReachable(b, b.doors[0].upX, b.doors[0].upZ, landBX, cz)) continue;
+          if (a.links.length && !roofDeckReachable(a, a.links[0].takeX, a.links[0].takeZ, landAX, cz)) continue;
+          if (b.links.length && !roofDeckReachable(b, b.links[0].takeX, b.links[0].takeZ, landBX, cz)) continue;
           if (bridgeGapBlocked(a, b, Math.min(xA, xB), Math.max(xA, xB), cz - 0.52, cz + 0.52, Math.min(a.y, b.y))) continue;
           midZ = cz;
           break;
         }
         if (midZ != null) {
           const dirX = aLeft ? 1 : -1;
-          linkA = { to: b, axis: "x", edge: xA, dirX: dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, landX: landBX, landZ: midZ };
-          linkB = { to: a, axis: "x", edge: xB, dirX: -dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, landX: landAX, landZ: midZ };
+          linkA = { to: b, axis: "x", edge: xA, dirX: dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, takeX: landAX, takeZ: midZ, landX: landBX, landZ: midZ };
+          linkB = { to: a, axis: "x", edge: xB, dirX: -dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, takeX: landBX, takeZ: midZ, landX: landAX, landZ: midZ };
           // Always build a visible parapet-clearing timber bridge/stile + step blocks on both decks (even when gx <= 0.25).
           const spanLen = Math.max(0.76, gx + 0.68);
           bridgeBoxes.push({ x: (xA + xB) * 0.5, y: bridgeY, z: midZ, sx: spanLen, sy: 0.075, sz: bridgeW, tint: soilTint((xA + xB) * 0.5, midZ, 2) });
@@ -31319,14 +31545,18 @@ function buildRoofLinks() {
           const cx = centerX + tries[t];
           if (cx < ovX0 + 0.48 || cx > ovX1 - 0.48) continue;
           if (!roofDeckSpotClear(a, cx, landAZ) || !roofDeckSpotClear(b, cx, landBZ)) continue;
+          if (a.doors.length && !roofDeckReachable(a, a.doors[0].upX, a.doors[0].upZ, cx, landAZ)) continue;
+          if (b.doors.length && !roofDeckReachable(b, b.doors[0].upX, b.doors[0].upZ, cx, landBZ)) continue;
+          if (a.links.length && !roofDeckReachable(a, a.links[0].takeX, a.links[0].takeZ, cx, landAZ)) continue;
+          if (b.links.length && !roofDeckReachable(b, b.links[0].takeX, b.links[0].takeZ, cx, landBZ)) continue;
           if (bridgeGapBlocked(a, b, cx - 0.52, cx + 0.52, Math.min(zA, zB), Math.max(zA, zB), Math.min(a.y, b.y))) continue;
           midX = cx;
           break;
         }
         if (midX != null) {
           const dirZ = aNorth ? 1 : -1;
-          linkA = { to: b, axis: "z", edge: zA, dirX: 0, dirZ: dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, landX: midX, landZ: landBZ };
-          linkB = { to: a, axis: "z", edge: zB, dirX: 0, dirZ: -dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, landX: midX, landZ: landAZ };
+          linkA = { to: b, axis: "z", edge: zA, dirX: 0, dirZ: dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, takeX: midX, takeZ: landAZ, landX: midX, landZ: landBZ };
+          linkB = { to: a, axis: "z", edge: zB, dirX: 0, dirZ: -dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, takeX: midX, takeZ: landBZ, landX: midX, landZ: landAZ };
           const spanLen = Math.max(0.76, gz + 0.68);
           bridgeBoxes.push({ x: midX, y: bridgeY, z: (zA + zB) * 0.5, sx: bridgeW, sy: 0.075, sz: spanLen, tint: soilTint(midX, (zA + zB) * 0.5, 2) });
           const riseA = Math.max(0.14, bridgeY - 0.035 - a.y);
@@ -31373,16 +31603,19 @@ function buildRoofLinks() {
 }
 function tryRoofCross(nx, nz, ux, uz) {
   if (!roofStay || !roofStay.deck || !roofStay.deck.links) return false;
-  // Only trigger bridge crossings when pushing against the deck perimeter, never when bumping an interior tank/shed.
-  const hitEdge = nx < roofStay.x0 || nx > roofStay.x1 || nz < roofStay.z0 || nz > roofStay.z1;
-  if (!hitEdge) return false;
   const links = roofStay.deck.links;
   for (let i = 0; i < links.length; i++) {
     const lk = links[i];
-    if (ux != null && uz != null && (ux * lk.dirX + uz * lk.dirZ) < 0.25) continue;
-    const hitX = lk.axis === "x" && Math.abs(nx - lk.edge) < 0.58 && nz >= lk.span0 && nz <= lk.span1;
-    const hitZ = lk.axis === "z" && Math.abs(nz - lk.edge) < 0.58 && nx >= lk.span0 && nx <= lk.span1;
-    if (!hitX && !hitZ) continue;
+    if (ux != null && uz != null && (ux * lk.dirX + uz * lk.dirZ) < 0.10) continue;
+    const atSideX = lk.axis === "x"
+      && ((lk.dirX > 0 && nx >= roofStay.x1 - 0.18) || (lk.dirX < 0 && nx <= roofStay.x0 + 0.18))
+      && Math.abs(nx - lk.edge) < 0.66
+      && nz >= lk.span0 - 0.14 && nz <= lk.span1 + 0.14;
+    const atSideZ = lk.axis === "z"
+      && ((lk.dirZ > 0 && nz >= roofStay.z1 - 0.18) || (lk.dirZ < 0 && nz <= roofStay.z0 + 0.18))
+      && Math.abs(nz - lk.edge) < 0.66
+      && nx >= lk.span0 - 0.14 && nx <= lk.span1 + 0.14;
+    if (!atSideX && !atSideZ) continue;
     const next = lk.to;
     // Validate destination bridge landing against water tanks/stairheads so crossing never traps the player.
     let lx = lk.landX, lz = lk.landZ;
@@ -31906,10 +32139,10 @@ function enterRoof(door) {
   placeWalkEye();
   spawnRoofVisit();
 }
-function leaveRoof(keepEye) {
+function leaveRoof(keepEye, exitDoor) {
   if (!roofStay) return;
   clearRoofVisit();
-  const door = roofStay.door;
+  const door = exitDoor || roofStay.door;
   roofStay = null;
   walkX = door.x;
   walkZ = door.z;
@@ -31947,8 +32180,9 @@ function placeRoofExit() {
 function syncRoofButton() {
   const btn = document.getElementById("roof-go");
   if (!btn) return;
+  const exitNear = roofStay ? roofExitNear() : null;
   roofOffer = roofStay ? null : roofDoorNear();
-  const show = walkMode && !walkGlide && (roofStay || roofOffer);
+  const show = walkMode && !walkGlide && (!!exitNear || !!roofOffer);
   function hide() {
     if (btn.hidden && !btn.classList.contains("on")) return;
     btn.hidden = true;
@@ -32339,9 +32573,11 @@ function runRoofSight(x0, z0, x1, z1, deck) {
   }
   return true;
 }
-function runRoofSpot(door) {
-  const deck = door.deck;
-  if (!deck || !door.live) return null;
+function runRoofSpot(door, targetDeck, anchorX, anchorZ) {
+  const deck = targetDeck || (door && door.deck);
+  if (!deck || (door && !door.live)) return null;
+  const ax = anchorX != null ? anchorX : door.upX;
+  const az = anchorZ != null ? anchorZ : door.upZ;
   const blocks = deck.blocks || [];
   function scan(minStair, needSight) {
     let best = null, bestScore = -1e9;
@@ -32352,7 +32588,7 @@ function runRoofSpot(door) {
         if (x < deck.x + 0.65 || x > deck.x + deck.w - 0.65) continue;
         if (z < deck.z + 0.65 || z > deck.z + deck.d - 0.65) continue;
         if (!roofDeckSpotClear(deck, x, z)) continue;
-        const stair = Math.hypot(x - door.upX, z - door.upZ);
+        const stair = Math.hypot(x - ax, z - az);
         if (stair < minStair) continue;
         let hit = false;
         for (let b = 0; b < blocks.length; b++) {
@@ -32360,8 +32596,9 @@ function runRoofSpot(door) {
           if (x > box.x - 0.4 && x < box.x2 + 0.4 && z > box.z - 0.4 && z < box.z2 + 0.4) { hit = true; break; }
         }
         if (hit) continue;
-        const sight = runRoofSight(door.upX, door.upZ, x, z, deck);
+        const sight = runRoofSight(ax, az, x, z, deck);
         if (needSight && !sight) continue;
+        if (!sight && !roofDeckReachable(deck, ax, az, x, z)) continue;
         const edge = Math.min(x - deck.x, deck.x + deck.w - x, z - deck.z, deck.z + deck.d - z);
         const score = stair * 0.35 - edge + (sight ? 2.5 : 0);
         if (score > bestScore) {
@@ -32373,6 +32610,41 @@ function runRoofSpot(door) {
     return best;
   }
   return scan(1.65, true) || scan(1.15, true) || scan(1.65, false) || scan(1.15, false);
+}
+function runPickClusterDeck(door, salt) {
+  if (!door || !door.deck) return null;
+  const root = door.deck;
+  if ((root.clusterSize || 1) >= 2 && root.links && root.links.length) {
+    const seen = new Set([root]);
+    const q = [{ deck: root, hops: 0, landX: door.upX, landZ: door.upZ }];
+    const nbs = [];
+    while (q.length) {
+      const cur = q.shift();
+      if (cur.hops >= 2) continue;
+      const links = cur.deck.links || [];
+      for (let i = 0; i < links.length; i++) {
+        const lk = links[i];
+        if (!lk.to || seen.has(lk.to)) continue;
+        seen.add(lk.to);
+        const rec = { deck: lk.to, hops: cur.hops + 1, landX: lk.landX, landZ: lk.landZ };
+        nbs.push(rec);
+        q.push(rec);
+      }
+    }
+    if (nbs.length) {
+      const start = Math.abs(((salt || 1) * 2654435761) | 0) % nbs.length;
+      for (let k = 0; k < nbs.length; k++) {
+        const nb = nbs[(start + k) % nbs.length];
+        const spot = runRoofSpot(door, nb.deck, nb.landX, nb.landZ);
+        if (spot && !runSpotTaken(spot.x, spot.z)) {
+          return { deck: nb.deck, spot: spot, hops: nb.hops, anchorX: nb.landX, anchorZ: nb.landZ };
+        }
+      }
+    }
+  }
+  const own = runRoofSpot(door, root, door.upX, door.upZ);
+  if (!own || runSpotTaken(own.x, own.z)) return null;
+  return { deck: root, spot: own, hops: 0, anchorX: door.upX, anchorZ: door.upZ };
 }
 function runMark(x, z, selfKind) {
   let best = null, bestD = 14;
@@ -32525,9 +32797,17 @@ function runNoteHistory(dest) {
 }
 function runDestReachable(shop, dest) {
   if (!shop || !dest) return false;
-  const gx = (dest.roof && dest.door >= 0 && roofDoors[dest.door]) ? roofDoors[dest.door].x : dest.x;
-  const gz = (dest.roof && dest.door >= 0 && roofDoors[dest.door]) ? roofDoors[dest.door].z : dest.z;
-  return !!runFindPath(shop.x, shop.z, gx, gz);
+  if (dest.roof) {
+    const tDeck = dest.roofDeck || (dest.door >= 0 && roofDoors[dest.door] ? roofDoors[dest.door].deck : null);
+    const entry = roofBestClusterEntry(tDeck, shop.x, shop.z) || (dest.door >= 0 ? roofDoors[dest.door] : null);
+    if (entry && runFindPath(shop.x, shop.z, entry.x, entry.z)) return true;
+    const all = roofClusterDoors(tDeck);
+    for (let i = 0; i < all.length; i++) {
+      if (all[i].door !== entry && runFindPath(shop.x, shop.z, all[i].door.x, all[i].door.z)) return true;
+    }
+    return false;
+  }
+  return !!runFindPath(shop.x, shop.z, dest.x, dest.z);
 }
 function runPickFromPool(pool, salt, shop) {
   if (!pool.length) return null;
@@ -32536,6 +32816,11 @@ function runPickFromPool(pool, salt, shop) {
   const start = Math.abs(((salt || 1) * 2654435761) | 0) % top;
   for (let k = 0; k < top; k++) {
     const dest = pool[(start + k) % top].dest;
+    if (!shop || runDestReachable(shop, dest)) return dest;
+  }
+  const lim = Math.min(20, pool.length);
+  for (let k = top; k < lim; k++) {
+    const dest = pool[k].dest;
     if (!shop || runDestReachable(shop, dest)) return dest;
   }
   return null;
@@ -32547,7 +32832,7 @@ function runFareValue(cls, dest) {
   let fee = Math.round(cfg.baseMin + (cfg.baseMax - cfg.baseMin) * t);
   if (dest.alley) fee += 3;
   if (dest.crossSector) fee += 4;
-  if (dest.roof && (dest.clusterSize || 1) >= 3) fee += 4;
+  if (dest.roof && ((dest.roofHops || 0) >= 1 || (dest.clusterSize || 1) >= 3)) fee += 4;
   return fee;
 }
 function runPickKeeper(shop, maxDist, salt) {
@@ -32631,13 +32916,15 @@ function runPickDest(shop, mode, maxDist, salt) {
       if (!door.live || runSameLot(shop, door)) continue;
       const d = Math.hypot(door.x - shop.x, door.z - shop.z);
       if (d < minD || d > cap) continue;
-      const spot = runRoofSpot(door);
-      if (!spot || runSpotTaken(spot.x, spot.z)) continue;
+      const picked = runPickClusterDeck(door, (salt || run.seq) + i * 7);
+      if (!picked || !picked.spot) continue;
+      const spot = picked.spot;
       const zone = zoneAt(door.x, door.z);
       const street = (ZONES[zone] && ZONES[zone].street) || "";
       const sec = runSector(door.x, door.z);
       const clusterSize = (door.deck && door.deck.clusterSize) || 1;
       let score = 42 - Math.abs(d - cfg.targetD) * 0.38;
+      if (picked.hops >= 1) score += 16;
       if (clusterSize >= 3) score += 22;
       else if (clusterSize === 2) score += 12;
       if (sec !== srcSec) score += 20;
@@ -32649,10 +32936,11 @@ function runPickDest(shop, mode, maxDist, salt) {
         dest: {
           roof: true, keeper: false, sit: !!spot.sit,
           x: spot.x, z: spot.z, y: spot.y,
-          yaw: runFaceOpen(spot.x, spot.z, Math.atan2(spot.x - door.upX, spot.z - door.upZ), door),
+          yaw: runFaceOpen(spot.x, spot.z, Math.atan2(spot.x - picked.anchorX, spot.z - picked.anchorZ), { deck: picked.deck }),
           street: street,
           mark: runMark(door.x, door.z, shop.kind),
-          dist: d, door: i, clusterSize: clusterSize, crossSector: sec !== srcSec
+          dist: d, door: i, roofDeck: picked.deck, roofHops: picked.hops,
+          clusterSize: clusterSize, crossSector: sec !== srcSec
         }
       });
     }
@@ -32796,6 +33084,7 @@ function runOffer(now) {
       const cap = Math.min(8, candidates.length);
       for (let i = 0; i < cap; i++) {
         const pick = candidates[(i + run.seq + c) % cap];
+        if (!roofStay && !runFindPath(walkX, walkZ, pick.s.x, pick.s.z)) continue;
         if (runLayFare(pick.s, order[c], now, run.seq + i + c)) return;
       }
     }
@@ -33226,18 +33515,25 @@ function runTake(slip, now) {
     cost: item.cost, drop: item.drop, rain: item.rain, roof: slip.dest.roof, keeper: !!slip.dest.keeper, sit: !!slip.dest.sit,
     post: slip.dest.post, x: slip.dest.x, z: slip.dest.z, y: slip.dest.y, yaw: slip.dest.yaw,
     street: slip.dest.street, mark: slip.dest.mark, door: slip.dest.door,
+    roofDeck: slip.dest.roofDeck || null, roofHops: slip.dest.roofHops || 0,
     dist: slip.dest.dist, state: "carried", t0: now,
     first: false, second: false,
     fig: null, box: null
   };
-  // Measure true walkable alley route distance via A* pathfinder and scale window by actual cargo/alley pace.
-  const goalPt = (job.roof && job.door >= 0 && roofDoors[job.door])
-    ? { x: roofDoors[job.door].x, z: roofDoors[job.door].z }
-    : { x: job.x, z: job.z };
+  // Measure true walkable alley + rooftop-bridge route distance via A* and scale window by actual cargo/alley pace.
+  const targetRoofDeck = job.roof ? roofJobDeck(job) : null;
+  const bestDoor = job.roof
+    ? (roofBestClusterEntry(targetRoofDeck, walkX, walkZ) || (job.door >= 0 ? roofDoors[job.door] : null))
+    : null;
+  const goalPt = bestDoor ? { x: bestDoor.x, z: bestDoor.z } : { x: job.x, z: job.z };
   const route = runFindPath(walkX, walkZ, goalPt.x, goalPt.z);
-  const roofExtraM = (job.roof && job.door >= 0 && roofDoors[job.door])
-    ? Math.hypot(job.x - roofDoors[job.door].upX, job.z - roofDoors[job.door].upZ)
-    : 0;
+  let roofExtraM = 0;
+  if (job.roof && bestDoor && targetRoofDeck) {
+    const rPts = runRoofClusterRoute(bestDoor.deck, targetRoofDeck, bestDoor.upX, bestDoor.upZ, job.x, job.z);
+    for (let ri = 1; ri < rPts.length; ri++) {
+      roofExtraM += Math.hypot(rPts[ri].x - rPts[ri - 1].x, rPts[ri].z - rPts[ri - 1].z);
+    }
+  }
   const fallbackM = job.dist * (job.roof ? 1.45 : (slip.dest.alley ? 1.42 : 1.32));
   const pathM = Math.max(18, (route ? route.dist : fallbackM) + roofExtraM);
   const paceSpd = itemSlots >= 2
@@ -33279,7 +33575,8 @@ function runPerson(job) {
   if (job.fig || job.state !== "carried" && job.state !== "dropped") return;
   if (!job.roof && runInClosedShop(job.x, job.z)) return;
   const here = Math.hypot(walkX - job.x, walkZ - job.z);
-  const onDeck = job.roof && job.door >= 0 && roofSameDeck(roofDoors[job.door]);
+  const targetDeck = job.roof ? roofJobDeck(job) : null;
+  const onDeck = !!(job.roof && roofStay && roofSameCluster(roofStay.deck, targetDeck));
   const foot = job.roof ? job.y : groundFootAt(job.x, job.z);
   const viewed = figurePlaying(job.x, foot + 0.85, job.z);
   if (!walkMode || (here > NPC_AWAY && !onDeck && !viewed)) return;
@@ -33588,7 +33885,8 @@ function runPosePeople(now, dt) {
     runPerson(job);
     if (!job.fig) continue;
     const here = Math.hypot(walkX - job.x, walkZ - job.z);
-    const onDeck = job.roof && job.door >= 0 && roofSameDeck(roofDoors[job.door]);
+    const targetDeck = job.roof ? roofJobDeck(job) : null;
+    const onDeck = !!(job.roof && roofStay && roofSameCluster(roofStay.deck, targetDeck));
     job.fig.visible = here <= NPC_AWAY || onDeck || figurePlaying(job.x, (job.roof ? job.y : GROUND_Y) + 0.85, job.z);
     if (!job.fig.visible) continue;
     const ud = job.fig.userData;
@@ -33629,7 +33927,7 @@ function runBodyNear() {
     }
     for (let i = 0; i < run.jobs.length; i++) {
       const j = run.jobs[i];
-      if (j.state === "carried" && j.roof && j.door >= 0 && roofSameDeck(roofDoors[j.door]) && j.fig && j.fig.visible && close(j.x, j.z)) return true;
+      if (j.state === "carried" && j.roof && roofOnDeck(roofJobDeck(j), j.door >= 0 ? roofDoors[j.door] : null) && j.fig && j.fig.visible && close(j.x, j.z)) return true;
     }
     return false;
   }
@@ -33768,8 +34066,8 @@ function runNearJob() {
   if (roofStay) {
     for (let i = 0; i < run.jobs.length; i++) {
       const j = run.jobs[i];
-      if (j.state !== "carried" || !j.roof || j.door < 0) continue;
-      if (!roofSameDeck(roofDoors[j.door])) continue;
+      if (j.state !== "carried" || !j.roof) continue;
+      if (!roofOnDeck(roofJobDeck(j), j.door >= 0 ? roofDoors[j.door] : null)) continue;
       if (Math.hypot(walkX - j.x, walkZ - j.z) < 1.55 && runRoofSight(walkX, walkZ, j.x, j.z, roofStay.deck)) return j;
     }
     return null;
@@ -33802,7 +34100,7 @@ function runPoint(now) {
   for (let i = 0; i < run.jobs.length; i++) {
     const j = run.jobs[i];
     if (j.state !== "carried") continue;
-    if (j.roof && !(j.door >= 0 && roofSameDeck(roofDoors[j.door]))) continue;
+    if (j.roof && !roofOnDeck(roofJobDeck(j), j.door >= 0 ? roofDoors[j.door] : null)) continue;
     if (!j.roof && roofStay) continue;
     const d = Math.hypot(walkX - j.x, walkZ - j.z);
     if (d < bestD) { bestD = d; best = j; }
@@ -33840,7 +34138,7 @@ function runPromptTarget() {
     const j = jobs[i];
     if (j.state !== "carried") continue;
     if (roofStay) {
-      if (!j.roof || j.door < 0 || !roofDoors[j.door] || !roofSameDeck(roofDoors[j.door])) continue;
+      if (!j.roof || !roofOnDeck(roofJobDeck(j), j.door >= 0 ? roofDoors[j.door] : null)) continue;
       const d = Math.hypot(walkX - j.x, walkZ - j.z);
       if (d >= 1.55) continue;
       if (!runRoofSight(walkX, walkZ, j.x, j.z, roofStay.deck)) continue;
@@ -34259,11 +34557,12 @@ function runWaves() {
     run.waving.push(post);
   }
 }
-// Lazy 1 m walkable alley navigation grid + 8-connected A* pathfinder with string-pulling
-// so HUD arrows, minimap routes, and delivery timers follow real alleys around tenement blocks.
+// Lazy 0.5 m walkable alley navigation grid + 8-connected A* pathfinder with string-pulling
+// so narrow 1.0–1.4 m alleys stay connected and HUD arrows, minimap routes, and timers follow real alleys.
 const runNav = {
-  x0: -4, z0: -4, w: 218, h: 128,
-  grid: null, gScore: null, parent: null, stamp: null, runId: 0
+  x0: -4, z0: -4, step: 0.5, w: 436, h: 256,
+  grid: null, gScore: null, parent: null, stamp: null, runId: 0,
+  heapIdx: [], heapF: []
 };
 function runPaused() {
   if (document.hidden) return true;
@@ -34286,15 +34585,15 @@ function runShiftClocks(delta) {
 }
 function runEnsureNavGrid() {
   if (runNav.grid) return runNav.grid;
-  const W = runNav.w, H = runNav.h, N = W * H;
+  const W = runNav.w, H = runNav.h, N = W * H, step = runNav.step;
   const g = new Uint8Array(N);
-  // Bake only permanent architecture with player capsule radius WALK_R so transient
-  // daytime shop clutter and midnight sleepers never freeze into the A* map.
+  // Bake permanent architecture at 0.5 m resolution with player radius WALK_R so
+  // narrow 1.0–1.4 m alleys stay continuous without freezing transient clutter/sleepers.
   const opts = { pad: WALK_R, bodies: false, clutter: false, sleepers: false };
   for (let iz = 0; iz < H; iz++) {
-    const wz = runNav.z0 + iz + 0.5;
+    const wz = runNav.z0 + (iz + 0.5) * step;
     for (let ix = 0; ix < W; ix++) {
-      const wx = runNav.x0 + ix + 0.5;
+      const wx = runNav.x0 + (ix + 0.5) * step;
       if (walkInside(wx, wz) && !walkBlocked(wx, wz, opts)) g[iz * W + ix] = 1;
     }
   }
@@ -34306,19 +34605,48 @@ function runEnsureNavGrid() {
 }
 function runSnapNavCell(x, z) {
   const g = runEnsureNavGrid();
-  const W = runNav.w, H = runNav.h;
-  const ix0 = Math.max(0, Math.min(W - 1, Math.floor(x - runNav.x0)));
-  const iz0 = Math.max(0, Math.min(H - 1, Math.floor(z - runNav.z0)));
-  if (g[iz0 * W + ix0]) return iz0 * W + ix0;
-  for (let r = 1; r <= 5; r++) {
+  const W = runNav.w, H = runNav.h, step = runNav.step;
+  const ix0 = Math.max(0, Math.min(W - 1, Math.floor((x - runNav.x0) / step)));
+  const iz0 = Math.max(0, Math.min(H - 1, Math.floor((z - runNav.z0) / step)));
+  if (g[iz0 * W + ix0]) {
+    const cx = runNav.x0 + (ix0 + 0.5) * step, cz = runNav.z0 + (iz0 + 0.5) * step;
+    if (runShopSight(x, z, cx, cz, WALK_R, true)) return iz0 * W + ix0;
+  }
+  // Sight-validated snap outward up to 3.0 m so cells never snap across tenement walls onto parallel streets.
+  for (let r = 1; r <= 6; r++) {
+    let best = -1, bestD2 = Infinity;
     for (let dz = -r; dz <= r; dz++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
         const nx = ix0 + dx, nz = iz0 + dz;
         if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
-        if (g[nz * W + nx]) return nz * W + nx;
+        const idx = nz * W + nx;
+        if (!g[idx]) continue;
+        const cx = runNav.x0 + (nx + 0.5) * step, cz = runNav.z0 + (nz + 0.5) * step;
+        if (!runShopSight(x, z, cx, cz, WALK_R, true)) continue;
+        const d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
+        if (d2 < bestD2) { bestD2 = d2; best = idx; }
       }
     }
+    if (best >= 0) return best;
+  }
+  // Tight unsighted fallback (<= 1.0 m) for points tucked into doorway frames.
+  if (g[iz0 * W + ix0]) return iz0 * W + ix0;
+  for (let r = 1; r <= 2; r++) {
+    let best = -1, bestD2 = Infinity;
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+        const nx = ix0 + dx, nz = iz0 + dz;
+        if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+        const idx = nz * W + nx;
+        if (!g[idx]) continue;
+        const cx = runNav.x0 + (nx + 0.5) * step, cz = runNav.z0 + (nz + 0.5) * step;
+        const d2 = (cx - x) * (cx - x) + (cz - z) * (cz - z);
+        if (d2 < bestD2) { bestD2 = d2; best = idx; }
+      }
+    }
+    if (best >= 0) return best;
   }
   return -1;
 }
@@ -34331,19 +34659,24 @@ function runFindPath(sx, sz, tx, tz) {
   const tIdx = runSnapNavCell(tx, tz);
   if (sIdx < 0 || tIdx < 0) return null;
   if (sIdx === tIdx) return { pts: [{ x: sx, z: sz }, { x: tx, z: tz }], dist: Math.hypot(tx - sx, tz - sz) };
-  const W = runNav.w, H = runNav.h;
+  const W = runNav.w, H = runNav.h, step = runNav.step;
   const gScore = runNav.gScore, parent = runNav.parent, stamp = runNav.stamp;
   const id = ++runNav.runId;
   const txC = tIdx % W, tzC = (tIdx / W) | 0;
-  const heapIdx = [sIdx];
-  const heapF = [Math.hypot(txC - (sIdx % W), tzC - ((sIdx / W) | 0))];
+  const heapIdx = runNav.heapIdx;
+  const heapF = runNav.heapF;
+  heapIdx.length = 0;
+  heapF.length = 0;
+  heapIdx.push(sIdx);
+  heapF.push(Math.hypot(txC - (sIdx % W), tzC - ((sIdx / W) | 0)) * step);
   stamp[sIdx] = id;
   gScore[sIdx] = 0;
   parent[sIdx] = -1;
-  const dirs = [[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,1.414],[1,-1,1.414],[-1,1,1.414],[1,1,1.414]];
+  const diag = step * 1.41421356;
+  const dirs = [[-1,0,step],[1,0,step],[0,-1,step],[0,1,step],[-1,-1,diag],[1,-1,diag],[-1,1,diag],[1,1,diag]];
   let found = false;
   let pops = 0;
-  while (heapIdx.length && pops++ < 14000) {
+  while (heapIdx.length && pops++ < 48000) {
     const cur = heapIdx[0];
     const lastI = heapIdx.pop();
     const lastF = heapF.pop();
@@ -34378,7 +34711,7 @@ function runFindPath(sx, sz, tx, tz) {
       stamp[ni] = id;
       gScore[ni] = ng;
       parent[ni] = cur;
-      const f = ng + Math.hypot(txC - nx, tzC - nz);
+      const f = ng + Math.hypot(txC - nx, tzC - nz) * step;
       let pos = heapIdx.length;
       heapIdx.push(ni);
       heapF.push(f);
@@ -34395,8 +34728,8 @@ function runFindPath(sx, sz, tx, tz) {
   if (!found) return null;
   const raw = [];
   let c = tIdx;
-  while (c >= 0 && raw.length < 600) {
-    raw.push({ x: runNav.x0 + (c % W) + 0.5, z: runNav.z0 + ((c / W) | 0) + 0.5 });
+  while (c >= 0 && raw.length < 2400) {
+    raw.push({ x: runNav.x0 + ((c % W) + 0.5) * step, z: runNav.z0 + (((c / W) | 0) + 0.5) * step });
     c = parent[c];
   }
   raw.reverse();
@@ -34407,7 +34740,7 @@ function runFindPath(sx, sz, tx, tz) {
   let a = 0;
   while (a < raw.length - 1) {
     let best = a + 1;
-    for (let b = Math.min(raw.length - 1, a + 28); b > a + 1; b--) {
+    for (let b = Math.min(raw.length - 1, a + 56); b > a + 1; b--) {
       if (runShopSight(raw[a].x, raw[a].z, raw[b].x, raw[b].z, WALK_R, true)) { best = b; break; }
     }
     smooth.push(raw[best]);
@@ -34419,9 +34752,20 @@ function runFindPath(sx, sz, tx, tz) {
   }
   return { pts: smooth, dist: dist };
 }
-// BFS across linked rooftop planks so inter-deck routes follow actual wooden bridges instead of open air.
+// Obstacle-aware rooftop routing: runs intra-deck A* around stairheads/tanks/sheds
+// and chains across linked wooden bridges via BFS.
 function runRoofClusterRoute(fromDeck, targetDeck, sx, sz, tx, tz) {
-  if (!fromDeck || !targetDeck || fromDeck === targetDeck) return [{ x: sx, z: sz }, { x: tx, z: tz }];
+  function pushDeckLeg(pts, deck, ax, az, bx, bz) {
+    const leg = roofDeckPath(deck, ax, az, bx, bz);
+    const seg = leg ? leg.pts : [{ x: ax, z: az }, { x: bx, z: bz }];
+    for (let k = 1; k < seg.length; k++) pts.push(seg[k]);
+  }
+  if (!fromDeck || !targetDeck || fromDeck === targetDeck) {
+    const pts = [{ x: sx, z: sz }];
+    if (fromDeck) pushDeckLeg(pts, fromDeck, sx, sz, tx, tz);
+    else pts.push({ x: tx, z: tz });
+    return pts;
+  }
   const q = [fromDeck];
   const prev = new Map();
   prev.set(fromDeck, null);
@@ -34442,24 +34786,32 @@ function runRoofClusterRoute(fromDeck, targetDeck, sx, sz, tx, tz) {
   while (cur && cur !== fromDeck) {
     const rec = prev.get(cur);
     if (!rec) break;
-    steps.push(rec.lk);
+    steps.push({ deck: rec.from, lk: rec.lk });
     cur = rec.from;
   }
   steps.reverse();
   const pts = [{ x: sx, z: sz }];
+  let curX = sx, curZ = sz;
   for (let i = 0; i < steps.length; i++) {
-    const lk = steps[i];
+    const st = steps[i];
+    const lk = st.lk;
     const mid = (lk.span0 + lk.span1) * 0.5;
-    if (lk.axis === "x") pts.push({ x: lk.edge, z: mid });
-    else pts.push({ x: mid, z: lk.edge });
+    const takeX = lk.takeX != null ? lk.takeX : (lk.axis === "x" ? lk.edge - lk.dirX * 0.52 : mid);
+    const takeZ = lk.takeZ != null ? lk.takeZ : (lk.axis === "z" ? lk.edge - lk.dirZ * 0.52 : mid);
+    pushDeckLeg(pts, st.deck, curX, curZ, takeX, takeZ);
+    const ex = lk.axis === "x" ? lk.edge : mid;
+    const ez = lk.axis === "x" ? mid : lk.edge;
+    pts.push({ x: ex, z: ez });
     pts.push({ x: lk.landX, z: lk.landZ });
+    curX = lk.landX;
+    curZ = lk.landZ;
   }
-  pts.push({ x: tx, z: tz });
+  pushDeckLeg(pts, targetDeck, curX, curZ, tx, tz);
   return pts;
 }
 function runRawGoal(job) {
-  function exitGoal() {
-    const ex = roofStay ? roofClusterExitDoor(roofStay.deck) : null;
+  function exitGoal(targetX, targetZ) {
+    const ex = roofStay ? roofClusterExitDoor(roofStay.deck, targetX, targetZ) : null;
     if (!ex) return null;
     return { x: ex.upX, z: ex.upZ, ground: false, deck: ex.deck, exit: true };
   }
@@ -34467,37 +34819,51 @@ function runRawGoal(job) {
     if (job.onRoof && (job.roofDeck || job.roofDoor)) {
       const targetDeck = job.roofDeck || (job.roofDoor && job.roofDoor.deck);
       if (roofOnDeck(job.roofDeck, job.roofDoor)) return { x: job.dx, z: job.dz, ground: false, deck: targetDeck };
-      const sameCluster = !!(roofStay && roofStay.deck && targetDeck && roofStay.deck.cluster >= 0 && roofStay.deck.cluster === targetDeck.cluster);
-      if (sameCluster) return { x: job.dx, z: job.dz, ground: false, deck: targetDeck };
-      const ex = exitGoal();
+      if (roofStay && roofSameCluster(roofStay.deck, targetDeck)) {
+        return { x: job.dx, z: job.dz, ground: false, deck: targetDeck };
+      }
+      const bestEntry = roofBestClusterEntry(targetDeck, walkX, walkZ) || job.roofDoor;
+      const ex = exitGoal(bestEntry ? bestEntry.x : job.dx, bestEntry ? bestEntry.z : job.dz);
       if (ex) return ex;
-      const entry = roofClusterExitDoor(targetDeck) || job.roofDoor;
-      if (entry) return { x: entry.x, z: entry.z, ground: true };
+      if (bestEntry) return { x: bestEntry.x, z: bestEntry.z, ground: true };
     }
-    const ex = exitGoal();
+    const ex = exitGoal(job.dx, job.dz);
     if (ex) return ex;
     return { x: job.dx, z: job.dz, ground: !job.onRoof };
   }
-  if (job.roof && job.door >= 0 && roofDoors[job.door]) {
-    const targetDoor = roofDoors[job.door];
-    const onDeck = roofSameDeck(targetDoor);
-    const sameCluster = !!(roofStay && roofStay.deck && targetDoor.deck && roofStay.deck.cluster >= 0 && roofStay.deck.cluster === targetDoor.deck.cluster);
-    if (onDeck || sameCluster) return { x: job.x, z: job.z, ground: false, deck: targetDoor.deck };
-    const ex = exitGoal();
+  if (job.roof) {
+    const targetDeck = roofJobDeck(job);
+    const fallbackDoor = job.door >= 0 ? roofDoors[job.door] : null;
+    if (roofStay && roofSameCluster(roofStay.deck, targetDeck)) {
+      return { x: job.x, z: job.z, ground: false, deck: targetDeck };
+    }
+    const entry = roofBestClusterEntry(targetDeck, walkX, walkZ) || fallbackDoor;
+    const ex = exitGoal(entry ? entry.x : job.x, entry ? entry.z : job.z);
     if (ex) return ex;
-    return { x: targetDoor.x, z: targetDoor.z, ground: true };
+    if (entry) return { x: entry.x, z: entry.z, ground: true };
   }
-  const ex = exitGoal();
+  const ex = exitGoal(job.x, job.z);
   if (ex) return ex;
   return { x: job.x, z: job.z, ground: !job.roof };
 }
 function runJobRoute(job) {
   const goal = runRawGoal(job);
   if (roofStay) {
-    if (goal.deck && roofStay.deck && goal.deck !== roofStay.deck) {
-      return runRoofClusterRoute(roofStay.deck, goal.deck, walkX, walkZ, goal.x, goal.z);
+    const fromDeck = roofStay.deck;
+    const toDeck = goal.deck || fromDeck;
+    const rr = job._roofRoute;
+    const needRoof = !rr || !rr.pts || rr.pts.length < 2
+      || rr.fromDeck !== fromDeck || rr.toDeck !== toDeck
+      || Math.hypot(rr.gx - goal.x, rr.gz - goal.z) > 0.35
+      || Math.hypot(rr.sx - walkX, rr.sz - walkZ) > 0.9;
+    if (needRoof) {
+      job._roofRoute = {
+        fromDeck: fromDeck, toDeck: toDeck,
+        sx: walkX, sz: walkZ, gx: goal.x, gz: goal.z,
+        pts: runRoofClusterRoute(fromDeck, toDeck, walkX, walkZ, goal.x, goal.z)
+      };
     }
-    return [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }];
+    return job._roofRoute.pts;
   }
   if (!goal.ground) return [{ x: walkX, z: walkZ }, { x: goal.x, z: goal.z }];
   const r = job._route;
@@ -34515,8 +34881,8 @@ function runJobRoute(job) {
   }
   return job._route.pts;
 }
-// Monotonic polyline aim: locate the closest segment to the player first, then
-// return the next waypoint strictly ahead along the route so corners never aim backward.
+// Corner-safe monotonic polyline aim: only skip an approaching corner waypoint
+// when the player already has clear line-of-sight to the next waypoint (or is < 0.55 m away).
 function runAim(job) {
   const pts = runJobRoute(job);
   if (pts.length <= 2) return pts[pts.length - 1];
@@ -34532,7 +34898,15 @@ function runAim(job) {
     if (d2 < bestD2) { bestD2 = d2; bestSeg = i; }
   }
   for (let i = bestSeg + 1; i < pts.length - 1; i++) {
-    if (Math.hypot(pts[i].x - walkX, pts[i].z - walkZ) > 1.45) return pts[i];
+    const d = Math.hypot(pts[i].x - walkX, pts[i].z - walkZ);
+    if (d > 1.45) return pts[i];
+    if (d >= 0.55) {
+      const nxt = pts[i + 1];
+      const clearToNext = roofStay
+        ? runRoofSight(walkX, walkZ, nxt.x, nxt.z, roofStay.deck)
+        : runShopSight(walkX, walkZ, nxt.x, nxt.z, WALK_R, true);
+      if (!clearToNext) return pts[i];
+    }
   }
   return pts[pts.length - 1];
 }
@@ -34839,6 +35213,25 @@ function miniMapRoofOverlay(ctx, pxPerM, cx, cy) {
     ctx.lineWidth = d === roofStay.deck ? 2 : 1.5;
     ctx.strokeRect(rx, rz, rw, rd);
   }
+  // Draw rooftop obstacles (stairheads, water tanks, sheds, ducts) so blocked lanes read clearly.
+  ctx.fillStyle = "rgba(18,14,12,0.72)";
+  ctx.strokeStyle = "rgba(92,74,60,0.65)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < roofDecks.length; i++) {
+    const d = roofDecks[i];
+    if (d !== roofStay.deck && (cluster < 0 || d.cluster !== cluster)) continue;
+    const blks = d.blocks || [];
+    for (let k = 0; k < blks.length; k++) {
+      const b = blks[k];
+      const bx = (b.x - walkX) * pxPerM;
+      const bz = (b.z - walkZ) * pxPerM;
+      const bw = Math.max(2, (b.x2 - b.x) * pxPerM);
+      const bd = Math.max(2, (b.z2 - b.z) * pxPerM);
+      ctx.fillRect(bx, bz, bw, bd);
+      ctx.strokeRect(bx, bz, bw, bd);
+    }
+  }
+  // Draw linked rooftop planks/bridges.
   ctx.strokeStyle = "#ffc56a";
   ctx.lineWidth = 3;
   for (let i = 0; i < roofDecks.length; i++) {
@@ -34856,6 +35249,25 @@ function miniMapRoofOverlay(ctx, pxPerM, cx, cy) {
       ctx.moveTo(sx, sz);
       ctx.lineTo(tx, tz);
       ctx.stroke();
+    }
+  }
+  // Draw stairhead exit doorway markers across the cluster so exits stay visible on multi-deck roofs.
+  for (let i = 0; i < roofDecks.length; i++) {
+    const d = roofDecks[i];
+    if (d !== roofStay.deck && (cluster < 0 || d.cluster !== cluster)) continue;
+    const doors = d.doors || [];
+    for (let k = 0; k < doors.length; k++) {
+      const dr = doors[k];
+      if (!dr || !dr.live) continue;
+      const ex = (dr.upX - walkX) * pxPerM;
+      const ez = (dr.upZ - walkZ) * pxPerM;
+      ctx.fillStyle = d === roofStay.deck ? "#3dff88" : "rgba(61,255,136,0.72)";
+      ctx.strokeStyle = "#090807";
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(ex - 4.5, ez - 4.5, 9, 9);
+      ctx.strokeRect(ex - 4.5, ez - 4.5, 9, 9);
+      ctx.fillStyle = "#090807";
+      ctx.fillRect(ex - 1.5, ez - 1.5, 3, 3);
     }
   }
   ctx.restore();
@@ -34988,16 +35400,22 @@ function miniMapDraw() {
     fogMoved = true;
   }
   const nowSec = performance.now() * 0.001;
-  let sig = Math.round(walkX * 20) + "|" + Math.round(walkZ * 20) + "|" + Math.round(miniMapYaw() * 200) + "|" + (roofStay ? 1 : 0);
+  const deckId = roofStay ? (roofStay.deck ? roofDecks.indexOf(roofStay.deck) : 1) : -1;
+  const carrying = (typeof runCarrying === "function" && runCarrying()) ? 1 : 0;
+  let sig = Math.round(walkX * 20) + "|" + Math.round(walkZ * 20) + "|" + Math.round(miniMapYaw() * 200) + "|" + deckId + "|" + carrying;
   const jobs = (typeof run !== "undefined" && run && run.jobs) ? run.jobs : [];
   for (let i = 0; i < jobs.length; i++) {
     const j = jobs[i];
-    if (j.state === "carried" || j.state === "dropped") sig += "|" + j.id + j.state + runFareHue(j, nowSec);
+    if (j.state === "carried" || j.state === "dropped") {
+      const pts = runJobRoute(j);
+      const tail = pts && pts.length ? pts[pts.length - 1] : null;
+      sig += "|" + j.id + j.state + runFareHue(j, nowSec) + ":" + (pts ? pts.length : 0) + (tail ? ("," + Math.round(tail.x * 5) + "," + Math.round(tail.z * 5)) : "");
+    }
   }
   const shops = (typeof run !== "undefined" && run && run.shops) ? run.shops : [];
   let slipBits = 0;
   for (let i = 0; i < shops.length; i++) {
-    if (shops[i].slip) slipBits = (slipBits * 31 + (i + 1)) | 0;
+    if (shops[i].slip && shopOpenNow(shops[i].kind)) slipBits = (slipBits * 31 + (i + 1)) | 0;
   }
   sig += "|" + slipBits;
   if (!fogMoved && miniMap.drawSig === sig) return;
@@ -35104,7 +35522,8 @@ function stepWalk(dt) {
         if (!hitX) walkX = nx;
         const hitZ = roofBlocked(walkX, nz);
         if (!hitZ) walkZ = nz;
-        if ((hitX || hitZ) && tryRoofCross(nx, nz, ux, uz)) break;
+        const nearEdge = nx < roofStay.x0 + 0.18 || nx > roofStay.x1 - 0.18 || nz < roofStay.z0 + 0.18 || nz > roofStay.z1 - 0.18;
+        if ((hitX || hitZ || nearEdge) && tryRoofCross(nx, nz, ux, uz)) break;
       } else {
         if (walkInside(nx, walkZ) && !walkBlocked(nx, walkZ)) walkX = nx;
         if (walkInside(walkX, nz) && !walkBlocked(walkX, nz)) walkZ = nz;
@@ -35135,8 +35554,10 @@ function beginDelivery() {
 document.getElementById("roof-go").onclick = (e) => {
   e.preventDefault();
   e.stopPropagation();
-  if (roofStay) leaveRoof();
-  else if (roofOffer) enterRoof(roofOffer);
+  if (roofStay) {
+    const exDoor = roofExitNear();
+    if (exDoor) leaveRoof(false, exDoor);
+  } else if (roofOffer) enterRoof(roofOffer);
   syncRoofButton();
   e.currentTarget.blur();
 };
