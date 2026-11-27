@@ -6363,6 +6363,13 @@ function noteShopFront(bay, face, kind, shut, depth) {
   if (x1 - x0 < 0.15 || z1 - z0 < 0.15) return;
   shopFronts.push({ x: x0, z: z0, x2: x1, z2: z1, kind: kind, shut: !!shut });
 }
+function keeperBuildWidth(kind) {
+  if (kind === "bbq" || kind === "dogmeat") return 1.22;
+  if (kind === "mahjong") return 1.15;
+  if (kind === "grocery" || kind === "rice" || kind === "fishball" || kind === "noodle" || kind === "water") return 1.09;
+  if (kind === "plastic" || kind === "paikau" || kind === "dentist" || kind === "doctor") return 1.03;
+  return 0.96;
+}
 function noteShopkeeper(bay, face, kind, data) {
   const spec = SHOP_KIND[kind] || {};
   const glass = !!spec.glass;
@@ -6375,50 +6382,45 @@ function noteShopkeeper(bay, face, kind, data) {
   // counter (or beside the treatment/barber chair) and ahead of the back shelf.
   let along = deep ? 0.58 : 0.42;
   let depth = deep ? Math.max(backFace + 0.46, -1.04) : -0.34;
-  let yaw = 0;
   if (glass) {
     along = 0.36;
     depth = deep ? Math.max(backFace + 0.44, -0.96) : -0.62;
-    yaw = 0.25;
   } else if (veiled) {
     along = 0.52;
     depth = deep ? Math.max(backFace + 0.36, -1.32) : -0.46;
-    yaw = 0.35;
   } else if (make) {
     along = 0.56;
     depth = deep ? Math.max(backFace + 0.46, -1.06) : -0.36;
-    yaw = 0.35;
   } else if (kind === "barber") {
     along = 0.46;
     depth = deep ? Math.max(backFace + 0.40, -1.16) : -0.34;
-    yaw = 0.25;
   }
   const span = bay.span || 4;
   const thin = span < 2.2;
   const compact = roomFit < 1.05 || span < 1.85;
   const roll = lotRoll(bay.x + bay.w * 0.5, bay.z + bay.d * 0.5, 0x51 + Math.floor(span * 10));
   let stance = "work";
-  if (compact) stance = (roll < 0.58 && span >= 1.1) ? "sit" : "idle";
-  else if (thin && !deep) stance = "sit";
+  if (compact) stance = (roll < 0.58 && span >= 1.1 && roomFit >= 0.85) ? "sit" : "idle";
+  else if (thin && !deep) stance = roomFit >= 0.85 ? "sit" : "idle";
   else if (roll < 0.32) stance = "sit";
   else if (roll < 0.62) stance = "idle";
   if (kind === "barber" && !thin && stance === "sit") stance = "idle";
-  if (stance === "sit" && span < 1.05) stance = "idle";
+  if (stance === "sit" && (span < 1.05 || roomFit < 0.82)) stance = "idle";
   // Keep initial keeper target strictly between rear plaster wall (+0.17 m) and gate clearance line.
   const minPrefOut = backFace - SHOP_SEAT + 0.17;
-  const maxPrefOut = Math.max(minPrefOut, -0.96);
+  const maxPrefOut = Math.max(minPrefOut, -0.74);
   const clampedPrefOut = Math.min(Math.min(-0.66, maxPrefOut), Math.max(minPrefOut, depth - SHOP_SEAT));
   const seat = {
     face: face, x: bay.x, z: bay.z, w: bay.w, d: bay.d, span: span,
     room: roomFit, roomW: bay.roomW || 0, movedHole: !!bay.movedHole,
+    kind: kind, glass: glass,
     prefAlong: along, prefOut: clampedPrefOut,
     lotX: data.x, lotZ: data.z, lotW: data.w, lotD: data.d
   };
   const spot = facePose(bay.x, bay.z, bay.w, bay.d, face, along, clampedPrefOut, 0.33);
   const mouth = facePose(bay.x, bay.z, bay.w, bay.d, face, 0.5, -SHOP_SEAT, 0.33);
   if (massCovers(spot.x, spot.z, data.x, data.z, data.w, data.d)) return;
-  const toward = face === "e" ? 1 : -1;
-  const rot = spot.rot + toward * yaw;
+  const rot = spot.rot;
   shopPosts.push({
     x: spot.x, y: 0.33, z: spot.z, rot: rot, kind: kind,
     mouthX: mouth.x, mouthZ: mouth.z,
@@ -6448,7 +6450,8 @@ function settleSeatedKeepers() {
     return box;
   }
   function addSolid(it) {
-    if (!it.geo) return;
+    // Keepers only staff shops during open hours; closed-hour shutters/gates (hours === 2) must not block placement.
+    if (!it.geo || it.hours === 2) return;
     const b = boundsOf(it.geo);
     const sx = Math.abs(it.sx == null ? 1 : it.sx);
     const sy = Math.abs(it.sy == null ? 1 : it.sy);
@@ -6562,12 +6565,15 @@ function settleSeatedKeepers() {
     }
     return false;
   }
-  // Folded gates sit near out -0.50. Hands stay behind that line.
+  // Folded gates sit near out -0.50; clinic glass sits near -0.46. Hands & seated knees stay behind this line.
   const GATE = -0.58;
   function fitBox(o, out) {
-    if (!o.stand) return o;
-    const front0 = o.front == null ? 0.16 : o.front;
     const reach = GATE - out;
+    if (!o.stand) {
+      if (reach + 0.04 < o.fore) return null;
+      return o;
+    }
+    const front0 = o.front == null ? 0.16 : o.front;
     if (reach >= o.fore && reach >= front0) return o;
     return {
       stand: true, half: o.half, back: o.back,
@@ -6587,11 +6593,21 @@ function settleSeatedKeepers() {
     } else if (!(span > 0) || gapW < o.half * 2 + 0.02) return null;
     const backFace = -(seat.room - 0.05);
     const backFoot = backFace - SHOP_SEAT + o.back + GAP + 0.03;
-    const gateFoot = o.stand ? -0.96 : -1.00;
+    const frontLim = seat.glass ? -0.62 : GATE;
+    if (!o.stand) {
+      const maxSeatOut = frontLim + 0.04 - o.fore;
+      if (backFoot > maxSeatOut) return null;
+    }
+    const gateFoot = o.stand ? -0.96 : Math.min(-1.00, frontLim + 0.04 - o.fore);
     let lo = Math.min(backFoot, gateFoot);
     let hi = Math.max(backFoot, gateFoot);
-    // A shallow recess ends before the gate line. Stay at its back wall.
-    if (backFoot > gateFoot) { lo = backFoot; hi = backFoot; }
+    // For compact shallow rooms where backFoot sits ahead of gateFoot, keep a
+    // clean standing corridor up to -0.72 m behind the gate instead of locking
+    // onto one depth line inside the counter.
+    if (backFoot > gateFoot) {
+      lo = backFoot;
+      hi = o.stand ? Math.max(backFoot, Math.min(frontLim - 0.14, -0.72)) : backFoot;
+    }
     const mid = (left + right) * 0.5;
     const prefAlongM = seat.prefAlong != null
       ? Math.max(left + o.half, Math.min(right - o.half, seat.prefAlong * span))
@@ -6604,6 +6620,7 @@ function settleSeatedKeepers() {
     for (let depth = lo; depth <= hi + 1e-4; depth += 0.08) {
       const out = Math.min(depth, hi);
       const fit = fitBox(o, out);
+      if (!fit) continue;
       const depthErr = Math.abs(out - prefOut);
       for (let alongM = left + o.half; alongM <= right - o.half + 1e-4; alongM += 0.08) {
         const spot = facePose(seat.x, seat.z, seat.w, seat.d, seat.face, alongM / span, out, 0.33);
@@ -6629,15 +6646,17 @@ function settleSeatedKeepers() {
     post.fx = Math.sin(spot.rot);
     post.fz = Math.cos(spot.rot);
   }
-  const sitBox = { stand: false, half: HALF, back: BACK, fore: KNEE };
-  // A working hand reaches about 0.35 m. An idle arm hangs closer to 0.14 m.
-  const workBox = { stand: true, half: 0.20, back: 0.12, fore: 0.36, front: 0.16 };
-  const idleBox = { stand: true, half: 0.18, back: 0.12, fore: 0.16, front: 0.14 };
   const stats = { seated: 0, standing: 0, overlaps: 0, unplaced: 0, solids: solids.length };
   for (let i = 0; i < shopPosts.length; i++) {
     const post = shopPosts[i];
     const seat = post.seat;
     if (!seat) continue;
+    const wScale = keeperBuildWidth(post.kind);
+    const sitBox = { stand: false, half: HALF * wScale, back: BACK, fore: KNEE };
+    // A working hand reaches about 0.35 m. An idle arm hangs closer to 0.14 m.
+    const workBox = { stand: true, half: 0.20 * wScale, back: 0.12, fore: 0.36, front: 0.16 };
+    const idleBox = { stand: true, half: 0.18 * wScale, back: 0.12, fore: 0.16, front: 0.14 };
+    const slimBox = { stand: true, half: Math.max(0.13, 0.15 * wScale), back: 0.11, fore: 0.14, front: 0.12 };
     const span = (seat.face === "n" || seat.face === "s") ? seat.w : seat.d;
     const margin = shopBayMargin(span, !!seat.movedHole);
     const openW = Math.max(0.55, span - margin * 2);
@@ -6672,15 +6691,26 @@ function settleSeatedKeepers() {
         }
       }
       if (!spot) {
+        spot = search(seat, span, left, right, slimBox, false);
+        if (spot) post.stance = "idle";
+      }
+      if (!spot) {
         spot = search(seat, span, left, right, idleBox, true);
         if (spot) post.stance = "idle";
       }
       if (!spot) {
         const backFace = -(seat.room - 0.05);
-        const guess = facePose(seat.x, seat.z, seat.w, seat.d, seat.face, 0.5, backFace - SHOP_SEAT + 0.22, 0.33);
-        if (!inOtherMass(guess.x, guess.z, guess.rot, seat, idleBox)) {
-          guess.fit = idleBox;
-          spot = guess;
+        const tryOut = Math.min(-0.70, backFace - SHOP_SEAT + 0.20);
+        const tryAlongs = [0.5, 0.35, 0.65];
+        let bestGuess = null, bestHits = 1e9;
+        for (let gi = 0; gi < tryAlongs.length; gi++) {
+          const guess = facePose(seat.x, seat.z, seat.w, seat.d, seat.face, tryAlongs[gi], tryOut, 0.33);
+          if (inOtherMass(guess.x, guess.z, guess.rot, seat, slimBox)) continue;
+          const nh = bodyHits(guess.x, guess.z, guess.rot, slimBox, false);
+          if (nh < bestHits) { bestHits = nh; bestGuess = guess; bestGuess.fit = slimBox; }
+        }
+        if (bestGuess) {
+          spot = bestGuess;
           post.stance = "idle";
         }
       }
@@ -6690,7 +6720,10 @@ function settleSeatedKeepers() {
         applySpot(post, spot);
         stats.standing++;
         if (bodyHits(post.x, post.z, post.rot, fit) > 0) stats.overlaps++;
-      } else stats.unplaced++;
+      } else {
+        post.unplaced = true;
+        stats.unplaced++;
+      }
     }
     if (post.seat) {
       post.lotX = post.seat.lotX;
@@ -9320,6 +9353,50 @@ function blockQuad(x, z) {
   // inside the street frustum, so a batch drew the whole city.
   return Math.floor(x / 32) + Math.floor(z / 32) * 64;
 }
+// Three.js r128 caches compiled WebGL programs per Material without checking
+// instanceColor !== null; sharing one Material between tinted and untinted
+// InstancedMeshes makes setupVertexAttributes call attributes.get(null).
+// Keep tinted InstancedMeshes on a dedicated WeakMap-tracked material clone.
+const instColorMatMap = new WeakMap();
+const instColorVariantSet = new WeakSet();
+function cloneInstColorMat(mat) {
+  if (!mat || Array.isArray(mat)) return mat;
+  if (instColorVariantSet.has(mat)) return mat;
+  const hit = instColorMatMap.get(mat);
+  if (hit) return hit;
+  const c = mat.clone();
+  c.userData = Object.assign({}, mat.userData);
+  const prevCompile = texCompileOwn.get(mat);
+  if (prevCompile) c.onBeforeCompile = prevCompile;
+  const prevKey = mat.customProgramCacheKey;
+  c.customProgramCacheKey = function () {
+    return (prevKey ? prevKey.call(this) : "") + "|instCol";
+  };
+  for (let i = 0; i < shopGlow.length; i++) {
+    if (shopGlow[i].mat === mat) {
+      shopGlow.push({ mat: c, day: shopGlow[i].day, night: shopGlow[i].night });
+      break;
+    }
+  }
+  instColorMatMap.set(mat, c);
+  instColorVariantSet.add(c);
+  return c;
+}
+function separateInstColorMaterials(root) {
+  const byMat = new Map();
+  root.traverse(function (obj) {
+    if (!obj.isInstancedMesh || !obj.material || Array.isArray(obj.material)) return;
+    let rec = byMat.get(obj.material);
+    if (!rec) byMat.set(obj.material, rec = { tinted: [], plain: [] });
+    if (obj.instanceColor) rec.tinted.push(obj);
+    else rec.plain.push(obj);
+  });
+  byMat.forEach(function (rec, mat) {
+    if (!rec.tinted.length || !rec.plain.length) return;
+    const variant = cloneInstColorMat(mat);
+    for (let i = 0; i < rec.tinted.length; i++) rec.tinted[i].material = variant;
+  });
+}
 function fillInst(geo, mat, items, place) {
   if (!items.length) {
     fillInst.last = [];
@@ -9360,13 +9437,17 @@ function fillInst(geo, mat, items, place) {
     for (let i = 0; i < items.length; i++) ax[i] = items[i].wave || 0;
     drawGeo.setAttribute("sheetAxis", new THREE.InstancedBufferAttribute(ax, 1));
   }
-  const mesh = new THREE.InstancedMesh(drawGeo, mat, items.length);
+  let tinted = false;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i] && items[i].tint) { tinted = true; break; }
+  }
+  const drawMat = (tinted && !Array.isArray(mat)) ? cloneInstColorMat(mat) : mat;
+  const mesh = new THREE.InstancedMesh(drawGeo, drawMat, items.length);
   if (fillInst.goods) mesh.userData.goods = 1;
   mesh.frustumCulled = false;
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   const dummy = new THREE.Object3D();
-  let tinted = false;
   items.forEach((it, i) => {
     dummy.position.set(0, 0, 0);
     dummy.rotation.set(0, 0, 0);
@@ -9374,7 +9455,6 @@ function fillInst(geo, mat, items, place) {
     place(dummy, it);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
-    if (it.tint) tinted = true;
   });
   mesh.instanceMatrix.needsUpdate = true;
   if (items.some(it => it.az != null)) {
@@ -24179,6 +24259,7 @@ function resetRigPose(rig) {
     rig.rBrow.rotation.z = 0;
     rig.mouth.scale.y = 0.48 * 0.032 * (rig.spec.build.isChild ? 1.18 : 1.0);
     rig.stool.visible = false;
+    rig.stool.scale.set(1, 1, 1);
     rig.goodsBike.visible = false;
     rig.umbrellaProp.visible = false;
     rig.cargoHolder.visible = false;
@@ -24187,6 +24268,18 @@ function resetRigPose(rig) {
     rig.sweatDrops.forEach(s => s.visible = false);
 }
 
+// Plant seated shoes flush on the floor (pelvisY = 0.52 * h -> soleY = +0.0017 * h)
+// and scale the built-in Hong Kong red plastic stool cleanly to match character height.
+function seatStudioStool(rig, h) {
+    const sc = h || 1;
+    if (rig.stool) {
+        rig.stool.visible = true;
+        const sy = Math.max(0.55, (0.52 * sc - 0.054) / 0.470);
+        const sxz = Math.min(1, 0.45 + 0.55 * sc);
+        rig.stool.scale.set(sxz, sy, sxz);
+    }
+    rig.pelvis.position.set(0, 0.52 * sc, -0.02);
+}
 function studioPoseCharacter(rig, animId, t) {
     resetRigPose(rig);
     const h = rig.hScale;
@@ -24287,9 +24380,8 @@ function studioPoseCharacter(rig, animId, t) {
         rig.lElbow.rotation.x = -0.22;
     } else if (animId === 'wave_sit') {
         const wave = Math.sin(t * 6.8);
-        rig.stool.visible = true;
+        seatStudioStool(rig, h);
         rig.rightProp.visible = false;
-        rig.pelvis.position.set(0, 0.48 * h, -0.02);
         rig.lHip.rotation.set(-1.45, 0.12, 0.1); rig.lKnee.rotation.x = 1.45;
         rig.rHip.rotation.set(-1.45, -0.12, -0.1); rig.rKnee.rotation.x = 1.45;
         rig.spine.rotation.set(0.04, -0.06, 0.02);
@@ -24310,8 +24402,7 @@ function studioPoseCharacter(rig, animId, t) {
         rig.rElbow.rotation.x = -0.95 + Math.cos(c) * 0.32;
     } else if (animId === 'work_sit') {
         const c = cyc(4.8);
-        rig.stool.visible = true;
-        rig.pelvis.position.set(0, 0.48 * h, -0.02);
+        seatStudioStool(rig, h);
         rig.lHip.rotation.set(-1.45, 0.12, 0.1); rig.lKnee.rotation.x = 1.45;
         rig.rHip.rotation.set(-1.45, -0.12, -0.1); rig.rKnee.rotation.x = 1.45;
         rig.spine.rotation.x = 0.24;
@@ -24504,8 +24595,7 @@ function studioPoseCharacter(rig, animId, t) {
             u.crank.rotation.x = pedal;
         }
     } else if (animId === "idle_sit") {
-        rig.stool.visible = true;
-        rig.pelvis.position.set(0, 0.48 * h, -0.02);
+        seatStudioStool(rig, h);
         rig.lHip.rotation.set(-1.45, 0.12, 0.1);
         rig.lKnee.rotation.x = 1.45;
         rig.rHip.rotation.set(-1.45, -0.12, -0.1);
@@ -24577,6 +24667,7 @@ function settleStop(pack, dt) {
   pack.plantW = cur + (0 - cur) * Math.min(1, (dt || 0.016) * 6);
   const w = 1 - pack.plantW;
   if (w < 0.02) return;
+  const hasUmbrella = !!(pack.umbrellaProp && pack.umbrellaProp.visible);
   const plantLeft = pack.lKnee.rotation.x <= pack.rKnee.rotation.x;
   const lW = plantLeft ? w * 0.35 : w;
   const rW = plantLeft ? w : w * 0.35;
@@ -24585,8 +24676,14 @@ function settleStop(pack, dt) {
   easeJoint(pack.rHip.rotation, 0, 0, 0, rW);
   easeJoint(pack.rKnee.rotation, 0, 0, 0, rW);
   pack.pelvis.position.y += (pack.basePelvisY - pack.pelvis.position.y) * w;
-  pack.spine.rotation.x += (0.02 - pack.spine.rotation.x) * w;
   pack.spine.rotation.y += (0 - pack.spine.rotation.y) * w;
+  if (hasUmbrella) {
+    // Keep the right arm and spine pitch holding the umbrella upright while the legs & free arm settle.
+    easeJoint(pack.lShoulder.rotation, -0.22, 0.08, 0.12, w);
+    pack.lElbow.rotation.x += (-0.35 - pack.lElbow.rotation.x) * w;
+    return;
+  }
+  pack.spine.rotation.x += (0.02 - pack.spine.rotation.x) * w;
   easeJoint(pack.lShoulder.rotation, 0, 0, 0.08, w);
   easeJoint(pack.rShoulder.rotation, 0, 0, -0.08, w);
   pack.lElbow.rotation.x += (-0.15 - pack.lElbow.rotation.x) * w;
@@ -24594,9 +24691,22 @@ function settleStop(pack, dt) {
 }
 // The wave sits on top of the walk or the working pose. The arm is the studio
 // wave: held out beside the shoulder, wrist flapping, clear of the head.
-// Weight eases both ways, so the hand comes down into whatever the legs are already doing.
+// When the right hand is holding a rain umbrella, mirror the wave onto the free
+// left arm so the canopy stays steady and upright above the head.
 function applyWaveOverlay(pack, t, w, sit) {
   if (!pack || w <= 0.01) return;
+  const hasUmbrella = !!(pack.umbrellaProp && pack.umbrellaProp.visible);
+  if (hasUmbrella && !sit) {
+    const wave = Math.sin(t * 7.0);
+    if (pack.leftProp) pack.leftProp.visible = false;
+    pack.spine.rotation.y += (0.08 - pack.spine.rotation.y) * w;
+    pack.spine.rotation.z += (-0.03 - pack.spine.rotation.z) * w;
+    easeJoint(pack.head.rotation, Math.sin(t * 2.6) * 0.05, -0.08, -0.03 - Math.sin(t * 2.2) * 0.04, w);
+    easeJoint(pack.lShoulder.rotation, 0, 0.38, -1.35 - wave * 0.08, w);
+    easeJoint(pack.lElbow.rotation, 0, 0, -1.38 - wave * 0.32, w);
+    easeJoint(pack.lHand.rotation, 0, 0, -wave * 0.22, w);
+    return;
+  }
   if (pack.rightProp) pack.rightProp.visible = false;
   if (sit) {
     const wave = Math.sin(t * 6.8);
@@ -24620,13 +24730,209 @@ function applyWaveOverlay(pack, t, w, sit) {
   easeJoint(pack.lShoulder.rotation, 0.06, 0, -0.14, w);
   pack.lElbow.rotation.x += (-0.22 - pack.lElbow.rotation.x) * w;
 }
+// Drive subtle live studio idle-act postures (window browsing, chatting, resting,
+// stooping, smoking, fanning) onto stopped street walkers while keeping rain umbrellas upright.
+function applyWalkerActPose(pack, ud, now) {
+  if (!pack || !pack.spine || !ud || !ud.act || !(ud.wait > 0)) return;
+  if (ud.keeper || ud.post || ud.errand || ud.roof || ud.gang || ud.heat || ud.rider) return;
+  if (ud.act === "greet") return;
+  const w = Math.max(0, Math.min(1, 1 - (ud.ease || 0)));
+  if (w < 0.05) return;
+  const hasUmbrella = !!(pack.umbrellaProp && pack.umbrellaProp.visible);
+  const t = now + (ud.offset || 0);
+  const s = Math.sin(t * 1.6);
+  const act = ud.act;
+  if (act === "browse" || act === "gaze") {
+    pack.head.rotation.x += ((act === "browse" ? 0.14 : -0.05) + s * 0.04 - pack.head.rotation.x) * w;
+    pack.head.rotation.y += (Math.sin(t * 0.9) * 0.22 - pack.head.rotation.y) * w;
+    if (!hasUmbrella) {
+      pack.spine.rotation.x += ((act === "browse" ? 0.08 : 0.02) - pack.spine.rotation.x) * w;
+      easeJoint(pack.lShoulder.rotation, -0.24, 0.12, 0.10, w);
+      pack.lElbow.rotation.x += (-0.52 - pack.lElbow.rotation.x) * w;
+      easeJoint(pack.rShoulder.rotation, -0.18, -0.10, -0.10, w);
+      pack.rElbow.rotation.x += (-0.36 - pack.rElbow.rotation.x) * w;
+    }
+  } else if (act === "talk" || act === "point") {
+    const g = Math.sin(t * 3.1);
+    pack.head.rotation.x += (0.04 + Math.sin(t * 2.2) * 0.05 - pack.head.rotation.x) * w;
+    pack.head.rotation.y += (Math.sin(t * 1.4) * 0.16 - pack.head.rotation.y) * w;
+    easeJoint(pack.lShoulder.rotation, -0.58 + g * 0.16, 0.18, 0.16, w);
+    pack.lElbow.rotation.x += (-0.82 + g * 0.18 - pack.lElbow.rotation.x) * w;
+    if (!hasUmbrella) {
+      easeJoint(pack.rShoulder.rotation, act === "point" ? -0.95 : (-0.42 - g * 0.14), -0.16, -0.14, w);
+      pack.rElbow.rotation.x += ((act === "point" ? -0.22 : -0.72) - pack.rElbow.rotation.x) * w;
+    }
+  } else if (act === "stoop" || act === "squat") {
+    if (!hasUmbrella) {
+      const dip = act === "squat" ? 0.14 : 0.06;
+      const h = pack.hScale || 1;
+      pack.pelvis.position.y += ((pack.basePelvisY - dip * h) - pack.pelvis.position.y) * w;
+      pack.spine.rotation.x += ((act === "squat" ? 0.24 : 0.30) - pack.spine.rotation.x) * w;
+      pack.lHip.rotation.x += ((-0.45 * (act === "squat" ? 1.5 : 0.7)) - pack.lHip.rotation.x) * w;
+      pack.rHip.rotation.x += ((-0.45 * (act === "squat" ? 1.5 : 0.7)) - pack.rHip.rotation.x) * w;
+      pack.lKnee.rotation.x += ((0.55 * (act === "squat" ? 1.5 : 0.7)) - pack.lKnee.rotation.x) * w;
+      pack.rKnee.rotation.x += ((0.55 * (act === "squat" ? 1.5 : 0.7)) - pack.rKnee.rotation.x) * w;
+      easeJoint(pack.lShoulder.rotation, -0.45, 0.12, 0.12, w);
+      easeJoint(pack.rShoulder.rotation, -0.48, -0.12, -0.12, w);
+    }
+  } else if (act === "fan" || act === "smoke") {
+    const flick = Math.sin(t * (act === "fan" ? 6.4 : 1.5));
+    pack.head.rotation.x += (0.04 + s * 0.03 - pack.head.rotation.x) * w;
+    if (hasUmbrella) {
+      easeJoint(pack.lShoulder.rotation, -0.68, 0.20, 0.12, w);
+      pack.lElbow.rotation.x += (-1.05 + flick * 0.22 - pack.lElbow.rotation.x) * w;
+    } else {
+      easeJoint(pack.rShoulder.rotation, -0.68, -0.20, -0.12, w);
+      pack.rElbow.rotation.x += (-1.05 + flick * 0.22 - pack.rElbow.rotation.x) * w;
+    }
+  } else {
+    pack.head.rotation.y += (Math.sin(t * 0.75) * 0.18 - pack.head.rotation.y) * w;
+    if (!hasUmbrella) {
+      easeJoint(pack.lShoulder.rotation, -0.10, 0.08, 0.12, w);
+      easeJoint(pack.rShoulder.rotation, -0.10, -0.08, -0.12, w);
+    }
+  }
+}
+// Drive per-trade upper-body animation directly onto the live studio skeleton
+// so each shop trade has a distinct working rhythm while seated/standing legs
+// and wave/head-turn overlays compose cleanly on top.
+function applyKeeperTradePose(pack, ud, now) {
+  if (!pack || !pack.spine || !ud) return;
+  const stance = ud.stance || "work";
+  const rate = ud.rate || 1;
+  const phase = ud.phase || 0;
+  const phase2 = ud.phase2 || 0;
+  const s = Math.sin(now * 1.65 * rate + phase);
+  const s2 = Math.sin(now * 2.35 * rate + phase2);
+  const breath = Math.sin(now * 1.15 * rate + phase * 0.5);
+  const sit = stance === "sit";
+  if (stance === "idle") {
+    pack.spine.rotation.set(0.03 + breath * 0.015, s * 0.04, 0);
+    pack.head.rotation.set(0.04 + s * 0.025, s2 * 0.16, 0);
+    pack.lShoulder.rotation.set(-0.14 + breath * 0.03, 0.08, 0.10);
+    pack.lElbow.rotation.x = -0.24;
+    pack.rShoulder.rotation.set(-0.12 - breath * 0.03, -0.08, -0.10);
+    pack.rElbow.rotation.x = -0.20;
+    return;
+  }
+  const trade = ud.trade || "counter";
+  let lean = sit ? 0.12 : 0.10;
+  let torsoY = 0;
+  let headX = 0.14, headY = s * 0.08;
+  let lSh = [-0.52, 0.18, 0.12], lEl = -0.78;
+  let rSh = [-0.62, -0.18, -0.12], rEl = -0.86;
+  if (trade === "clinic") {
+    // Steady chart & instrument inspection kept tucked inside the clinic pane.
+    lean = sit ? 0.08 : 0.06;
+    headX = 0.22 + s * 0.04;
+    headY = s2 * 0.09;
+    lSh = [-0.46, 0.22, 0.12]; lEl = -0.96;
+    rSh = [-0.52 + s2 * 0.07, -0.20, -0.10]; rEl = -1.04 + s * 0.06;
+  } else if (trade === "grind") {
+    // Circular brass mortar & pestle herb grinding.
+    const a = now * 2.4 * rate + phase;
+    const gx = Math.sin(a), gy = Math.cos(a);
+    lean = sit ? 0.18 : 0.20;
+    headX = 0.28 + gx * 0.03;
+    headY = gy * 0.07;
+    lSh = [-0.54, 0.28, 0.10]; lEl = -1.12;
+    rSh = [-0.62 + gx * 0.14, -0.24 + gy * 0.12, -0.12]; rEl = -1.18 + gy * 0.12;
+  } else if (trade === "pour") {
+    // Milk tea / ladle pour with hold-and-return cycle.
+    const tip = Math.max(0, Math.sin(now * 1.35 * rate + phase));
+    lean = sit ? 0.10 : 0.12;
+    headX = 0.18 + tip * 0.06;
+    headY = s2 * 0.06;
+    lSh = [-0.56, 0.26, 0.12]; lEl = -0.98;
+    rSh = [-0.88 - tip * 0.32, -0.22, -0.16 - tip * 0.12]; rEl = -0.68 - tip * 0.22;
+  } else if (trade === "chop") {
+    // Siu-mei cleaver wind-up, sharp chop, and shoulder counter-twist.
+    const cycle = (now * 1.8 * rate + phase) % (Math.PI * 2);
+    const wind = cycle < 1.1 ? cycle / 1.1 : 0;
+    const strike = cycle >= 1.1 && cycle < 2.0 ? (cycle - 1.1) / 0.9 : 0;
+    const chop = strike > 0 ? Math.sin(strike * Math.PI) : 0;
+    lean = (sit ? 0.14 : 0.16) + chop * 0.12 + wind * 0.03;
+    torsoY = -chop * 0.09;
+    headX = 0.16 + chop * 0.08;
+    headY = 0.08 + s * 0.04;
+    lSh = [-0.54, 0.22, 0.10]; lEl = -0.82;
+    rSh = [-0.95 - wind * 0.30 + chop * 0.42, -0.16, -0.14]; rEl = -0.58 - wind * 0.24 + chop * 0.18;
+  } else if (trade === "cut") {
+    // Barber quick rhythmic scissor snips.
+    const snip = Math.sin(now * 4.2 * rate + phase);
+    lean = sit ? 0.08 : 0.10;
+    headX = 0.12 + s * 0.03;
+    headY = 0.10 + s2 * 0.06;
+    lSh = [-0.62, 0.20, 0.12]; lEl = -0.84;
+    rSh = [-0.86 + snip * 0.09, -0.18, -0.12]; rEl = -0.78 + snip * 0.14;
+  } else if (trade === "make") {
+    // Blanching / stirring / sorting with alternating pause.
+    const work = Math.pow(Math.abs(Math.sin(now * 1.6 * rate + phase)), 0.65);
+    const pause = Math.sin(now * 0.4 + phase) > 0.55 ? 0.28 : 1;
+    lean = (sit ? 0.16 : 0.20) + work * 0.07 * pause;
+    torsoY = -s * 0.07 * pause;
+    headX = 0.26 + s2 * 0.05;
+    headY = s * 0.08;
+    lSh = [-0.66 - work * 0.18 * pause, 0.24, 0.12]; lEl = -1.04 - work * 0.14 * pause;
+    rSh = [-0.74 - Math.sin(now * 1.6 * rate + phase + 0.9) * 0.22 * pause, -0.22, -0.12]; rEl = -1.00 - work * 0.12 * pause;
+  } else if (trade === "sew") {
+    // Rapid stitching / paper-folding cycle.
+    const stitch = Math.sin(now * 3.6 * rate + phase);
+    lean = sit ? 0.20 : 0.18;
+    headX = 0.30 + stitch * 0.02;
+    headY = stitch * 0.05;
+    lSh = [-0.46, 0.24, 0.10]; lEl = -1.12;
+    rSh = [-0.48 + stitch * 0.12, -0.22, -0.10]; rEl = -1.08 + stitch * 0.14;
+  } else if (trade === "splice") {
+    // Electrical / hardware bench repair & wire twisting.
+    const twist = Math.sin(now * 2.1 * rate + phase);
+    lean = sit ? 0.10 : 0.06;
+    headX = 0.12 - twist * 0.04;
+    headY = twist * 0.08;
+    lSh = [-0.56, 0.24, 0.14]; lEl = -0.88;
+    rSh = [-0.68 + twist * 0.10, -0.24, -0.14]; rEl = -0.78 + twist * 0.18;
+  } else if (trade === "ledger") {
+    // Abacus / ledger tallying.
+    const tap = Math.sin(now * 2.6 * rate + phase2);
+    lean = sit ? 0.14 : 0.10;
+    headX = 0.22 + tap * 0.02;
+    headY = s * 0.10;
+    lSh = [-0.46, 0.26, 0.10]; lEl = -1.02;
+    rSh = [-0.42 + tap * 0.10, -0.20, -0.10]; rEl = -0.92 + tap * 0.10;
+  } else if (trade === "elder") {
+    // Calm mahjong parlor watch & occasional tea sip.
+    const sip = Math.max(0, Math.sin(now * 0.65 * rate + phase) - 0.55) / 0.45;
+    lean = sit ? 0.06 : 0.04;
+    headX = 0.08 - sip * 0.06;
+    headY = s * 0.18;
+    lSh = [-0.36, 0.22, 0.10]; lEl = -0.72;
+    rSh = [-0.40 - sip * 0.48, -0.22, -0.10]; rEl = -0.74 - sip * 0.42;
+  } else {
+    const work = Math.pow(Math.abs(s2), 0.65);
+    lean = (sit ? 0.10 : 0.08) + work * 0.05;
+    headX = 0.14 + s * 0.04;
+    headY = s2 * 0.10;
+    lSh = [-0.36, 0.18, 0.10]; lEl = -0.58;
+    rSh = [-0.60 - work * 0.16, -0.20, -0.10]; rEl = -0.88 - work * 0.10;
+  }
+  pack.spine.rotation.set(lean + breath * 0.016, torsoY, s * (sit ? 0.012 : 0.022));
+  pack.head.rotation.set(headX + breath * 0.02, headY, 0);
+  pack.lShoulder.rotation.set(lSh[0], lSh[1], lSh[2]);
+  pack.lElbow.rotation.x = lEl;
+  pack.rShoulder.rotation.set(rSh[0], rSh[1], rSh[2]);
+  pack.rElbow.rotation.x = rEl;
+  if (pack.mouth && ud.talkAmp > 0.02) {
+    const baseM = 0.48 * 0.032 * (pack.spec && pack.spec.build && pack.spec.build.isChild ? 1.18 : 1.0);
+    pack.mouth.scale.y = baseM * (1 + ud.talkAmp * 0.75);
+  }
+}
 function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
   const pack = (charGroup && (charGroup.studio || charGroup.userData)) || charGroup;
   if (!pack || !pack.pelvis) return;
   const clip = STUDIO_CLIP[animId] || animId || "idle";
   const still = !(pack.stepDist > 0.001);
   const march = clip === "walk" || clip === "run" || clip === "chase" || clip === "flee" || clip === "umbrella_rain";
-  const stopClip = clip === "walk" || clip === "run";
+  const stopClip = clip === "walk" || clip === "run" || clip === "umbrella_rain";
   if (march && typeof pack.gaitPhase === "number" && (stopClip || !still)) pack.stepPhase = pack.gaitPhase;
   else pack.stepPhase = (!still && clip !== "ride_bike" && typeof pack.gaitPhase === "number") ? pack.gaitPhase : null;
   pack.carryCount = pack.carryCount || 1;
@@ -24640,8 +24946,7 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
   } else if (clip === "idle_sit") {
     const h = pack.hScale || 1;
     const breath = Math.sin(t * 1.4) * 0.014;
-    if (pack.stool) pack.stool.visible = true;
-    pack.pelvis.position.set(0, 0.48 * h, -0.02);
+    seatStudioStool(pack, h);
     pack.lHip.rotation.set(-1.45, 0.12, 0.1); pack.lKnee.rotation.x = 1.45;
     pack.rHip.rotation.set(-1.45, -0.12, -0.1); pack.rKnee.rotation.x = 1.45;
     pack.spine.rotation.x = 0.04 + breath;
@@ -24663,6 +24968,9 @@ function updateCharacterAnimation(charGroup, animId, elapsed, dt) {
     pack.rKnee.rotation.x = 0;
     pack.pelvis.position.y = pack.basePelvisY;
   }
+  const ud = charGroup && charGroup.userData;
+  if (ud && (ud.keeper || ud.post)) applyKeeperTradePose(pack, ud, elapsed || 0);
+  else if (ud) applyWalkerActPose(pack, ud, elapsed || 0);
   if (pack._gesture) pack._gestureHold = pack._gesture;
   const gw = pack.gestureW || 0;
   const gesture = pack._gesture || (gw > 0.01 ? pack._gestureHold : "");
@@ -24832,7 +25140,13 @@ function studioClipFor(fig) {
   if (ud.errand) return ud.stance === "sit" ? "idle_sit" : "idle_stand";
   const moving = ud.ease || 0;
   if (ud.role === "drunk") return "drunk_sway";
-  if (wxNow.rain > 0.08) return "umbrella_rain";
+  // Stagger umbrella opening/closing per walker with hysteresis so the whole street
+  // does not snap canopies open or closed on the exact same frame.
+  const seed = ((ud.who || 1) * 0.6180339887) % 1;
+  const openAt = 0.06 + seed * 0.14;
+  const rainUp = ud._rainUp ? (wxNow.rain > openAt - 0.03) : (wxNow.rain > openAt);
+  ud._rainUp = rainUp;
+  if (rainUp) return "umbrella_rain";
   const finishing = (s.plantW || 0) > 0.06;
   const stepping = (s.stepDist || 0) > 0.004;
   // Ease remembers that they meant to walk. Without a real step that holds
@@ -25155,9 +25469,9 @@ function walkerFrame(path, along, dir, rail) {
   const span = Math.max(0.5, path.b - path.a);
   const at = Math.max(0, Math.min(span, along));
   const face = dir < 0 ? -1 : 1;
-  // The rail stays put when they turn around. Tying it to the facing put the
-  // body on the opposite side of a narrow alley, which is the shop wall.
-  const side = rail == null ? face : (rail < 0 ? -1 : 1);
+  // The rail stays put when they turn around. Continuous railPos in [-1, 1]
+  // lets walkers sidestep smoothly when yielding instead of snapping across the alley.
+  const side = rail == null ? face : Math.max(-1, Math.min(1, rail));
   const keep = path.keep == null ? 0.14 : path.keep;
   const lat = path.axis === "z" ? side * keep : -side * keep;
   let worldX, worldZ, yaw;
@@ -25197,10 +25511,9 @@ function walkerFrame(path, along, dir, rail) {
 }
 function walkerBlocked(path, along, dir, rail) {
   const frame = walkerFrame(path, along, dir, rail);
-  // The player's capsule is wide enough to catch lamp poles. A resident on a
-  // rail is thinner, and must not count their own body or the person beside them:
-  // that read every step as a wall, so they stopped and leapt to the other side.
-  return walkBlocked(frame.worldX, frame.worldZ, { pad: 0.04, bodies: false });
+  // Keep clear of walls, street clutter, and late-night alley sleepers without
+  // counting moving bodies (which are handled by dedicated lane-spacing & yield logic).
+  return walkBlocked(frame.worldX, frame.worldZ, { pad: 0.06, bodies: false, sleepers: true });
 }
 function walkerRail(ud) {
   if (!ud) return 1;
@@ -25735,6 +26048,7 @@ function stepWalker(fig, now) {
 }
 // A meeting is one roll for the pair. One in five stops to greet. The rest walk past.
 const GREET_CHANCE = 0.2;
+const LOOK_CHANCE = 0.28;
 const MEET_D2 = 1.45 * 1.45;
 const KEEPER_MEET_D2 = 3.05 * 3.05;
 function turnToward(ud, x, z) {
@@ -25744,6 +26058,11 @@ function turnToward(ud, x, z) {
   if (turn > 1.15) turn = 1.15;
   else if (turn < -1.15) turn = -1.15;
   return turn;
+}
+function noteWalkerLook(ud, x, z, until) {
+  ud.lookX = x;
+  ud.lookZ = z;
+  ud.lookUntil = until;
 }
 function considerPerson(ud, other, best) {
   if (!other || other === ud || other.heat || other.keeper || other.post || other.wait > 0 || walkerHome(other)) return best;
@@ -25766,14 +26085,18 @@ function tryGreet(ud, now) {
     considerPerson(ud, ou, best);
   }
   for (let i = 0; i < cityFolk.length; i++) considerPerson(ud, cityFolk[i], best);
-  const pdx = walkX - ud.x, pdz = walkZ - ud.z;
-  const pd2 = pdx * pdx + pdz * pdz;
-  if (pd2 > 0.16 && pd2 < best.d2) {
-    ud.meetCool = now + 6.5;
-    if (Math.random() >= GREET_CHANCE) return false;
-    beginAct(ud, now, "greet", 1.55);
-    ud.bias = turnToward(ud, walkX, walkZ);
-    return true;
+  const playerOnStreet = walkMode && !roofStay && camera.position.y < 14;
+  if (playerOnStreet) {
+    const pdx = walkX - ud.x, pdz = walkZ - ud.z;
+    const pd2 = pdx * pdx + pdz * pdz;
+    if (pd2 > 0.16 && pd2 < best.d2) {
+      ud.meetCool = now + 6.5;
+      if (Math.random() >= GREET_CHANCE) return false;
+      beginAct(ud, now, "greet", 1.55);
+      ud.bias = turnToward(ud, walkX, walkZ);
+      noteWalkerLook(ud, walkX, walkZ, now + 1.55);
+      return true;
+    }
   }
   if (best.who) {
     const other = best.who;
@@ -25783,6 +26106,8 @@ function tryGreet(ud, now) {
     beginAct(other, now, "greet", 1.55);
     ud.bias = turnToward(ud, other.x, other.z);
     other.bias = turnToward(other, ud.x, ud.z);
+    noteWalkerLook(ud, other.x, other.z, now + 1.65);
+    noteWalkerLook(other, ud.x, ud.z, now + 1.55);
     return true;
   }
   let post = null;
@@ -25800,6 +26125,7 @@ function tryGreet(ud, now) {
   if (Math.random() >= GREET_CHANCE) return false;
   beginAct(ud, now, "greet", 1.65);
   ud.bias = turnToward(ud, post.x, post.z);
+  noteWalkerLook(ud, post.x, post.z, now + 1.65);
   post.greetUntil = now + 1.65;
   post.greetX = ud.x;
   post.greetZ = ud.z;
@@ -25819,10 +26145,34 @@ function tryLook(ud, now) {
     if (d2 < postD) { postD = d2; post = p; }
   }
   if (!post) return false;
-  const hold = 2.8 + (ud.who % 5) * 0.22;
+  if (Math.random() >= LOOK_CHANCE) {
+    ud.lookCool = now + 4.5 + (ud.who % 4);
+    return false;
+  }
+  const hold = 2.4 + (ud.who % 5) * 0.24;
   beginAct(ud, now, "browse", hold);
   ud.bias = turnToward(ud, post.x, post.z);
+  noteWalkerLook(ud, post.x, post.z, now + hold);
   ud.lookCool = now + hold + 11 + (ud.who % 5);
+  return true;
+}
+function railLaneClear(ud, path, targetRail) {
+  if (walkerBlocked(path, ud.along, ud.dir, targetRail)) return false;
+  const span = Math.max(0.5, path.b - path.a);
+  const probeAhead = Math.max(0, Math.min(span, ud.along + ud.dir * 0.55));
+  if (walkerBlocked(path, probeAhead, ud.dir, targetRail)) return false;
+  const check = function (other) {
+    if (!other || other === ud || other.heat || other.path !== path || other.along == null || walkerHome(other)) return true;
+    if (other.day && !dayCrowdNow() && !other.fig) return true;
+    const oRail = other.railPos != null ? other.railPos : walkerRail(other);
+    if (Math.abs(oRail - targetRail) > 0.7) return true;
+    return Math.abs(other.along - ud.along) > 1.05;
+  };
+  for (let i = 0; i < cityFolk.length; i++) if (!check(cityFolk[i])) return false;
+  for (let i = 0; i < walkers.length; i++) {
+    const ou = walkers[i].userData;
+    if (ou && !ou.inside && !check(ou)) return false;
+  }
   return true;
 }
 function advanceWalker(ud, now, fig) {
@@ -25856,6 +26206,8 @@ function advanceWalker(ud, now, fig) {
     ud.held = false;
     ud.act = null;
   }
+  const keep = path.keep == null ? 0.14 : path.keep;
+  if (ud.railPos == null) ud.railPos = walkerRail(ud);
   if (!offLane && ud.wait > 0) {
     ud.wait -= dt;
     if (ud.act && ud.actLeft != null) {
@@ -25873,37 +26225,93 @@ function advanceWalker(ud, now, fig) {
   } else if (!offLane) {
     let speed = ud.speed;
     ud.held = false;
-    const crowd = ud.inside ? cityFolk : walkers;
+    const myRail = walkerRail(ud);
+    const myPos = ud.railPos;
     let blockedByWait = false;
-    for (let i = 0; i < crowd.length; i++) {
-      const other = ud.inside ? crowd[i] : crowd[i].userData;
-      if (other === ud || other.heat || other.path !== path || other.along == null || walkerHome(other)) continue;
-      if (other.day && !dayCrowdNow() && !other.fig) continue;
+    let blockedByPlayer = false;
+    const checkOther = function (other) {
+      if (!other || other === ud || other.heat || other.path !== path || other.along == null || walkerHome(other)) return;
+      if (other.day && !dayCrowdNow() && !other.fig) return;
+      // Ignore opposing-lane walkers who have enough lateral clearance to pass cleanly.
+      const oPos = other.railPos != null ? other.railPos : walkerRail(other);
+      const latGap = Math.abs(oPos - myPos) * keep;
+      if (latGap >= 0.42) return;
       const ahead = (other.along - ud.along) * ud.dir;
-      if (other.wait > 0 && ahead > 0.04 && ahead < 0.55) {
+      const opposing = (other.dir || 1) !== ud.dir;
+      if ((other.wait > 0 || opposing) && ahead > 0.04 && ahead < 0.72) {
         blockedByWait = true;
-      } else if (ahead > 0.08 && ahead < 1.15) {
-        speed *= Math.max(0.35, (ahead - 0.08) / 1.05);
+      } else if (ahead > 0.08 && ahead < 1.25) {
+        speed *= Math.max(0.28, (ahead - 0.08) / 1.15);
+      }
+    };
+    // Scan both cityFolk and permanent pavement walkers so shared outer kerbs never ghost through each other.
+    for (let i = 0; i < cityFolk.length; i++) checkOther(cityFolk[i]);
+    for (let i = 0; i < walkers.length; i++) {
+      const ou = walkers[i].userData;
+      if (ou && !ou.inside) checkOther(ou);
+    }
+    // Avoid colliding with the player avatar on street level: slow, sidestep if room exists, or yield cleanly.
+    if (walkMode && !roofStay && !ud.heat && ud.x != null && ud.z != null) {
+      const fwdX = Math.sin(ud.yaw || 0);
+      const fwdZ = Math.cos(ud.yaw || 0);
+      const pdx = walkX - ud.x;
+      const pdz = walkZ - ud.z;
+      const fwd = pdx * fwdX + pdz * fwdZ;
+      const lat = Math.abs(pdx * fwdZ - pdz * fwdX);
+      if (fwd > -0.10 && fwd < 1.25 && lat < 0.50) {
+        if (fwd < 0.66 && lat < 0.44) {
+          const otherRail = -myRail;
+          if (keep >= 0.16 && railLaneClear(ud, path, otherRail)) {
+            ud.rail = otherRail;
+            speed *= 0.55;
+          } else {
+            blockedByPlayer = true;
+            speed = 0;
+            ud.held = true;
+          }
+        } else {
+          speed *= Math.max(0.22, (fwd - 0.55) / 0.70);
+        }
       }
     }
-    if (blockedByWait) {
-      ud.heldT = (ud.heldT || 0) + dt;
-      if (ud.heldT > 2.5) {
-        ud.held = false;
-        speed = ud.speed * 0.65;
-        if (ud.heldT > 3.6) ud.heldT = 0;
+    if (blockedByWait && !blockedByPlayer) {
+      const otherRail = -myRail;
+      if (keep >= 0.16 && railLaneClear(ud, path, otherRail)) {
+        ud.rail = otherRail;
+        ud.heldT = 0;
+        speed *= 0.7;
       } else {
-        speed *= 0.15;
-        ud.held = true;
+        ud.heldT = (ud.heldT || 0) + dt;
+        if (ud.heldT > 2.6 && !ud.heat) {
+          // If boxed in on a narrow single-file lane, turn around instead of ghosting through the waiting walker.
+          const back = -ud.dir;
+          const behind = Math.max(0, Math.min(span, ud.along + back * 0.5));
+          if (Math.abs(behind - ud.along) > 0.12 && !walkerBlocked(path, behind, back, myRail)) {
+            ud.dir = back;
+            ud.wait = 0.25;
+            ud.heldT = 0;
+          } else {
+            speed = 0;
+            ud.held = true;
+          }
+        } else {
+          speed = 0;
+          ud.held = true;
+        }
       }
-    } else {
+    } else if (!blockedByPlayer) {
       ud.heldT = 0;
+      // Gently drift back to the natural keep-left rail when it is open again.
+      const naturalRail = ud.dir < 0 ? -1 : 1;
+      if (myRail !== naturalRail && railLaneClear(ud, path, naturalRail)) {
+        ud.rail = naturalRail;
+      }
     }
     speed = runBellSlow(ud, speed);
-    if (ud.wait <= 0 && !ud.heat && (tryGreet(ud, now) || tryLook(ud, now))) {
+    if (ud.wait <= 0 && !ud.heat && !blockedByPlayer && (tryGreet(ud, now) || tryLook(ud, now))) {
       // A greeting or a shop window just stopped them.
-    } else if (ud.wait > 0) {
-      // Already stopped this frame.
+    } else if (ud.wait > 0 || blockedByPlayer || speed <= 0.005) {
+      // Stopped or yielding this frame.
     } else {
       const rail = walkerRail(ud);
       let face = ud.dir;
@@ -25940,7 +26348,7 @@ function advanceWalker(ud, now, fig) {
             if (out) {
               ud.along = out.along;
               ud.dir = out.dir;
-              if (out.rail != null) ud.rail = out.rail;
+              if (out.rail != null) { ud.rail = out.rail; ud.railPos = out.rail; }
               ud.act = null;
             } else if (ud.flow && !ud.corner && !figureRemember(ud, ud.x, chestY, ud.z)) ud.depart = 1;
           } else if (behindOpen) {
@@ -25960,7 +26368,9 @@ function advanceWalker(ud, now, fig) {
   let along = ud.along;
   let dy = 0;
   if (!offLane) {
-    const frame = walkerFrame(path, along, ud.dir, walkerRail(ud));
+    const targetRail = walkerRail(ud);
+    ud.railPos += (targetRail - ud.railPos) * Math.min(1, dt * 4.5);
+    const frame = walkerFrame(path, along, ud.dir, ud.railPos);
     const yaw = frame.yaw;
     const pz = frame.worldZ;
     const footY = path.y == null ? GROUND_Y : path.y;
@@ -25991,175 +26401,25 @@ function advanceWalker(ud, now, fig) {
   if (!fig) return;
   const endProx = Math.min(along, span - along);
   const turning = Math.min(1, Math.abs(dy) / 1.15);
-  // Heat does not shorten its step at the kerb. That read as a group arriving
-  // and locking. A flee has already left this rail by then.
-  // A body that did not move is standing. Leaving the walk ease up froze the stride.
   const stalled = !offLane && ud.alongPrev != null && Math.abs(along - ud.alongPrev) < 0.002;
   ud.alongPrev = along;
   const stride = (ud.wait > 0 || stalled) ? 0 : ud.held ? 0.25 : ((ud.heat || ud.corner) ? (1 - turning * 0.35) : Math.min(1, endProx / 0.55) * (1 - turning));
   if (ud.ease == null) ud.ease = ud.act ? 0 : 1;
   ud.ease += (stride - ud.ease) * Math.min(1, dt * (ud.heat ? 4.2 : 5));
-  const rig = ud.rig;
-  const moving = ud.ease;
-  const rush = ud.heat && ud.wait <= 0 ? Math.max(0, Math.min(1, ((ud.speed || 0) - 0.85) / 1.6)) : 0;
-  // One cycle is one plant per leg. A walk takes a long slow step.
-  // Only a chase shortens it, so the street does not jog in place.
-  const strideLen = (0.86 + rush * 0.2) * (ud.scale < 0.8 ? 0.78 : 1);
-  const cadence = Math.max(0.35, (ud.speed || 0) / strideLen);
-  const phase = now * cadence * Math.PI * 2 + ud.offset;
-  const s = Math.sin(phase);
-  const c = Math.cos(phase);
-  // Arms follow the legs by a short delay, so the shoulder does not lock to the thigh.
-  const armS = Math.sin(phase - 0.22);
-  let hipAmp = (rig.gait === "slow" ? 0.2 : rig.gait === "load" ? 0.18 : 0.26) * moving;
-  let kneeAmp = (rig.gait === "slow" ? 0.38 : rig.gait === "load" ? 0.42 : 0.52) * moving;
-  if (rush > 0) {
-    hipAmp *= 1 + rush * 0.75;
-    kneeAmp *= 1 + rush * 0.4;
-  }
-  // Positive rotation.x takes the foot backward. The knee peaks a little
-  // before the thigh is fully forward, then straightens into the plant, so
-  // the step is not a locked sine. A chase lets one foot lag.
-  const slip = ud.heat ? 0.22 : 0;
-  const sR = Math.sin(phase + Math.PI + slip);
-  const cR = Math.cos(phase + Math.PI + slip);
-  const aL = s * hipAmp;
-  const aR = sR * hipAmp;
-  const liftL = Math.max(0, Math.sin(phase + 0.55));
-  const liftR = Math.max(0, Math.sin(phase + Math.PI + slip + 0.55));
-  const kneePow = rush > 0 ? 1.3 : 1.8;
-  const kL = 0.04 + Math.pow(liftL, kneePow) * kneeAmp;
-  const kR = 0.04 + Math.pow(liftR, kneePow) * kneeAmp;
-  rig.legL.pivot.rotation.x = aL;
-  rig.legR.pivot.rotation.x = aR;
-  rig.legL.knee.rotation.x = kL;
-  rig.legR.knee.rotation.x = kR;
-  function plant(leg, hipAng, kneeAng, lifting) {
-    const toe = Math.sin(lifting * Math.PI) * 0.28 * moving;
-    leg.ankle.rotation.x = -(hipAng + kneeAng) - toe;
-  }
-  plant(rig.legL, aL, kL, liftL);
-  plant(rig.legR, aR, kR, liftR);
-  function drop(hipAng, kneeAng) {
-    return THIGH_L * Math.cos(hipAng) + SHIN_L * Math.cos(hipAng + kneeAng);
-  }
-  const bob = Math.pow(Math.abs(Math.sin(phase)), 1.4) * 0.012 * moving;
-  rig.hip.position.y = Math.max(drop(aL, kL), drop(aR, kR)) + 0.04 - bob;
-  // Weight sits over the straighter leg. The chest turns against the pelvis.
-  rig.hip.position.x = (kL - kR) * 0.07 * moving;
-  rig.hip.rotation.x = 0.03 + (rig.gait === "load" ? 0.07 : 0.02) * moving + bob * 0.4;
-  rig.hip.rotation.y = s * 0.1 * moving;
-  rig.hip.rotation.z = s * 0.045 * moving;
-  rig.torso.rotation.y = -s * 0.16 * moving;
-  rig.torso.rotation.z = -s * 0.028 * moving;
-  rig.torso.rotation.x = 0.015 + 0.025 * moving + (rig.gait === "slow" ? 0.05 : 0) + Math.sin(phase * 2) * 0.012 * moving;
-  rig.head.rotation.y = -s * 0.04 * moving;
-  rig.head.rotation.z = -s * 0.018 * moving;
-  rig.head.rotation.x = 0.01 * moving + Math.sin(phase * 2 - 0.4) * 0.012 * moving;
-  if (rush > 0) {
-    const stride = Math.abs(Math.sin(phase));
-    rig.torso.rotation.x += 0.22 * rush;
-    rig.hip.rotation.x += 0.09 * rush;
-    rig.head.rotation.x += -0.16 * rush;
-    rig.hip.position.y += Math.pow(stride, 0.6) * 0.028 * rush;
-    rig.hip.rotation.z += Math.sin(phase * 2 + 0.4) * 0.04 * rush;
-    rig.torso.rotation.z += -Math.sin(phase) * 0.03 * rush;
-    rig.head.rotation.y += Math.sin(now * 1.7 + ud.offset) * 0.05 * rush;
-    // The one being chased looks back. The two behind stay leaned into the run.
-    if (ud.role === "run") {
-      const back = Math.sin(now * 1.35 + (ud.offset || 0));
-      if (back > 0.15) rig.head.rotation.y += 0.75 * back;
+  // Drive live studio head-turning toward greeting partner, player, or browsed shopfront.
+  const pack = fig.studio;
+  if (pack) {
+    let wantLook = 0;
+    if (ud.lookUntil && now < ud.lookUntil && ud.lookX != null) {
+      const want = Math.atan2(ud.lookX - ud.x, ud.lookZ - ud.z);
+      let ld = Math.atan2(Math.sin(want - (ud.yaw || 0)), Math.cos(want - (ud.yaw || 0)));
+      wantLook = ld > 0.85 ? 0.85 : ld < -0.85 ? -0.85 : ld;
+    } else if (ud.ease > 0.65) {
+      const glanceWave = Math.sin(now * 0.23 + (ud.offset || 0) * 5);
+      if (Math.abs(glanceWave) > 0.82) wantLook = Math.sign(glanceWave) * (Math.abs(glanceWave) - 0.82) * 1.8;
     }
-  }
-  if (moving > 0.65) {
-    const glanceWave = Math.sin(now * 0.23 + ud.offset * 5);
-    if (Math.abs(glanceWave) > 0.78) rig.head.rotation.y += Math.sign(glanceWave) * (Math.abs(glanceWave) - 0.78) * 2.2;
-  }
-  rig.torso.rotation.x += Math.sin(now * 1.4 + ud.offset * 2) * 0.008;
-  const armAmp = (rig.gait === "slow" ? 0.2 : rig.gait === "load" ? 0.14 : 0.3) * moving * (1 + rush * 1.1);
-  // Drips show once the shower passes about 0.04, so the canopy opens with them
-  // and stays up until the rain has nearly stopped.
-  const rainUp = rig.brolly && wxNow.rain > (rig.brollyOpen ? 0.03 : 0.08);
-  if (rig.brolly) {
-    rig.brollyOpen = !!rainUp;
-    rig.brolly.visible = !!rainUp;
-  }
-  // A fan left in the umbrella fist cuts the shaft. It only stays there when
-  // the other hand is already full, and then it waits out the shower.
-  if (rig.fan) rig.fan.visible = !(rainUp && rig.fanHand === "R");
-  if (rig.cig) rig.cig.visible = !(rainUp && rig.cigHand === "R");
-  function hang(arm, swing, spreadZ, elbowX, elbowZ) {
-    arm.spread.rotation.z = spreadZ;
-    arm.pivot.rotation.x = swing;
-    arm.elbow.rotation.x = elbowX;
-    arm.elbow.rotation.z = elbowZ || 0;
-  }
-  // Positive rotation.x takes a limb backward. The elbow has to fold the other
-  // way, or the forearm hyperextends behind the ribs. The back swing stays
-  // short so the hand passes the hip instead of throwing behind the body.
-  function stepArm(arm, swing) {
-    const fore = Math.max(0, -swing);
-    const back = Math.max(0, swing);
-    const shoulder = -fore * 0.82 + back * 0.28;
-    const elbow = -0.22 - fore * 0.85 + back * 0.08;
-    const flare = (arm.restZ > 0 ? 1 : -1) * (0.1 + back * 0.12);
-    hang(arm, shoulder, arm.restZ + flare * 0.35, elbow, flare);
-  }
-  function raiseBrolly() {
-    // Elbow across the chest, forearm raised, so the shaft stands just in
-    // front of the head instead of out past the shoulder. Stood upright after.
-    const give = Math.sin(phase) * 0.03 * moving;
-    hang(rig.armR, -0.85 + give * 0.25, -0.42, -2.15 - give, -0.35);
-  }
-  if (rig.prop === "pole") {
-    // Elbow out, hand on the bar just ahead of the shoulder. The free arm still walks.
-    const give = Math.sin(phase) * 0.03 * moving;
-    hang(rig.armR, -0.55 + give, 0.7, -1.7, 0.2);
-    stepArm(rig.armL, -armS * armAmp * 0.7);
-    rig.pole.position.y = 0.53 + Math.abs(c) * 0.008 * moving;
-    rig.pole.rotation.z = 0.05;
-    rig.pole.rotation.x = Math.sin(phase * 2) * 0.04 * moving;
-    rig.hip.rotation.z += -0.07;
-    rig.torso.rotation.z += -0.02;
-    const hangs = rig.bucketPivots;
-    for (let i = 0; i < hangs.length; i++) {
-      const lag = Math.sin(phase - 0.55 + i * 0.45);
-      hangs[i].rotation.x = lag * (0.05 + 0.16 * moving);
-      hangs[i].rotation.z = Math.sin(now * 1.15 + i * 1.7) * 0.025;
-    }
-  } else if (rig.prop === "basket") {
-    // One arm cradles the basket on the hip. The free hand walks, or takes the umbrella.
-    const bob = Math.sin(phase * 2) * 0.006 * moving;
-    hang(rig.armL, 0.15 + bob, -0.25, -1.6, 0.1);
-    if (rainUp) raiseBrolly();
-    else stepArm(rig.armR, armS * armAmp);
-    if (rig.basket) {
-      rig.basket.position.y = -0.099 + bob;
-      rig.basket.rotation.z = 0.04 + s * 0.03 * moving;
-      rig.basket.rotation.x = 0.12 + Math.sin(phase - 0.5) * 0.03 * moving;
-    }
-  } else if (rainUp) {
-    stepArm(rig.armL, -armS * armAmp);
-    raiseBrolly();
-  } else {
-    stepArm(rig.armL, rig.bag ? -armS * armAmp * 0.42 : -armS * armAmp);
-    stepArm(rig.armR, armS * armAmp);
-    if (rig.bag) {
-      // Loose elbow, sack pendulum behind the hand instead of a locked twist.
-      rig.armL.elbow.rotation.x = -0.65;
-      rig.armL.elbow.rotation.z = -0.18;
-      rig.armL.spread.rotation.z = rig.armL.restZ - 0.15;
-      const lag = Math.sin(phase - 0.7);
-      rig.bag.rotation.x = 0.12 + lag * 0.1 * (0.3 + moving);
-      rig.bag.rotation.z = 0.06;
-    }
-  }
-  poseIdle(rig, ud, now, 1 - moving, rainUp);
-  if (rig.mouth && ud.act !== "talk" && ud.act !== "greet") rig.mouth.scale.y += (1 - rig.mouth.scale.y) * Math.min(1, dt * 8);
-  if (rig.mouth && ud.act !== "smoke") rig.mouth.position.z += (0 - rig.mouth.position.z) * Math.min(1, dt * 8);
-  if (rainUp) {
-    standBrolly(rig);
-    tuckBrolly(fig);
+    pack.look = (pack.look || 0) + (wantLook - (pack.look || 0)) * Math.min(1, dt * 6);
+    pack.lookFresh = now;
   }
   flushFigure(fig);
 }
@@ -26318,7 +26578,7 @@ function gatherStreetPaths() {
     const c = ns ? (v.x + v.x2) / 2 : (v.z + v.z2) / 2;
     const a0 = (ns ? v.z : v.x) + 0.85;
     const b0 = (ns ? v.z2 : v.x2) - 0.85;
-    const keep = Math.min(0.18, Math.max(0.1, (thick - 0.95) * 0.24));
+    const keep = Math.min(0.32, Math.max(0.14, Math.min(thick * 0.5 - 0.24, (thick - 0.65) * 0.30)));
     const probe = { axis: ns ? "z" : "x", c, a: 0, b: 1e9, keep };
     function crowded(t) {
       const x = ns ? c : t, z = ns ? t : c;
@@ -26429,14 +26689,15 @@ function addWalker(path, spec, i, place) {
   const along = place ? place.along : (i * 5.1 + path.a) % span;
   ud.dir = dir;
   ud.rail = dir < 0 ? -1 : 1;
+  ud.railPos = ud.rail;
   ud.along = along;
   ud.live = 1;
   ud.inside = inside ? 1 : 0;
-  ud.wait = 0;
-  ud.ease = 1;
+  ud.wait = (place && place.wait > 0) ? place.wait : 0;
+  ud.ease = ud.wait > 0 ? 0 : 1;
   ud.bias = 0;
   ud.biasEase = 0;
-  ud.act = null;
+  ud.act = ud.wait > 0 ? "gaze" : null;
   ud.chatCool = 0;
   ud.who = addWalker.seq = (addWalker.seq || 0) + 1;
   ud.day = place && place.day ? 1 : 0;
@@ -26446,20 +26707,23 @@ function addWalker(path, spec, i, place) {
   const yaw0 = path.axis === "z" ? (dir > 0 ? 0 : Math.PI) : (dir > 0 ? Math.PI / 2 : -Math.PI / 2);
   ud.yaw = yaw0;
   if (fig) fig.rotation.y = yaw0;
-  if (walkerBlocked(path, ud.along, ud.dir)) {
+  if (walkerBlocked(path, ud.along, ud.dir, ud.rail)) {
     let parked = false;
     for (let t = 0; t <= span && !parked; t += 0.45) {
-      if (!walkerBlocked(path, t, ud.dir)) {
+      if (!walkerBlocked(path, t, ud.dir, ud.rail)) {
         ud.along = t;
         parked = true;
       }
     }
     if (!parked) {
       const flip = -ud.dir;
+      const flipRail = flip < 0 ? -1 : 1;
       for (let t = 0; t <= span && !parked; t += 0.45) {
-        if (!walkerBlocked(path, t, flip)) {
+        if (!walkerBlocked(path, t, flip, flipRail)) {
           ud.along = t;
           ud.dir = flip;
+          ud.rail = flipRail;
+          ud.railPos = flipRail;
           ud.yaw = path.axis === "z" ? (flip > 0 ? 0 : Math.PI) : (flip > 0 ? Math.PI / 2 : -Math.PI / 2);
           if (fig) fig.rotation.y = ud.yaw;
           parked = true;
@@ -26469,7 +26733,7 @@ function addWalker(path, spec, i, place) {
     if (!parked) return null;
   }
   if (ud.act) ud.bias = actBias(ud);
-  const frame = walkerFrame(path, ud.along, ud.dir);
+  const frame = walkerFrame(path, ud.along, ud.dir, ud.rail);
   ud.x = frame.worldX;
   ud.z = frame.worldZ;
   ud.y = path.y == null ? GROUND_Y : path.y;
@@ -26525,8 +26789,18 @@ function keeperTrade(kind, i) {
   if (kind === "paikau") return "ledger";
   return "counter";
 }
+const KEEPER_ALT = {
+  doctor:     [STUDIO.chan, STUDIO.leung],
+  bonesetter: [STUDIO.wong, STUDIO.ho],
+  rice:       [STUDIO.cheung, STUDIO.kwan],
+  tofu:       [STUDIO.may, STUDIO.lin],
+  hardware:   [STUDIO.ho, STUDIO.tat],
+  noodle:     [STUDIO.keung, STUDIO.kwan],
+  dogmeat:    [STUDIO.biao, STUDIO.kwan]
+};
 function keeperWear(kind, i, stance) {
-  const src = kind === "dogmeat" ? ((i & 1) ? STUDIO.kwan : STUDIO.biao) : (KEEPER_LOOK[kind] || STUDIO.cheung);
+  const alts = KEEPER_ALT[kind];
+  const src = alts ? alts[i % alts.length] : (KEEPER_LOOK[kind] || STUDIO.cheung);
   const wear = { gait: src.gait || "slow" };
   for (const k in src) wear[k] = src[k];
   if (stance === "sit" && (wear.hair === "bob" || wear.hair === "bun")) wear.skirt = false;
@@ -26534,6 +26808,7 @@ function keeperWear(kind, i, stance) {
 }
 const keepers = [];
 const keeperPosts = [];
+const keeperByShopPost = new Map();
 const keeperView = {
   frustum: new THREE.Frustum(),
   mat: new THREE.Matrix4(),
@@ -26543,6 +26818,7 @@ const keeperView = {
 function prepareKeeperPosts() {
   for (let i = 0; i < shopPosts.length; i++) {
     const post = shopPosts[i];
+    if (!post || post.unplaced) continue;
     let skip = false;
     for (let j = 0; j < keeperPosts.length; j++) {
       const q = keeperPosts[j];
@@ -26557,14 +26833,15 @@ function prepareKeeperPosts() {
     const phase2 = lotRoll(post.z, post.x, 0xB22 + i) * Math.PI * 2;
     const rate = 0.64 + lotRoll(post.x + 3, post.z + 5, 0xC33 + i) * 0.82;
     // Square to the gate. A twist put the hands through the jamb into the next bay.
-    const spin = 0;
-    const rot = post.rot + spin;
-    keeperPosts.push({
+    const rot = post.rot;
+    const kp = {
       x: post.x, y: post.y, z: post.z, rot: rot, kind: post.kind,
       fx: Math.sin(rot), fz: Math.cos(rot), i: i, fig: null,
       phase: phase, phase2: phase2, rate: rate,
       stance: post.stance || "work", span: post.span || 4
-    });
+    };
+    keeperPosts.push(kp);
+    keeperByShopPost.set(i, kp);
   }
 }
 prepareKeeperPosts();
@@ -26579,16 +26856,6 @@ function seatKeeper(rig) {
   rig.legR.knee.rotation.x = KEEPER_SIT_KNEE;
   rig.legL.ankle.rotation.x = -(KEEPER_SIT_THIGH + KEEPER_SIT_KNEE);
   rig.legR.ankle.rotation.x = -(KEEPER_SIT_THIGH + KEEPER_SIT_KNEE);
-}
-function mountKeeperChair(post) {
-  const chair = new THREE.Mesh(shopGeo.chair, shopFinish.chair);
-  // The chair is full size and the figure is scaled. 0.8 puts the seat under
-  // a hip at KEEPER_SIT_HIP with the soles on the shop floor.
-  chair.scale.setScalar(0.8);
-  chair.position.set(post.x, post.y, post.z);
-  chair.rotation.y = post.rot;
-  vfx.add(chair);
-  post.chair = chair;
 }
 function spawnKeeper(post, now) {
   const fig = makeCitizen(keeperWear(post.kind, post.i, post.stance));
@@ -26607,13 +26874,12 @@ function spawnKeeper(post, now) {
   fig.userData.greetUntil = 0;
   fig.userData.greetCool = 0;
   fig.userData.aimYaw = 0;
+  fig.userData.talkAmp = 0;
   fig.userData.then = now - 0.4;
-  if (fig.userData.stance === "sit") {
-    seatKeeper(fig.userData.rig);
-    mountKeeperChair(post);
-  } else {
-    fig.userData.rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
-  }
+  // Seated shopkeepers use their built-in weathered Hong Kong red plastic stool
+  // (rig.stool) — no overlapping secondary chair mesh to clip or leak into roof mirrors.
+  if (fig.userData.stance === "sit") seatKeeper(fig.userData.rig);
+  else fig.userData.rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
   vfx.add(fig);
   keepers.push(fig);
   post.fig = fig;
@@ -26964,7 +27230,7 @@ function crowdSpawnHidden() {
   return null;
 }
 function stepStreetCrowd(now) {
-  if (!walkMode) return;
+  if (!walkMode || roofStay || camera.position.y >= 14) return;
   refreshFigureView();
   const cap = streetCrowdCap();
   const night = drunkHour();
@@ -27012,12 +27278,13 @@ function stepStreetCrowd(now) {
       ? wearCopy(Math.random() < 0.5 ? STUDIO.choi : STUDIO.leung, { gait: "slow", role: "drunk" })
       : outfits[(stepStreetCrowd.seq = (stepStreetCrowd.seq || 0) + 1) % outfits.length];
     const before = cityFolk.length;
-    addWalker(spot.path, wear, stepStreetCrowd.seq || 1, {
+    const seq = stepStreetCrowd.seq || 1;
+    addWalker(spot.path, wear, seq, {
       dir: spot.dir,
       along: spot.along,
       inside: true,
       flow: 1,
-      speed: spot.drunk ? 0.46 : (spot.wide ? 1.5 : 0.86),
+      speed: spot.drunk ? 0.46 : (spot.wide ? (0.94 + (seq % 5) * 0.06) : (0.78 + (seq % 4) * 0.05)),
       role: spot.drunk ? "drunk" : null
     });
     if (cityFolk.length === before) break;
@@ -27052,15 +27319,18 @@ function runIsKeeperJobPost(postIdx) {
 function syncKeepers(now) {
   noteShopHours();
   refreshFigureView();
+  // Gate ground-floor shopkeepers off while walking across rooftops or elevated aerial views.
+  const onStreet = walkMode && !roofStay && camera.position.y < 14;
   const offer = emptyFigureOffer();
   const budget = pace.tier === 0 ? 1 : 2;
   for (let i = 0; i < keeperPosts.length; i++) {
     const post = keeperPosts[i];
     const py = post.y + 0.85;
+    const isTarget = runIsKeeperJobPost(post.i);
     // Keep a targeted delivery recipient at their post until handoff finishes so the arrow & keeper never vanish mid-run.
-    const want = walkMode && (shopOpenNow(post.kind) || runIsKeeperJobPost(post.i));
-    const held = figureRemember(post, post.x, py, post.z);
-    const away = npcAway(post.x, post.z) && !held;
+    const want = onStreet && (shopOpenNow(post.kind) || isTarget);
+    const held = onStreet && figureRemember(post, post.x, py, post.z);
+    const away = !onStreet || (npcAway(post.x, post.z) && !held);
     if (post.fig) {
       if ((!want && !held) || away) dropKeeper(post);
       else if (held || figurePlaying(post.x, py, post.z)) wakeFigure(post.fig);
@@ -27070,7 +27340,11 @@ function syncKeepers(now) {
     if (!want || away) continue;
     const dx = post.x - walkX;
     const dz = post.z - walkZ;
-    offerFigure(offer, -Math.hypot(dx, dz), dx * dx + dz * dz, i);
+    const dist = Math.hypot(dx, dz);
+    const inView = figurePlaying(post.x, py, post.z);
+    // Prioritize active delivery targets first, then visible in-frustum storefronts, then nearest distance.
+    const priority = (isTarget ? 40 : 0) + (inView ? 12 : 0) - dist;
+    offerFigure(offer, priority, dx * dx + dz * dz, i);
   }
   if (offer.a >= 0) spawnKeeper(keeperPosts[offer.a], now);
   if (budget > 1 && offer.b >= 0) spawnKeeper(keeperPosts[offer.b], now);
@@ -27104,6 +27378,7 @@ function dropFolk(ud) {
 // lens and dropped off the lens. After eleven, one who is still in the
 // picture keeps walking until the frame has let them go.
 function syncCityFolk(now) {
+  const onStreet = walkMode && !roofStay && camera.position.y < 14;
   stepStreetCrowd(now);
   refreshFigureView();
   const offer = emptyFigureOffer();
@@ -27111,13 +27386,13 @@ function syncCityFolk(now) {
   for (let i = 0; i < cityFolk.length; i++) {
     const ud = cityFolk[i];
     const py = (ud.y || 0) + 0.85;
-    const held = figureRemember(ud, ud.x, py, ud.z);
-    const want = walkMode && !folkOut(ud);
-    const away = held ? false : (ud.flow
+    const held = onStreet && figureRemember(ud, ud.x, py, ud.z);
+    const want = onStreet && !folkOut(ud);
+    const away = !onStreet ? true : (held ? false : (ud.flow
       ? flowRecordAway(ud, ud.x, py, ud.z)
-      : (npcAway(ud.x, ud.z) && !figurePlaying(ud.x, py, ud.z)));
+      : (npcAway(ud.x, ud.z) && !figurePlaying(ud.x, py, ud.z))));
     if (ud.fig) {
-      if (!walkMode || ((!want || away) && !held)) dropFolk(ud);
+      if (!onStreet || ((!want || away) && !held)) dropFolk(ud);
       else if (held || figurePlaying(ud.x, py, ud.z)) wakeFigure(ud.fig);
       else dozeFigure(ud.fig);
       continue;
@@ -27125,10 +27400,13 @@ function syncCityFolk(now) {
     if (!want || away) continue;
     const dx = ud.x - walkX;
     const dz = ud.z - walkZ;
-    offerFigure(offer, -Math.hypot(dx, dz), dx * dx + dz * dz, i);
+    const dist = Math.hypot(dx, dz);
+    const inView = figurePlaying(ud.x, py, ud.z);
+    offerFigure(offer, (inView ? 14 : 0) - dist, dx * dx + dz * dz, i);
   }
   if (offer.a >= 0) spawnFolk(cityFolk[offer.a]);
   if (budget > 1 && offer.b >= 0) spawnFolk(cityFolk[offer.b]);
+  if (!onStreet) return;
   for (let i = 0; i < cityFolk.length; i++) {
     const ud = cityFolk[i];
     if (folkOut(ud) && !ud.fig) continue;
@@ -27136,6 +27414,7 @@ function syncCityFolk(now) {
   }
 }
 function syncPavement(now) {
+  const onStreet = walkMode && !roofStay && camera.position.y < 14;
   refreshFigureView();
   for (let i = 0; i < walkers.length; i++) {
     const fig = walkers[i];
@@ -27145,7 +27424,7 @@ function syncPavement(now) {
     const py = (ud.y == null ? fig.position.y : ud.y) + 0.85;
     const px = ud.x == null ? fig.position.x : ud.x;
     const pz = ud.z == null ? fig.position.z : ud.z;
-    if (!walkMode) {
+    if (!onStreet) {
       if (fig.visible) fig.visible = false;
       dozeFigure(fig);
       continue;
@@ -27338,8 +27617,8 @@ function heatBuildGraph() {
     if (!rec) map.set(path, rec = [[], []]);
     return rec;
   }
-  function atPoint(path, along) {
-    const frame = walkerFrame(path, along, 1);
+  function atPoint(path, along, dir) {
+    const frame = walkerFrame(path, along, dir == null ? 1 : dir);
     return { x: frame.worldX, z: frame.worldZ };
   }
   function open(x0, z0, x1, z1) {
@@ -27354,7 +27633,8 @@ function heatBuildGraph() {
     const p = paths[i];
     const spanP = p.b - p.a;
     for (let e = 0; e < 2; e++) {
-      const from = atPoint(p, e ? spanP : 0);
+      const outDir = e ? 1 : -1;
+      const from = atPoint(p, e ? spanP : 0, outDir);
       for (let j = 0; j < paths.length; j++) {
         if (i === j) continue;
         const q = paths[j];
@@ -27370,10 +27650,10 @@ function heatBuildGraph() {
         if (lateral > 1.9) continue;
         if (along < -1.1 || along > span + 1.1) continue;
         const at = Math.max(0.5, Math.min(span - 0.5, along));
-        const to = atPoint(q, at);
-        if (Math.hypot(to.x - from.x, to.z - from.z) > 2.15) continue;
-        if (!open(from.x, from.z, to.x, to.z)) continue;
         const dir = (span - at) >= at ? 1 : -1;
+        const to = atPoint(q, at, dir);
+        if (Math.hypot(to.x - from.x, to.z - from.z) > 2.25) continue;
+        if (!open(from.x, from.z, to.x, to.z)) continue;
         const run = dir > 0 ? span - at : at;
         if (run < 3) continue;
         ends(p)[e].push({ path: q, at: at, dir: dir, x: to.x, z: to.z, run: run });
@@ -27493,10 +27773,12 @@ function stepHeatCorner(rec, dt) {
     rec.path = corner.path;
     rec.along = corner.at;
     rec.dir = corner.dir;
+    rec.rail = rec.dir < 0 ? -1 : 1;
+    rec.railPos = rec.rail;
     rec.turned = 0;
     rec.corner = null;
     rec.rounded = (rec.rounded || 0) + 1;
-    const frame = walkerFrame(rec.path, rec.along, rec.dir);
+    const frame = walkerFrame(rec.path, rec.along, rec.dir, rec.rail);
     rec.x = frame.worldX;
     rec.z = frame.worldZ;
     rec.yaw = frame.yaw;
@@ -28489,209 +28771,44 @@ function dropHeatMeshes() {
 }
 function stepKeeper(fig, now) {
   const ud = fig.userData;
-  const post = ud.post;
-  const rig = ud.rig;
+  const post = ud && ud.post;
+  const pack = fig.studio;
+  if (!ud || !pack) return;
   const prev = ud.then == null ? now - 0.05 : ud.then;
   ud.then = now;
   const dt = Math.min(0.05, Math.max(0, now - prev));
-  const w = Math.min(1, dt * 6);
-  // A shopkeeper keeps working. A passer-by who stopped, or a runner at their slip, gets a wave.
+  const step = Math.min(1, dt * 6);
+  // Look smoothly toward the player when waving/close in front of the bay, or toward a greeting passer-by.
   const orderWave = !!(post && post.playerWave);
-  const waving = orderWave || (post && now < (post.greetUntil || 0));
-  if (waving) {
-    const faceX = orderWave ? walkX : post.greetX;
-    const faceZ = orderWave ? walkZ : post.greetZ;
-    const dx = faceX - fig.position.x;
-    const dz = faceZ - fig.position.z;
+  const greeting = !!(post && now < (post.greetUntil || 0));
+  const pdx = walkX - fig.position.x;
+  const pdz = walkZ - fig.position.z;
+  const pDist = Math.hypot(pdx, pdz);
+  const pFront = post ? (pdx * post.fx + pdz * post.fz) : 0;
+  const noticePlayer = walkMode && !roofStay && pDist < 3.4 && pFront > 0.2;
+  let wantYaw = 0;
+  if (orderWave || noticePlayer) {
+    const want = Math.atan2(pdx, pdz);
+    let dy = Math.atan2(Math.sin(want - fig.rotation.y), Math.cos(want - fig.rotation.y));
+    const lim = ud.stance === "sit" ? 0.85 : 0.95;
+    wantYaw = dy > lim ? lim : dy < -lim ? -lim : dy;
+  } else if (greeting) {
+    const dx = (post.greetX || 0) - fig.position.x;
+    const dz = (post.greetZ || 0) - fig.position.z;
     const want = Math.atan2(dx, dz);
-    let dy = want - fig.rotation.y;
-    dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-    ud.aimYaw = dy > 0.9 ? 0.9 : dy < -0.9 ? -0.9 : dy;
+    let dy = Math.atan2(Math.sin(want - fig.rotation.y), Math.cos(want - fig.rotation.y));
+    const lim = ud.stance === "sit" ? 0.80 : 0.90;
+    wantYaw = dy > lim ? lim : dy < -lim ? -lim : dy;
   }
-  const rate = ud.rate || 1;
-  const phase = ud.phase || 0;
-  const phase2 = ud.phase2 || 0;
-  const s = Math.sin(now * 1.65 * rate + phase);
-  const s2 = Math.sin(now * 2.35 * rate + phase2);
-  const breath = Math.sin(now * 1.15 * rate + phase * 0.5);
-  const stance = ud.stance || "work";
-  let hipY = THIGH_L + SHIN_L + 0.04;
-  let thighL = 0, thighR = 0, kneeL = 0.04, kneeR = 0.04;
-  let sway = s * 0.012;
-  let lean = 0.08, headX = 0.12, headY = s * 0.1, torsoY = 0;
-  let L = [-0.75, -0.35, -1.25, 0.12];
-  let R = [-0.7, 0.38, -1.2, -0.1];
-  const trade = ud.trade;
-  if (stance === "sit") {
-    // Hands rest. The head turns on its own phase. The legs stay on the chair.
-    hipY = KEEPER_SIT_HIP;
-    thighL = thighR = KEEPER_SIT_THIGH;
-    kneeL = kneeR = KEEPER_SIT_KNEE;
-    sway = 0;
-    lean = 0.06 + s * 0.015;
-    headX = 0.08 + s2 * 0.03;
-    headY = s * 0.1;
-    L = [-0.62, -0.2, -0.9, 0.05];
-    R = [-0.56 + s2 * 0.04, 0.18, -0.82, -0.04];
-  } else if (stance === "idle") {
-    lean = 0.03;
-    headX = 0.04 + s * 0.025;
-    headY = s2 * 0.16;
-    L = [-0.12, -0.16, -0.22, 0.02];
-    R = [-0.1, 0.14, -0.18, -0.02];
-  } else if (trade === "clinic") {
-    // Hands stay at the chart. The old reach swung the forearm through the pane.
-    lean = 0.05; headX = 0.2 + s * 0.04; headY = s2 * 0.08;
-    L = [-0.42, -0.18, -1.05, 0.06];
-    R = [-0.5 + s2 * 0.06, 0.16, -1.15, -0.08];
-  } else if (trade === "serve") {
-    lean = 0.18; headX = 0.22 + s * 0.04; headY = s2 * 0.08;
-    L = [-0.4, -0.22, -0.85, 0.06];
-    R = [-0.7 + s * 0.16, 0.18, -1.15, s2 * 0.16];
-  } else if (trade === "make") {
-    // Stirring with weight transfer and shoulder counter.
-    const work = Math.pow(Math.abs(Math.sin(now * 1.4 * rate + phase)), 0.6);
-    const pause = Math.sin(now * 0.35 + phase) > 0.55 ? 0.25 : 1;
-    lean = 0.25 + work * 0.1;
-    headX = 0.32 + s2 * 0.05;
-    headY = s * 0.08;
-    sway = s * 0.025 * pause;
-    torsoY = -s * 0.06 * pause;
-    L = [-0.65 - work * 0.25, -0.22, -1.15 - work * 0.2, 0.1];
-    R = [-0.75 - Math.sin(now * 1.4 * rate + phase + 0.8) * 0.2 * pause, 0.2, -1.1 - work * 0.15, -0.08];
-  } else if (trade === "cut" || trade === "chop") {
-    // A barber's snip is quicker. A roast shop winds the cleaver up and through.
-    const pace = trade === "chop" ? 1.6 : 2.8;
-    const cycle = (now * pace * rate + phase) % (Math.PI * 2);
-    const wind = cycle < 1.2 ? cycle / 1.2 : 0;
-    const strike = cycle >= 1.2 && cycle < 2.2 ? (cycle - 1.2) : 0;
-    const follow = cycle >= 2.2 ? Math.max(0, 1 - (cycle - 2.2) / 1.5) : 0;
-    const chop = strike > 0 ? Math.sin(strike * Math.PI) : follow * 0.3;
-    lean = (trade === "chop" ? 0.16 : 0.06) + chop * 0.15 + wind * 0.04;
-    headX = 0.08 + chop * 0.1;
-    headY = 0.12 + s * 0.03;
-    sway = chop * 0.02;
-    torsoY = -chop * 0.08;
-    L = [-0.48, -0.16, -0.8, 0.03];
-    R = [-1.05 - wind * 0.15 - chop * 0.35, 0.12, -0.35 - chop * 0.25, s2 * 0.15];
-  } else if (trade === "grind") {
-    const turn = Math.sin(now * 2.1 * rate + phase);
-    lean = 0.22; headX = 0.28; headY = turn * 0.06;
-    L = [-0.35, -0.28, -1.25, 0.08];
-    R = [-0.42 + turn * 0.16, 0.22, -1.35, turn * 0.22];
-  } else if (trade === "pour") {
-    const tip = Math.max(0, Math.sin(now * 1.3 * rate + phase));
-    lean = 0.1; headX = 0.16; headY = s2 * 0.06;
-    L = [-0.4, -0.32, -1.05, 0.06];
-    R = [-0.85 - tip * 0.35, 0.35, -0.55 - tip * 0.2, tip * 0.15];
-  } else if (trade === "sew") {
-    const stitch = Math.sin(now * 3.4 * rate + phase);
-    lean = 0.2; headX = 0.34; headY = stitch * 0.04;
-    L = [-0.3, -0.2, -1.2, 0.05];
-    R = [-0.25 + stitch * 0.08, 0.18, -1.15, stitch * 0.12];
-  } else if (trade === "splice") {
-    const twist = Math.sin(now * 1.8 * rate + phase);
-    lean = -0.04; headX = -0.22; headY = twist * 0.08;
-    L = [-0.2, -0.35, -0.7, 0.04];
-    R = [-0.15, 1.15, -0.55 + twist * 0.12, 0.15];
-  } else if (trade === "ledger") {
-    const tap = Math.sin(now * 2.4 * rate + phase2);
-    lean = 0.08; headX = 0.18; headY = s * 0.12;
-    L = [-0.35, -0.4, -1.1, 0.08];
-    R = [-0.2 + tap * 0.1, 0.25, -0.9, tap * 0.08];
-  } else if (trade === "elder" || trade === "watch") {
-    const sip = trade === "elder" ? Math.sin(now * 0.6 * rate + phase) : s;
-    lean = 0.02; headX = trade === "elder" ? 0.1 : 0.04; headY = sip * (trade === "elder" ? 0.16 : 0.28);
-    L = [-0.4, -0.85, -2.2, 0.35];
-    R = [-0.35 + (trade === "elder" ? sip * 0.06 : 0), 0.9, -2.15, -0.4];
-  } else {
-    // One hand stays by the hip. The other works the counter with pauses.
-    const work = Math.pow(Math.abs(s2), 0.6);
-    const pause = Math.sin(now * 0.35 + phase2) > 0.5 ? 0.4 : 1;
-    lean = 0.08 + work * 0.06;
-    headX = 0.14 + s * 0.04;
-    headY = s2 * 0.1;
-    sway = s * 0.015 * pause;
-    L = [-0.28, -0.2, -0.5, 0.05];
-    R = [-0.55 - work * 0.15 * pause, 0.18, -0.85 - work * 0.1, -0.08];
+  ud.aimYaw = (ud.aimYaw || 0) + (wantYaw - (ud.aimYaw || 0)) * step;
+  // Don't overwrite runFaceReceiver() while a delivery handoff actively controls pack.look.
+  if (!(pack.lookFresh > now - 0.02 && Math.abs(pack.look || 0) > Math.abs(ud.aimYaw) + 0.05)) {
+    pack.look = ud.aimYaw;
+    pack.lookFresh = now;
   }
-  // The order wave is its own pose. mix eases between the working body and
-  // that pose, so the stir and the chop do not show through the hand.
-  ud.orderMix = (ud.orderMix || 0) + ((orderWave ? 1 : 0) - (ud.orderMix || 0)) * Math.min(1, dt * 4.5);
-  const mix = ud.orderMix;
-  let flap = 0;
-  let headZ = sway * 0.25;
-  if (mix > 0.001) {
-    flap = Math.sin(now * 8.4 + phase2);
-    const aim = ud.aimYaw || 0;
-    const sit = stance === "sit";
-    const wHeadX = (sit ? -0.04 : -0.07) + flap * 0.015;
-    const wHeadY = aim * (sit ? 0.3 : 0.42);
-    const wHeadZ = flap * (sit ? 0.04 : 0.055);
-    const wLean = sit ? 0.04 : 0.02;
-    const wTorsoY = aim * (sit ? 0.08 : 0.15);
-    // Sitting lifts the hand beside the head, clear of the counter.
-    // Standing raises it in front of the shoulder, elbow bent, and sweeps it.
-    const wL = sit ? [-0.5, -0.16, -0.8, 0.03] : [-0.14, -0.15, -0.2, 0.02];
-    const wR = sit
-      ? [-0.18 + flap * 0.16, 1.08, -1.32, flap * 0.58]
-      : [-1.05 + flap * 0.24, 0.58, -1.15, flap * 0.45];
-    headX += (wHeadX - headX) * mix;
-    headY += (wHeadY - headY) * mix;
-    headZ += (wHeadZ - headZ) * mix;
-    lean += (wLean - lean) * mix;
-    torsoY += (wTorsoY - torsoY) * mix;
-    sway *= 1 - mix;
-    for (let k = 0; k < 4; k++) {
-      L[k] += (wL[k] - L[k]) * mix;
-      R[k] += (wR[k] - R[k]) * mix;
-    }
-  }
-  const greet = waving && !orderWave && mix < 0.15;
-  if (greet) {
-    const wave = Math.sin(now * (6.4 + rate * 2.2) + phase2);
-    headY = ud.aimYaw * (stance === "sit" ? 0.65 : 1);
-    headX = 0.02;
-    lean = 0.04;
-    torsoY = ud.aimYaw * (stance === "sit" ? 0.2 : 0.45);
-    R = stance === "sit"
-      ? [-0.95, 0.22, -0.5, wave * 0.2]
-      : [-1.45, 0.2, -0.4, wave * 0.45];
-    if (rig.mouth) {
-      const open = 1.15 + Math.max(0, wave) * 0.2;
-      rig.mouth.scale.y += (open - rig.mouth.scale.y) * w;
-    }
-  } else if (rig.mouth) {
-    const open = 1 + mix * (0.08 + Math.max(0, flap) * 0.14);
-    const mw = mix > 0.001 ? Math.min(1, w + mix * (1 - w)) : w;
-    rig.mouth.scale.y += (open - rig.mouth.scale.y) * mw;
-  }
-  const up = Math.min(1, w + mix * (1 - w));
-  const calm = 1 - mix;
-  rig.hip.position.y += (hipY - rig.hip.position.y) * w;
-  rig.hip.position.x += (sway - rig.hip.position.x) * w;
-  rig.hip.rotation.x += ((stance === "sit" ? 0.04 : 0.02 + lean * 0.15) - rig.hip.rotation.x) * w;
-  rig.hip.rotation.z += (sway * 0.5 - rig.hip.rotation.z) * w;
-  rig.torso.rotation.x += (lean + breath * 0.018 * calm - rig.torso.rotation.x) * up;
-  rig.torso.rotation.y += (torsoY - rig.torso.rotation.y) * up;
-  rig.torso.rotation.z += (sway * 0.35 - rig.torso.rotation.z) * up;
-  rig.head.rotation.x += (headX + breath * 0.02 * calm - rig.head.rotation.x) * up;
-  rig.head.rotation.y += (headY + Math.sin(now * 0.35 + phase) * 0.04 * calm - rig.head.rotation.y) * up;
-  rig.head.rotation.z += (headZ - rig.head.rotation.z) * up;
-  rig.legL.pivot.rotation.x += (thighL - rig.legL.pivot.rotation.x) * w;
-  rig.legR.pivot.rotation.x += (thighR - rig.legR.pivot.rotation.x) * w;
-  rig.legL.knee.rotation.x += (kneeL - rig.legL.knee.rotation.x) * w;
-  rig.legR.knee.rotation.x += (kneeR - rig.legR.knee.rotation.x) * w;
-  rig.legL.ankle.rotation.x = -(rig.legL.pivot.rotation.x + rig.legL.knee.rotation.x);
-  rig.legR.ankle.rotation.x = -(rig.legR.pivot.rotation.x + rig.legR.knee.rotation.x);
-  poseToward(rig.armL, L[0], L[1], L[2], L[3], up);
-  poseToward(rig.armR, R[0], R[1], R[2], R[3], up);
-  // The working shoulder twist fades out with the wave, or it rolls the raised arm.
-  if (rig.armR && rig.armR.spread && stance !== "sit") {
-    const yaw = R[0] * 0.08 * calm;
-    rig.armR.spread.rotation.y += (yaw - (rig.armR.spread.rotation.y || 0)) * up;
-  }
-  flushFigure(fig);
+  const talking = orderWave || greeting;
+  const targetTalk = talking ? (0.45 + 0.55 * Math.max(0, Math.sin(now * 8.2 + (ud.phase2 || 0)))) : 0;
+  ud.talkAmp = (ud.talkAmp || 0) + (targetTalk - (ud.talkAmp || 0)) * Math.min(1, dt * 10);
 }
 (function dressRiderHeads() {
   const cache = new Map();
@@ -30443,6 +30560,14 @@ function walkBlocked(x, z, opts) {
       }
     }
   }
+  if (alleySleep && sleepNight() && !(opts && opts.sleepers === false)) {
+    for (let i = 0; i < alleySleep.length; i++) {
+      const rec = alleySleep[i];
+      const along = rec.axis === "z" ? z - rec.z : x - rec.x;
+      const cross = rec.axis === "z" ? x - rec.x : z - rec.z;
+      if (Math.abs(along) < rec.halfAlong && Math.abs(cross) < rec.halfCross) return true;
+    }
+  }
   if (opts && opts.bodies === false) return false;
   if (z < -1.5) for (let i = 0; i < traffic.length; i++) {
     const root = traffic[i];
@@ -30459,14 +30584,6 @@ function walkBlocked(x, z, opts) {
     const wx = fig.parent === city ? fig.position.x + SHEAR_K * fig.position.z : fig.position.x;
     if (!fig.visible || walkerHome(fig.userData) || fig.userData.heat) continue;
     if (Math.abs(x - wx) < 0.34 && Math.abs(z - fig.position.z) < 0.34) return true;
-  }
-  if (alleySleep && sleepNight()) {
-    for (let i = 0; i < alleySleep.length; i++) {
-      const rec = alleySleep[i];
-      const along = rec.axis === "z" ? z - rec.z : x - rec.x;
-      const cross = rec.axis === "z" ? x - rec.x : z - rec.z;
-      if (Math.abs(along) < rec.halfAlong && Math.abs(cross) < rec.halfCross) return true;
-    }
   }
   return false;
 }
@@ -31663,13 +31780,15 @@ function runShops() {
   const list = [];
   for (let i = 0; i < shopPosts.length; i++) {
     const post = shopPosts[i];
-    if (!RUN_KIND_ITEM[post.kind]) continue;
+    const kp = keeperByShopPost.get(i);
+    // Only enlist shops backed by an active keeperPost so no order ever targets a deduplicated/unplaced post.
+    if (!kp || !RUN_KIND_ITEM[post.kind]) continue;
     const mouth = runMouth(post);
     if (!mouth) continue;
     const zone = zoneAt(mouth.x, mouth.z);
     const street = (ZONES[zone] && ZONES[zone].street) || "";
     list.push({
-      post: i, kind: post.kind, x: mouth.x, z: mouth.z, yaw: mouth.rot,
+      post: i, keeper: kp, kind: post.kind, x: mouth.x, z: mouth.z, yaw: mouth.rot,
       lotX: post.lotX, lotZ: post.lotZ, lotW: post.lotW, lotD: post.lotD,
       street: street, next: 0, near: false
     });
@@ -32679,12 +32798,8 @@ function runPerson(job) {
     offset: job.id * 0.37, bias: 1, scale: wear.scale || 1, rig: rig
   };
   if (job.sit) {
+    // Seated errand receivers already display their built-in weathered Hong Kong red plastic stool (rig.stool).
     seatKeeper(rig);
-    const stool = new THREE.Mesh(shopGeo.stool, shopFinish.timber);
-    stool.scale.setScalar(1.22);
-    stool.position.set(job.x - SHEAR_K * job.z, foot, job.z);
-    city.add(stool);
-    job.stool = stool;
   } else {
     rig.hip.position.y = THIGH_L + SHIN_L + 0.04;
   }
@@ -33560,11 +33675,10 @@ function runPaint() {
 function runKeeperPost(shop) {
   if (shop.keeper) return shop.keeper;
   if (shop.keeperMiss) return null;
-  for (let i = 0; i < keeperPosts.length; i++) {
-    if (keeperPosts[i].i === shop.post) {
-      shop.keeper = keeperPosts[i];
-      return shop.keeper;
-    }
+  const hit = keeperByShopPost.get(shop.post) || null;
+  if (hit) {
+    shop.keeper = hit;
+    return hit;
   }
   shop.keeperMiss = true;
   return null;
@@ -33576,7 +33690,7 @@ function runWaves() {
     for (let i = 0; i < run.waving.length; i++) run.waving[i].playerWave = false;
     run.waving.length = 0;
   } else run.waving = [];
-  if (!walkMode || run.sheet || run.ended) return;
+  if (!walkMode || roofStay || run.sheet || run.ended) return;
   const shops = run.shops || [];
   for (let i = 0; i < shops.length; i++) {
     const s = shops[i];
@@ -33591,11 +33705,9 @@ function runWaves() {
   for (let i = 0; i < jobs.length; i++) {
     const j = jobs[i];
     if (!j.keeper || j.post == null || j.state !== "carried") continue;
-    let post = null;
-    for (let k = 0; k < keeperPosts.length; k++) {
-      if (keeperPosts[k].i === j.post) { post = keeperPosts[k]; break; }
-    }
-    if (!post || !shopOpenNow(post.kind) || Math.hypot(walkX - post.x, walkZ - post.z) > 4.2) continue;
+    const post = keeperByShopPost.get(j.post) || null;
+    // Allow after-hours delivery recipients kept spawned by runIsKeeperJobPost() to wave for handoff.
+    if (!post || (!shopOpenNow(post.kind) && !runIsKeeperJobPost(post.i)) || Math.hypot(walkX - post.x, walkZ - post.z) > 4.2) continue;
     post.playerWave = true;
     run.waving.push(post);
   }
@@ -35219,19 +35331,21 @@ function parkInstanceMesh(mesh) {
 }
 function armInstanceMesh(mesh, count, colorCount) {
   const need = Math.max(count | 0, 1);
+  const needColor = colorCount > 0 || !!(mesh.material && instColorVariantSet.has(mesh.material));
   const mat = mesh.instanceMatrix;
   const col = mesh.instanceColor;
   const have = mat && mat !== gpuStub.mat ? mat.count : 0;
-  const haveC = colorCount > 0 && col ? col.count : 0;
+  const haveC = needColor && col ? col.count : 0;
   const fit = have >= need && have <= Math.max(need + 48, (need * 1.25) | 0);
-  const fitC = colorCount < 1 || (haveC >= need && haveC <= Math.max(need + 48, (need * 1.25) | 0));
+  const fitC = !needColor || (haveC >= need && haveC <= Math.max(need + 48, (need * 1.25) | 0));
   if (mesh.userData.gpuArmed && fit && fitC && !mesh.userData.gpuParked) return false;
   if (mesh.userData.gpuArmed && mat && mat !== gpuStub.mat) mesh.dispose();
   mesh.instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(need * 16), 16);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.instanceColor = colorCount > 0
+  mesh.instanceColor = needColor
     ? new THREE.InstancedBufferAttribute(new Float32Array(need * 3), 3)
     : null;
+  if (needColor && colorCount < 1) mesh.instanceColor.array.fill(1);
   mesh.userData.gpuParked = false;
   mesh.userData.gpuArmed = true;
   return true;
@@ -35436,6 +35550,7 @@ function syncShopFronts() {
   keeperView.frustum.setFromProjectionMatrix(keeperView.mat);
   for (let i = 0; i < shopStreams.length; i++) packShopMesh(shopStreams[i]);
 }
+separateInstColorMaterials(scene);
 captureShopStreams();
 // Cage frames and people stay drawn at every distance. Hiding them above a
 // camera height made the city pop from a flat shell into a full model.
@@ -36881,43 +36996,9 @@ function renderWetReflection() {
   const showGround = ground.visible;
   const showRain = rain.visible;
   const showSplash = splash.visible;
-  ground.visible = false;
-  rain.visible = false;
-  splash.visible = false;
-  // Hide ONLY road slabs/kerbs/dashes during the mirror pass so all 10 street vehicles & headlamps reflect in wet asphalt.
   const hiddenSlabs = [];
-  for (let ri = 0; ri < roads.children.length; ri++) {
-    const ch = roads.children[ri];
-    if (ch && ch.visible && ch.userData && ch.userData.roadSlab) {
-      ch.visible = false;
-      hiddenSlabs.push(ch);
-    }
-  }
-  // The mirrored lens uses a tilted near plane. Keep walkers, player avatar, keepers, gang fighters & receivers un-culled.
   const figs = [];
-  const pushFig = function (root) {
-    if (!root || !root.visible) return;
-    root.traverse(function (obj) { figs.push(obj); });
-  };
-  for (let wi = 0; wi < walkers.length; wi++) pushFig(walkers[wi]);
-  for (let hi = 0; hi < alleyHeat.length; hi++) pushFig(alleyHeat[hi].fig);
-  for (let ki = 0; ki < keepers.length; ki++) pushFig(keepers[ki]);
-  for (let gi = 0; gi < gangFight.length; gi++) pushFig(gangFight[gi].fig);
-  if (typeof run !== "undefined" && run) {
-    pushFig(run.rider);
-    if (run.jobs) {
-      for (let ji = 0; ji < run.jobs.length; ji++) {
-        if (run.jobs[ji] && !run.jobs[ji].roof) pushFig(run.jobs[ji].fig);
-      }
-    }
-  }
-  for (let fi = 0; fi < figs.length; fi++) {
-    const obj = figs[fi];
-    obj.userData.wetCull = obj.frustumCulled;
-    obj.frustumCulled = false;
-  }
   const shadows = renderer.shadowMap.needsUpdate;
-  renderer.shadowMap.needsUpdate = false;
   const su = sky.material.uniforms;
   const prevViewX = su.uView.value.x;
   const prevViewY = su.uView.value.y;
@@ -36925,35 +37006,80 @@ function renderWetReflection() {
   renderWetReflection.inv.copy(su.uInvVP.value);
   if (!renderWetReflection.skyPos) renderWetReflection.skyPos = new THREE.Vector3();
   renderWetReflection.skyPos.copy(sky.position);
-  su.uView.value.set(tw, th);
-  wetReflCam.projectionMatrixInverse.copy(wetReflCam.projectionMatrix).invert();
-  su.uInvVP.value.multiplyMatrices(wetReflCam.matrixWorld, wetReflCam.projectionMatrixInverse);
-  sky.position.copy(wetReflCam.position);
   const prev = renderer.getRenderTarget();
-  holdMirrorSamplers();
-  wetReflCam.layers.set(0);
-  wetReflCam.layers.enable(2);
-  renderer.setRenderTarget(wetReflect);
-  renderer.clear();
   const heldWalk = uFxWalk.value;
-  uFxWalk.value = 0;
-  renderer.render(scene, wetReflCam);
-  uFxWalk.value = heldWalk;
-  renderer.setRenderTarget(prev);
-  releaseMirrorSamplers();
-  for (let fi = 0; fi < figs.length; fi++) figs[fi].frustumCulled = figs[fi].userData.wetCull;
-  for (let si = 0; si < hiddenSlabs.length; si++) hiddenSlabs[si].visible = true;
-  renderer.shadowMap.needsUpdate = shadows;
-  sky.position.copy(renderWetReflection.skyPos);
-  su.uView.value.set(prevViewX, prevViewY);
-  su.uInvVP.value.copy(renderWetReflection.inv);
-  ground.visible = showGround;
-  rain.visible = showRain;
-  splash.visible = showSplash;
-  uWetReflOn.value = 1;
-  renderWetReflection.planeY = reflY;
-  renderWetReflection.anchor.copy(camera.position);
-  renderWetReflection.quat.copy(camera.quaternion);
+  let samplersHeld = false;
+  let rendered = false;
+  try {
+    ground.visible = false;
+    rain.visible = false;
+    splash.visible = false;
+    // Hide ONLY road slabs/kerbs/dashes during the mirror pass so all 10 street vehicles & headlamps reflect in wet asphalt.
+    for (let ri = 0; ri < roads.children.length; ri++) {
+      const ch = roads.children[ri];
+      if (ch && ch.visible && ch.userData && ch.userData.roadSlab) {
+        ch.visible = false;
+        hiddenSlabs.push(ch);
+      }
+    }
+    // The mirrored lens uses a tilted near plane. Keep walkers, player avatar, keepers, gang fighters & receivers un-culled.
+    const pushFig = function (root) {
+      if (!root || !root.visible) return;
+      root.traverse(function (obj) { figs.push(obj); });
+    };
+    for (let wi = 0; wi < walkers.length; wi++) pushFig(walkers[wi]);
+    for (let hi = 0; hi < alleyHeat.length; hi++) pushFig(alleyHeat[hi].fig);
+    for (let ki = 0; ki < keepers.length; ki++) pushFig(keepers[ki]);
+    for (let gi = 0; gi < gangFight.length; gi++) pushFig(gangFight[gi].fig);
+    if (typeof run !== "undefined" && run) {
+      pushFig(run.rider);
+      if (run.jobs) {
+        for (let ji = 0; ji < run.jobs.length; ji++) {
+          if (run.jobs[ji] && !run.jobs[ji].roof) pushFig(run.jobs[ji].fig);
+        }
+      }
+    }
+    for (let fi = 0; fi < figs.length; fi++) {
+      const obj = figs[fi];
+      obj.userData.wetCull = obj.frustumCulled;
+      obj.frustumCulled = false;
+    }
+    renderer.shadowMap.needsUpdate = false;
+    su.uView.value.set(tw, th);
+    wetReflCam.projectionMatrixInverse.copy(wetReflCam.projectionMatrix).invert();
+    su.uInvVP.value.multiplyMatrices(wetReflCam.matrixWorld, wetReflCam.projectionMatrixInverse);
+    sky.position.copy(wetReflCam.position);
+    holdMirrorSamplers();
+    samplersHeld = true;
+    wetReflCam.layers.set(0);
+    wetReflCam.layers.enable(2);
+    renderer.setRenderTarget(wetReflect);
+    renderer.clear();
+    uFxWalk.value = 0;
+    renderer.render(scene, wetReflCam);
+    rendered = true;
+  } finally {
+    uFxWalk.value = heldWalk;
+    renderer.setRenderTarget(prev);
+    if (samplersHeld) releaseMirrorSamplers();
+    for (let fi = 0; fi < figs.length; fi++) figs[fi].frustumCulled = figs[fi].userData.wetCull;
+    for (let si = 0; si < hiddenSlabs.length; si++) hiddenSlabs[si].visible = true;
+    renderer.shadowMap.needsUpdate = shadows;
+    sky.position.copy(renderWetReflection.skyPos);
+    su.uView.value.set(prevViewX, prevViewY);
+    su.uInvVP.value.copy(renderWetReflection.inv);
+    ground.visible = showGround;
+    rain.visible = showRain;
+    splash.visible = showSplash;
+  }
+  if (rendered) {
+    uWetReflOn.value = 1;
+    renderWetReflection.planeY = reflY;
+    renderWetReflection.anchor.copy(camera.position);
+    renderWetReflection.quat.copy(camera.quaternion);
+  } else {
+    uWetReflOn.value = 0;
+  }
 }
 function roofMirrorY() {
   if (roofStay && roofStay.y != null) return roofStay.y;
@@ -37042,25 +37168,9 @@ function renderRoofReflection() {
   const showRoads = roads.visible;
   const showRain = rain.visible;
   const showSplash = splash.visible;
-  ground.visible = false;
-  roads.visible = false;
-  rain.visible = false;
-  splash.visible = false;
   const hidden = renderRoofReflection.meshes;
-  for (let i = 0; i < hidden.length; i++) hidden[i].visible = false;
   const hiddenWalkers = [];
-  for (let wi = 0; wi < walkers.length; wi++) {
-    if (!walkers[wi].visible) continue;
-    hiddenWalkers.push(walkers[wi]);
-    walkers[wi].visible = false;
-  }
-  for (let wi = 0; wi < keepers.length; wi++) {
-    if (!keepers[wi].visible) continue;
-    hiddenWalkers.push(keepers[wi]);
-    keepers[wi].visible = false;
-  }
   const shadows = renderer.shadowMap.needsUpdate;
-  renderer.shadowMap.needsUpdate = false;
   const su = sky.material.uniforms;
   const prevViewX = su.uView.value.x;
   const prevViewY = su.uView.value.y;
@@ -37068,10 +37178,6 @@ function renderRoofReflection() {
   renderRoofReflection.inv.copy(su.uInvVP.value);
   if (!renderRoofReflection.skyPos) renderRoofReflection.skyPos = new THREE.Vector3();
   renderRoofReflection.skyPos.copy(sky.position);
-  su.uView.value.set(tw, th);
-  wetReflCam.projectionMatrixInverse.copy(wetReflCam.projectionMatrix).invert();
-  su.uInvVP.value.multiplyMatrices(wetReflCam.matrixWorld, wetReflCam.projectionMatrixInverse);
-  sky.position.copy(wetReflCam.position);
   const prev = renderer.getRenderTarget();
   // Only the sky and what stands on the roofs. The mirrored eye is inside a
   // block, and drawing the rooms there washes the puddle out to city lights.
@@ -37094,46 +37200,83 @@ function renderRoofReflection() {
     renderRoofReflection.kitMats = mats;
   }
   const kitMats = renderRoofReflection.kitMats;
-  for (let mi = 0; mi < kitMats.length; mi++) {
-    const m = kitMats[mi];
-    if (!m.userData.reflE) m.userData.reflE = { r: m.emissive.r, g: m.emissive.g, b: m.emissive.b, i: m.emissiveIntensity };
-    const src = m.color;
-    m.emissive.setRGB(src.r * 0.55 + 0.07, src.g * 0.5 + 0.06, src.b * 0.42 + 0.05);
-    m.emissiveIntensity = 0.62;
+  let kitOverridden = false;
+  let samplersHeld = false;
+  let rendered = false;
+  try {
+    ground.visible = false;
+    roads.visible = false;
+    rain.visible = false;
+    splash.visible = false;
+    for (let i = 0; i < hidden.length; i++) hidden[i].visible = false;
+    for (let wi = 0; wi < walkers.length; wi++) {
+      if (!walkers[wi].visible) continue;
+      hiddenWalkers.push(walkers[wi]);
+      walkers[wi].visible = false;
+    }
+    for (let wi = 0; wi < keepers.length; wi++) {
+      if (!keepers[wi].visible) continue;
+      hiddenWalkers.push(keepers[wi]);
+      keepers[wi].visible = false;
+    }
+    renderer.shadowMap.needsUpdate = false;
+    su.uView.value.set(tw, th);
+    wetReflCam.projectionMatrixInverse.copy(wetReflCam.projectionMatrix).invert();
+    su.uInvVP.value.multiplyMatrices(wetReflCam.matrixWorld, wetReflCam.projectionMatrixInverse);
+    sky.position.copy(wetReflCam.position);
+    for (let mi = 0; mi < kitMats.length; mi++) {
+      const m = kitMats[mi];
+      if (!m.userData.reflE) m.userData.reflE = { r: m.emissive.r, g: m.emissive.g, b: m.emissive.b, i: m.emissiveIntensity };
+      const src = m.color;
+      m.emissive.setRGB(src.r * 0.55 + 0.07, src.g * 0.5 + 0.06, src.b * 0.42 + 0.05);
+      m.emissiveIntensity = 0.62;
+    }
+    kitOverridden = true;
+    if (!renderRoofReflection.lit) {
+      renderRoofReflection.lit = true;
+      if (hemi) hemi.layers.enable(2);
+      sun.layers.enable(2);
+      fill.layers.enable(2);
+    }
+    wetReflCam.layers.set(2);
+    holdMirrorSamplers();
+    samplersHeld = true;
+    renderer.setRenderTarget(roofReflect);
+    renderer.clear();
+    renderer.render(scene, wetReflCam);
+    rendered = true;
+  } finally {
+    renderer.setRenderTarget(prev);
+    if (samplersHeld) releaseMirrorSamplers();
+    if (kitOverridden) {
+      for (let mi = 0; mi < kitMats.length; mi++) {
+        const m = kitMats[mi];
+        const e = m.userData.reflE;
+        if (e) {
+          m.emissive.setRGB(e.r, e.g, e.b);
+          m.emissiveIntensity = e.i;
+        }
+      }
+    }
+    renderer.shadowMap.needsUpdate = shadows;
+    sky.position.copy(renderRoofReflection.skyPos);
+    su.uView.value.set(prevViewX, prevViewY);
+    su.uInvVP.value.copy(renderRoofReflection.inv);
+    ground.visible = showGround;
+    roads.visible = showRoads;
+    rain.visible = showRain;
+    splash.visible = showSplash;
+    for (let i = 0; i < hidden.length; i++) hidden[i].visible = true;
+    for (let wi = 0; wi < hiddenWalkers.length; wi++) hiddenWalkers[wi].visible = true;
   }
-  if (!renderRoofReflection.lit) {
-    renderRoofReflection.lit = true;
-    if (hemi) hemi.layers.enable(2);
-    sun.layers.enable(2);
-    fill.layers.enable(2);
+  if (rendered) {
+    uRoofReflOn.value = 1;
+    renderRoofReflection.plane = planeY;
+    renderRoofReflection.anchor.copy(camera.position);
+    renderRoofReflection.quat.copy(camera.quaternion);
+  } else {
+    uRoofReflOn.value = 0;
   }
-  wetReflCam.layers.set(2);
-  holdMirrorSamplers();
-  renderer.setRenderTarget(roofReflect);
-  renderer.clear();
-  renderer.render(scene, wetReflCam);
-  renderer.setRenderTarget(prev);
-  releaseMirrorSamplers();
-  for (let mi = 0; mi < kitMats.length; mi++) {
-    const m = kitMats[mi];
-    const e = m.userData.reflE;
-    m.emissive.setRGB(e.r, e.g, e.b);
-    m.emissiveIntensity = e.i;
-  }
-  renderer.shadowMap.needsUpdate = shadows;
-  sky.position.copy(renderRoofReflection.skyPos);
-  su.uView.value.set(prevViewX, prevViewY);
-  su.uInvVP.value.copy(renderRoofReflection.inv);
-  ground.visible = showGround;
-  roads.visible = showRoads;
-  rain.visible = showRain;
-  splash.visible = showSplash;
-  for (let i = 0; i < hidden.length; i++) hidden[i].visible = true;
-  for (let wi = 0; wi < hiddenWalkers.length; wi++) hiddenWalkers[wi].visible = true;
-  uRoofReflOn.value = 1;
-  renderRoofReflection.plane = planeY;
-  renderRoofReflection.anchor.copy(camera.position);
-  renderRoofReflection.quat.copy(camera.quaternion);
 }
 // The floor is left sharp. The old depth pass blurred the plain outside the lot.
 // The glass in front of the picture is the CRT: scanlines, a phosphor grille,
@@ -38039,6 +38182,7 @@ if (addMass.roofMat) {
     shader.fragmentShader = frag.replace("#include <fog_fragment>", ROOF_GRIME + "\n" + ROOF_GLINT + "\n#include <fog_fragment>");
   };
 }
+separateInstColorMaterials(scene);
 markQuiet(scene);
 // The punctual lamps stay as data for the soft wraps. Keeping them out of
 // the camera's layers drops the point and spot loops from every material.
