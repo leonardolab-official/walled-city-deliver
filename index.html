@@ -17178,6 +17178,8 @@ const traffic = [];
     r.ride.lean = 1.1;
     r.ride.yaw = 0.04;
     r.ride.free = true;
+    r.ride.nose = front - 0.04;
+    r.ride.tailSpan = (front - 0.04) - (rear - 0.2);
     r.finish();
     const crank = new THREE.Group();
     crank.position.set(bb[0], bb[1] - Rw, 0);
@@ -17272,37 +17274,6 @@ const traffic = [];
     traffic.tailOn.emissiveIntensity = 1.4 + lampsOn * 4.2;
     if (traffic.marker) traffic.marker.emissiveIntensity = 0.25 + lampsOn * 2.6;
     traffic.bulb.emissiveIntensity = lit * (0.7 + Math.sin(now * 2.1) * 0.06);
-    if (!traffic.rank) traffic.rank = [];
-    traffic.rank.length = 0;
-    for (let i = 0; i < traffic.length; i++) traffic.rank.push(traffic[i]);
-    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
-    traffic.rank.sort((a, b) => {
-      const ap = a.position, bp = b.position;
-      const da = (ap.x - cx) * (ap.x - cx) + (ap.y - cy) * (ap.y - cy) + (ap.z - cz) * (ap.z - cz);
-      const db = (bp.x - cx) * (bp.x - cx) + (bp.y - cy) * (bp.y - cy) + (bp.z - cz) * (bp.z - cz);
-      return da - db;
-    });
-    let slot = 0;
-    for (let i = 0; i < traffic.beams.length; i++) {
-      let root = null;
-      if (lampsOn >= 0.06) {
-        while (slot < traffic.rank.length && traffic.rank[slot].userData.ride.free) slot++;
-        root = traffic.rank[slot++] || null;
-      }
-      const beamPos = roadCast.beamPos.value[i];
-      const beamDir = roadCast.beamDir.value[i];
-      if (!root) {
-        beamPos.set(0, -1, 0);
-        continue;
-      }
-      const ride = root.userData.ride;
-      const nose = Math.min(5.6, ride.len * 0.46);
-      if (!traffic.beamTmp) traffic.beamTmp = new THREE.Vector3();
-      root.getWorldPosition(traffic.beamTmp);
-      const braking = ride.accel < -0.65;
-      beamPos.set(traffic.beamTmp.x + ride.dir * nose, braking ? 1.65 : 0.8, traffic.beamTmp.z);
-      beamDir.set(ride.dir, ride.len, ride.free ? 0.4 : 1);
-    }
     const span = (x1 - x0 - 8);
     for (let L = 0; L < traffic.lanes.length; L++) {
       const lane = traffic.lanes[L];
@@ -17328,9 +17299,10 @@ const traffic = [];
       }
       let target = ride.cruise * ride.mood;
       if (wxNow.rain > 0) target *= 1 - wxNow.rain * 0.14;
+      let bumperGap = 99;
       if (!ride.free) {
         const halfSum = (ride.len + ride.aheadLen) * 0.5;
-        const bumperGap = ride.gap - halfSum;
+        bumperGap = ride.gap - halfSum;
         const safeBuf = 6.2;
         if (bumperGap <= 1.2) {
           target = 0;
@@ -17343,12 +17315,21 @@ const traffic = [];
         }
       }
       const prev = ride.speed;
-      const rate = target < ride.speed ? 3.2 : 1.7;
+      const rate = target < ride.speed ? (bumperGap < 3.0 ? 7.5 : 3.2) : 1.7;
       ride.speed += (target - ride.speed) * Math.min(1, dt * rate);
       if (ride.speed < 0.02 && target <= 0.02) ride.speed = 0;
+      let travel = ride.speed * dt;
+      // Hard bumper-gap clamp so fast taxis never clip into a stopped vehicle's rear bumper.
+      if (!ride.free) {
+        const maxStep = Math.max(0, bumperGap - 1.1);
+        if (travel > maxStep) {
+          travel = maxStep;
+          ride.speed = dt > 1e-4 ? travel / dt : 0;
+        }
+      }
       const raw = dt > 1e-4 ? (ride.speed - prev) / dt : 0;
       ride.accel = ride.accel * 0.62 + raw * 0.38;
-      const nextX = ride.x + ride.dir * ride.speed * dt;
+      const nextX = ride.x + ride.dir * travel;
       if (nextX > ride.x1 || nextX < ride.x0) {
         const wrapX = nextX > ride.x1 ? ride.x0 : ride.x1;
         let entryClear = true;
@@ -17361,7 +17342,7 @@ const traffic = [];
           }
         }
         if (entryClear) ride.x = wrapX;
-        else { ride.x = nextX > ride.x1 ? ride.x1 : ride.x0; ride.speed = 0; }
+        else { ride.x = nextX > ride.x1 ? ride.x1 : ride.x0; ride.speed = 0; travel = 0; }
       } else {
         ride.x = nextX;
       }
@@ -17369,14 +17350,15 @@ const traffic = [];
       const weave = Math.sin(now * ride.weave + ride.phase) * ride.amp;
       root.position.z = ride.z0 + weave;
       const showPerson = !walkMode || !npcAway(root.position.x, root.position.z) || figureRemember(ride, root.position.x, root.position.y + 1.1, root.position.z);
-      if (ride.rider) ride.rider.visible = showPerson;
+      // Keep outdoor cyclists always visible alongside their bicycle so riderless ghost bikes never appear.
+      if (ride.rider) ride.rider.visible = true;
       for (let h = 0; h < ride.riders.length; h++) ride.riders[h].visible = showPerson;
       const shell = ride.shell;
       shell.position.y = ride.axle + Math.sin(now * (7.4 + ride.speed * 0.4) + ride.phase) * (0.006 + Math.min(0.012, ride.speed * 0.0009));
       shell.rotation.z = Math.max(-0.02, Math.min(0.014, ride.accel * 0.0034));
       shell.rotation.x = weave * ride.lean;
       shell.rotation.y = Math.sin(now * 0.5 + ride.phase) * ride.yaw;
-      const spin = ride.speed * dt;
+      const spin = travel;
       for (let w = 0; w < ride.wheels.length; w++) {
         const wheel = ride.wheels[w];
         wheel.rotation.z -= spin / wheel.userData.radius;
@@ -17404,6 +17386,33 @@ const traffic = [];
           if (ride.fare) ride.fare.visible = !ride.forHire;
         }
       }
+    }
+    // Update road headlight & taillight pools AFTER vehicle positions advance (zero 1-frame lag),
+    // including dimmed bike headlamps and bumper-matched tail spans.
+    if (!traffic.rank) traffic.rank = [];
+    traffic.rank.length = 0;
+    for (let i = 0; i < traffic.length; i++) traffic.rank.push(traffic[i]);
+    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+    traffic.rank.sort((a, b) => {
+      const ap = a.position, bp = b.position;
+      const da = (ap.x - cx) * (ap.x - cx) + (ap.y - cy) * (ap.y - cy) + (ap.z - cz) * (ap.z - cz);
+      const db = (bp.x - cx) * (bp.x - cx) + (bp.y - cy) * (bp.y - cy) + (bp.z - cz) * (bp.z - cz);
+      return da - db;
+    });
+    for (let i = 0; i < traffic.beams.length; i++) {
+      const root = lampsOn >= 0.06 ? (traffic.rank[i] || null) : null;
+      const beamPos = roadCast.beamPos.value[i];
+      const beamDir = roadCast.beamDir.value[i];
+      if (!root) {
+        beamPos.set(0, -1, 0);
+        continue;
+      }
+      const ride = root.userData.ride;
+      const nose = ride.nose != null ? ride.nose : Math.min(5.0, ride.len * 0.46);
+      const tailSpan = ride.tailSpan != null ? ride.tailSpan : (nose * 2);
+      const braking = ride.accel < -0.65;
+      beamPos.set(root.position.x + ride.dir * nose, braking ? 1.65 : 0.8, root.position.z);
+      beamDir.set(ride.dir, tailSpan, ride.free ? 0.38 : 1);
     }
   };
 })();
@@ -24583,12 +24592,12 @@ function studioPoseCharacter(rig, animId, t) {
             rig.lBrow.rotation.z = -0.18; rig.rBrow.rotation.z = 0.18;
         }
     } else if (animId === 'ride_bike') {
-        // Heavy-Duty 28" Kowloon Goods Bicycle Cycling
-        rig.goodsBike.visible = true;
+        // Heavy-Duty 28" Kowloon Goods Bicycle Cycling (suppress built-in voxel bike when mounted on traffic roadster)
+        rig.goodsBike.visible = !rig.mountBike;
         rig.leftProp.visible = false;
         rig.rightProp.visible = false;
 
-        const pedal = cyc(6.2);
+        const pedal = (typeof rig.pedalAngle === "number") ? rig.pedalAngle : cyc(6.2);
         rig.pelvis.position.set(0, 0.90, -0.19);
         rig.spine.rotation.x = 0.36 + Math.sin(pedal * 2) * 0.025;
         rig.head.rotation.x = -0.24;
@@ -24599,18 +24608,21 @@ function studioPoseCharacter(rig, animId, t) {
         rig.rShoulder.rotation.set(-1.12, -0.14, -0.20);
         rig.rElbow.rotation.x = -0.35;
 
-        // Alternating pedal leg kinematics
+        // Alternating pedal leg kinematics locked to real wheel/crank phase
         rig.lHip.rotation.x = -0.78 + Math.sin(pedal) * 0.56;
         rig.lKnee.rotation.x = 0.92 + Math.cos(pedal) * 0.52;
         rig.rHip.rotation.x = -0.78 - Math.sin(pedal) * 0.56;
         rig.rKnee.rotation.x = 0.92 - Math.cos(pedal) * 0.52;
 
-        // Spin spoked wheels & pedal crank
-        const u = rig.goodsBike.userData;
-        if (u) {
-            u.frontWheel.rotation.x = pedal * 1.45;
-            u.rearWheel.rotation.x = pedal * 1.45;
-            u.crank.rotation.x = pedal;
+        // Spin spoked wheels & pedal crank on standalone voxel goodsBike
+        if (rig.goodsBike.visible) {
+            const u = rig.goodsBike.userData;
+            if (u) {
+                const wheelAng = (typeof rig.wheelAngle === "number") ? rig.wheelAngle : pedal * 2.15;
+                u.frontWheel.rotation.x = wheelAng;
+                u.rearWheel.rotation.x = wheelAng;
+                u.crank.rotation.x = pedal;
+            }
         }
     } else if (animId === "idle_sit") {
         seatStudioStool(rig, h);
@@ -28741,39 +28753,8 @@ function stepAlleySleep(now) {
   if (offer.a >= 0) attachSleep(alleySleep[offer.a]);
   if (budget > 1 && offer.b >= 0) attachSleep(alleySleep[offer.b]);
 }
-const studioCyclists = [];
-function initStudioCyclists() {
-  if (studioCyclists.length) return;
-  const specs = [
-    { key: "fai",    x: 162, z: -4.9,        dir: -1, speed: 3.1, x0: -12, x1: SITE_W + 12 },
-    { key: "skeung", x: 54,  z: SITE_D + 3.4, dir:  1, speed: 2.9, x0: -12, x1: SITE_W + 12 }
-  ];
-  for (let i = 0; i < specs.length; i++) {
-    const s = specs[i];
-    const wear = wearCopy(STUDIO[s.key], { gait: "walk", role: null, prop: null });
-    const fig = makeCitizen(wear);
-    fig.userData.live = 1;
-    fig.position.set(s.x, 0.085, s.z);
-    fig.rotation.y = s.dir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
-    vfx.add(fig);
-    studioCyclists.push({
-      fig: fig, x: s.x, z: s.z, dir: s.dir, speed: s.speed, x0: s.x0, x1: s.x1
-    });
-  }
-}
-function stepStudioCyclists(now, dt) {
-  if (!studioCyclists.length) initStudioCyclists();
-  const d = Math.min(0.05, Math.max(0, dt || 0.016));
-  for (let i = 0; i < studioCyclists.length; i++) {
-    const c = studioCyclists[i];
-    c.x += c.dir * c.speed * d;
-    if (c.dir < 0 && c.x < c.x0) c.x = c.x1;
-    else if (c.dir > 0 && c.x > c.x1) c.x = c.x0;
-    c.fig.position.set(c.x - SHEAR_K * c.z, 0.085, c.z);
-    c.fig.rotation.y = c.dir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
-    updateCharacterAnimation(c.fig, "ride_bike", now, d);
-  }
-}
+// Ah Fai and Siu Keung ride the two roadsters in traffic (seatCycleRiders) with
+// ground-feather fade, rain slowdown, and road headlamp/taillight pools.
 function dropHeatMeshes() {
   let any = false;
   for (let i = 0; i < alleyHeat.length; i++) {
@@ -28859,9 +28840,20 @@ function stepKeeper(fig, now) {
     });
   });
 })();
-// The goods bikes are Ah Fai and Siu Keung. The pedals already turn their legs.
+// The two roadsters on Tung Tau Tsuen Road are ridden by Ah Fai and Siu Keung.
 (function seatCycleRiders() {
   const looks = [STUDIO.fai, STUDIO.skeung];
+  const fadeCache = new Map();
+  function fadeOf(src) {
+    let mat = fadeCache.get(src);
+    if (!mat) {
+      mat = src.clone();
+      mat.clippingPlanes = clips;
+      if (traffic.fadeSolid) traffic.fadeSolid(mat);
+      fadeCache.set(src, mat);
+    }
+    return mat;
+  }
   let n = 0;
   traffic.forEach(root => {
     const ride = root.userData.ride;
@@ -28871,60 +28863,34 @@ function stepKeeper(fig, now) {
     fig.traverse(obj => { if (obj.isMesh && obj.material === blobMat) shed.push(obj); });
     shed.forEach(obj => { if (obj.parent) obj.parent.remove(obj); });
     const cyc = ride.cycle;
-    const bodyH = (fig.studio && fig.studio.spec && fig.studio.spec.build.height) || 1;
-    if (fig.studio) fig.studio.bike = 1;
-    fig.position.set(cyc.hx, cyc.hy - 0.75 * bodyH * FIG_SCALE, cyc.hz);
+    if (fig.studio) {
+      fig.studio.bike = 1;
+      fig.studio.mountBike = 1;
+      if (fig.studio.goodsBike) fig.studio.goodsBike.visible = false;
+    }
+    // Seat pelvis bottom (0.90 - 0.0576 = 0.8424 local) flush onto roadster saddle top (0.425 in ride.shell),
+    // with pelvis Z (-0.19 * FIG_SCALE = -0.156) aligned directly over seat[0] (-0.16).
+    fig.position.set(0, 0.425 - 0.8424 * FIG_SCALE, cyc.hz);
     fig.rotation.y = Math.PI / 2;
-    fig.traverse(obj => { obj.frustumCulled = false; obj.castShadow = false; });
+    fig.traverse(obj => {
+      obj.frustumCulled = false;
+      obj.castShadow = false;
+      if (obj.isMesh && obj.material) {
+        if (Array.isArray(obj.material)) obj.material = obj.material.map(fadeOf);
+        else obj.material = fadeOf(obj.material);
+      }
+    });
     ride.shell.add(fig);
     ride.rider = fig;
-    const rig = fig.userData.rig;
-    rig.torso.rotation.x = 0.16;
-    rig.head.rotation.x = 0.06;
-    function hold(arm, side) {
-      arm.spread.rotation.z = side * 0.4;
-      arm.pivot.rotation.x = -0.58;
-      arm.elbow.rotation.x = -1.02;
-    }
-    hold(rig.armL, -1);
-    hold(rig.armR, 1);
-    const L1 = THIGH_L, L2 = SHIN_L;
-    function bend(leg, ang) {
-      const px = cyc.bbX + Math.sin(ang) * cyc.crank;
-      const py = cyc.bbY - Math.cos(ang) * cyc.crank;
-      const dx = (px - cyc.hx) / FIG_SCALE;
-      const dy = (py - cyc.hy) / FIG_SCALE;
-      const F = dx;
-      const D = -(dy + 0.02);
-      const reach = Math.hypot(F, D) || 0.001;
-      const max = L1 + L2 - 0.015;
-      const min = Math.abs(L1 - L2) + 0.02;
-      const dist = Math.max(min, Math.min(max, reach));
-      const aimF = F * (dist / reach);
-      const aimD = D * (dist / reach);
-      const theta = Math.atan2(-aimF, aimD);
-      const cosB = (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist);
-      const beta = Math.acos(Math.max(-1, Math.min(1, cosB)));
-      const h = theta - beta;
-      const kneeF = -L1 * Math.sin(h);
-      const kneeD = L1 * Math.cos(h);
-      const shin = Math.atan2(-(aimF - kneeF), aimD - kneeD);
-      const k = shin - h;
-      leg.pivot.rotation.x = h;
-      leg.knee.rotation.x = k;
-      leg.ankle.rotation.x = -(h + k);
-    }
     ride.pedal = function (spin) {
-      cyc.ang -= spin / (cyc.wheel * 2.15);
+      cyc.ang += spin / (cyc.wheel * 2.15);
       if (fig.studio) fig.studio.pedalAngle = cyc.ang;
-      bend(rig.legL, cyc.ang);
-      bend(rig.legR, cyc.ang + Math.PI);
-      const spun = cyc.ang + Math.PI;
-      if (ride.crank) ride.crank.rotation.z = spun;
+      const crankZ = -cyc.ang;
+      if (ride.crank) ride.crank.rotation.z = crankZ;
       if (ride.pedals) {
         for (let i = 0; i < ride.pedals.length; i++) {
           const item = ride.pedals[i];
-          item.pedal.rotation.z = -spun - item.armZ;
+          item.pedal.rotation.z = -crankZ - item.armZ;
         }
       }
     };
@@ -30587,7 +30553,7 @@ function walkBlocked(x, z, opts) {
     }
   }
   if (opts && opts.bodies === false) return false;
-  if (z < -1.5) for (let i = 0; i < traffic.length; i++) {
+  if (z < -3.3) for (let i = 0; i < traffic.length; i++) {
     const root = traffic[i];
     const ride = root.userData && root.userData.ride;
     if (!ride) continue;
@@ -37484,6 +37450,7 @@ function renderWetReflection() {
     for (let hi = 0; hi < alleyHeat.length; hi++) pushFig(alleyHeat[hi].fig);
     for (let ki = 0; ki < keepers.length; ki++) pushFig(keepers[ki]);
     for (let gi = 0; gi < gangFight.length; gi++) pushFig(gangFight[gi].fig);
+    for (let ti = 0; ti < traffic.length; ti++) pushFig(traffic[ti]);
     if (typeof run !== "undefined" && run) {
       pushFig(run.rider);
       if (run.jobs) {
@@ -38931,7 +38898,7 @@ function flushFigure(fig) {
   }
   syncPavement(now);
   if (traffic.step) {
-    const dt = Math.min(0.05, Math.max(0, now - (traffic.t || now)));
+    const dt = (runPaused() || run.sheet) ? 0 : Math.min(0.05, Math.max(0, now - (traffic.t || now)));
     traffic.t = now;
     traffic.step(now, dt, lit);
   }
@@ -38988,7 +38955,6 @@ function flushFigure(fig) {
   stepAlleyHeat(now, dt);
   stepGangFight(now, dt);
   stepAlleySleep(now);
-  stepStudioCyclists(now, dt);
   syncWalkShadow(dt);
   fillBodyLights(now, dt);
   if (rain.visible) {
