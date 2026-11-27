@@ -23204,6 +23204,13 @@ const CARGO_KEYS = Object.keys(CARGO_CATALOG);
 // ============================================================================
 const matCache = new Map();
 const unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+const _unitBoxPos = unitBoxGeo.attributes.position.array;
+const _unitBoxNrm = unitBoxGeo.attributes.normal.array;
+const _unitBoxUv = unitBoxGeo.attributes.uv.array;
+const _unitBoxIdx = unitBoxGeo.index.array;
+const _voxelColTmp = new THREE.Color();
+const faceTexCache = new Map();
+const torsoTexCache = new Map();
 
 function getVoxelMat(colorHex, roughness = 0.84, metalness = 0.04, emissiveHex = 0x000000, opacity = 1.0) {
     const key = `${colorHex}_${roughness}_${metalness}_${emissiveHex}_${opacity}`;
@@ -23223,22 +23230,137 @@ function getVoxelMat(colorHex, roughness = 0.84, metalness = 0.04, emissiveHex =
     return matCache.get(key);
 }
 
+function getVoxelVertexMat(roughness = 0.84, metalness = 0.04, emissiveHex = 0x000000, opacity = 1.0) {
+    const key = `vc_${roughness}_${metalness}_${emissiveHex}_${opacity}`;
+    if (!matCache.has(key)) {
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            vertexColors: true,
+            roughness,
+            metalness,
+            emissive: emissiveHex,
+            emissiveIntensity: emissiveHex ? 0.65 : 0,
+            transparent: opacity < 1.0,
+            opacity
+        });
+        mat.userData.voxelShared = 1;
+        matCache.set(key, mat);
+    }
+    return matCache.get(key);
+}
+
+function getFaceMatCached(spec) {
+    const key = `fmat_${spec.skinColor}|${spec.hairColor}|${spec.facialHair || ''}`;
+    let mat = matCache.get(key);
+    if (!mat) {
+        mat = new THREE.MeshStandardMaterial({ map: getProceduralFaceTexture(spec), roughness: 0.82, metalness: 0.02 });
+        mat.userData.voxelShared = 1;
+        matCache.set(key, mat);
+    }
+    return mat;
+}
+
+function getTorsoMatCached(primaryHex, secondaryHex, pattern) {
+    const key = `tmat_${primaryHex}|${secondaryHex}|${pattern || ''}`;
+    let mat = matCache.get(key);
+    if (!mat) {
+        mat = new THREE.MeshStandardMaterial({ map: getProceduralTorsoTexture(primaryHex, secondaryHex, pattern), roughness: 0.86, metalness: 0.03 });
+        mat.userData.voxelShared = 1;
+        matCache.set(key, mat);
+    }
+    return mat;
+}
+
 /**
- * Builds a group of crisp cubic voxels.
+ * Builds a group of crisp cubic voxels, merging blocks that share material
+ * properties into one vertex-colored BufferGeometry to cut draw calls ~5-15x.
  * Each entry: [x, y, z, w, h, d, colorHex, emissiveHex?, roughness?, metalness?]
  */
 function buildVoxelCluster(blocks, scale = 1.0) {
     const group = new THREE.Group();
-    for (let i = 0; i < blocks.length; i++) {
-        const b = blocks[i];
+    const len = blocks ? blocks.length : 0;
+    if (len === 0) return group;
+    if (len === 1) {
+        const b = blocks[0];
         const [x, y, z, w, h, d, col, em = 0x000000, rough = 0.84, metal = 0.04] = b;
         const mesh = new THREE.Mesh(unitBoxGeo, getVoxelMat(col, rough, metal, em));
         mesh.position.set(x * scale, y * scale, z * scale);
         mesh.scale.set(w * scale, h * scale, d * scale);
-        mesh.castShadow = true;
+        mesh.castShadow = false;
         mesh.receiveShadow = true;
         group.add(mesh);
+        return group;
     }
+    const buckets = new Map();
+    for (let i = 0; i < len; i++) {
+        const b = blocks[i];
+        const em = b[7] || 0x000000;
+        const rough = b[8] == null ? 0.84 : b[8];
+        const metal = b[9] == null ? 0.04 : b[9];
+        const key = `${em}_${rough}_${metal}`;
+        let list = buckets.get(key);
+        if (!list) buckets.set(key, list = { em, rough, metal, items: [] });
+        list.items.push(b);
+    }
+    const bVCount = _unitBoxPos.length / 3;
+    const bICount = _unitBoxIdx.length;
+    buckets.forEach(bucket => {
+        const items = bucket.items;
+        if (items.length === 1) {
+            const b = items[0];
+            const mesh = new THREE.Mesh(unitBoxGeo, getVoxelMat(b[6], bucket.rough, bucket.metal, bucket.em));
+            mesh.position.set(b[0] * scale, b[1] * scale, b[2] * scale);
+            mesh.scale.set(b[3] * scale, b[4] * scale, b[5] * scale);
+            mesh.castShadow = false;
+            mesh.receiveShadow = true;
+            group.add(mesh);
+            return;
+        }
+        const totalV = items.length * bVCount;
+        const totalI = items.length * bICount;
+        const pos = new Float32Array(totalV * 3);
+        const nrm = new Float32Array(totalV * 3);
+        const uv = new Float32Array(totalV * 2);
+        const colArr = new Float32Array(totalV * 3);
+        const idx = totalV > 65535 ? new Uint32Array(totalI) : new Uint16Array(totalI);
+        for (let k = 0; k < items.length; k++) {
+            const b = items[k];
+            const bx = b[0] * scale, by = b[1] * scale, bz = b[2] * scale;
+            const sx = b[3] * scale, sy = b[4] * scale, sz = b[5] * scale;
+            _voxelColTmp.set(b[6]);
+            const cr = _voxelColTmp.r, cg = _voxelColTmp.g, cb = _voxelColTmp.b;
+            const vOff = k * bVCount;
+            const v3 = vOff * 3;
+            const v2 = vOff * 2;
+            for (let p = 0; p < bVCount; p++) {
+                const p3 = p * 3, p2 = p * 2;
+                pos[v3 + p3] = _unitBoxPos[p3] * sx + bx;
+                pos[v3 + p3 + 1] = _unitBoxPos[p3 + 1] * sy + by;
+                pos[v3 + p3 + 2] = _unitBoxPos[p3 + 2] * sz + bz;
+                nrm[v3 + p3] = _unitBoxNrm[p3];
+                nrm[v3 + p3 + 1] = _unitBoxNrm[p3 + 1];
+                nrm[v3 + p3 + 2] = _unitBoxNrm[p3 + 2];
+                uv[v2 + p2] = _unitBoxUv[p2];
+                uv[v2 + p2 + 1] = _unitBoxUv[p2 + 1];
+                colArr[v3 + p3] = cr;
+                colArr[v3 + p3 + 1] = cg;
+                colArr[v3 + p3 + 2] = cb;
+            }
+            const iOff = k * bICount;
+            for (let p = 0; p < bICount; p++) idx[iOff + p] = _unitBoxIdx[p] + vOff;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
+        geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+        geo.setAttribute("color", new THREE.BufferAttribute(colArr, 3));
+        geo.setIndex(new THREE.BufferAttribute(idx, 1));
+        geo.computeBoundingSphere();
+        const mesh = new THREE.Mesh(geo, getVoxelVertexMat(bucket.rough, bucket.metal, bucket.em));
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+    });
     return group;
 }
 
@@ -23246,6 +23368,8 @@ function buildVoxelCluster(blocks, scale = 1.0) {
 // 3. 16x16 CRISP PIXEL-ART TEXTURES (NEAREST FILTER + WEATHERING)
 // ============================================================================
 function getProceduralFaceTexture(spec) {
+    const fKey = `${spec.skinColor}|${spec.hairColor}|${spec.facialHair || ''}`;
+    if (faceTexCache.has(fKey)) return faceTexCache.get(fKey);
     const c = document.createElement('canvas');
     c.width = 16; c.height = 16;
     const ctx = c.getContext('2d');
@@ -23291,10 +23415,13 @@ function getProceduralFaceTexture(spec) {
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.needsUpdate = true;
+    faceTexCache.set(fKey, tex);
     return tex;
 }
 
 function getProceduralTorsoTexture(primaryHex, secondaryHex, pattern) {
+    const tKey = `${primaryHex}|${secondaryHex}|${pattern || ''}`;
+    if (torsoTexCache.has(tKey)) return torsoTexCache.get(tKey);
     const c = document.createElement('canvas');
     c.width = 16; c.height = 16;
     const ctx = c.getContext('2d');
@@ -23439,6 +23566,7 @@ function getProceduralTorsoTexture(primaryHex, secondaryHex, pattern) {
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.needsUpdate = true;
+    torsoTexCache.set(tKey, tex);
     return tex;
 }
 
@@ -23894,7 +24022,13 @@ class CarryStackManager {
 
     rebuild(slotTypes) {
         while (this.holder.children.length > 0) {
-            this.holder.remove(this.holder.children[0]);
+            const ch = this.holder.children[0];
+            ch.traverse(obj => {
+                if (obj.isMesh && obj.geometry && obj.geometry !== unitBoxGeo && !(obj.geometry.userData && obj.geometry.userData.voxelSharedGeo)) {
+                    obj.geometry.dispose();
+                }
+            });
+            this.holder.remove(ch);
         }
         this.tiers = [];
         let curY = 0;
@@ -23953,7 +24087,8 @@ class CarryStackManager {
 // ============================================================================
 // 6. VOXEL CHARACTER BUILDER (32 RIGGED AVATARS)
 // ============================================================================
-function studioBuildCharacter(spec) {
+function studioBuildCharacter(spec, opts) {
+    const headOnly = !!(opts && opts.headOnly);
     const root = new THREE.Group();
     const b = spec.build || { width: 1.0, height: 1.0, belly: 0.0 };
     const wScale = b.width || 1.0;
@@ -23961,79 +24096,73 @@ function studioBuildCharacter(spec) {
     const isChild = !!b.isChild;
 
     const jointHelpers = [];
-    function addJointMarker(parent) {
-        const m = new THREE.Mesh(unitBoxGeo, getVoxelMat(0xd4a348, 0.3, 0.1, 0x8a611c));
-        m.scale.set(0.045, 0.045, 0.045);
-        m.visible = false;
-        parent.add(m);
-        jointHelpers.push(m);
-    }
+    function addJointMarker() {}
 
     // Core hierarchy
     const pelvis = new THREE.Group();
     pelvis.position.set(0, 0.86 * hScale, 0);
     root.add(pelvis);
-    addJointMarker(pelvis);
-
-    // Pelvis voxel block
-    const pv = 0.032;
-    pelvis.add(buildVoxelCluster([
-        [0, 0, 0, 8.6 * wScale, 3.6, 5.2, spec.pantsColor]
-    ], pv));
 
     const spine = new THREE.Group();
     spine.position.set(0, 0.08 * hScale, 0);
     pelvis.add(spine);
-    addJointMarker(spine);
 
-    // Torso box with crisp 16x16 weathered texture
     const torsoW = 0.34 * wScale;
     const torsoH = 0.44 * hScale;
     const torsoD = (0.20 + (b.belly || 0) * 0.14);
-    const torsoTex = getProceduralTorsoTexture(spec.shirtColor, spec.underShirtColor, spec.torsoPattern);
-    const sideShirtMat = getVoxelMat(spec.shirtColor, 0.86);
-    const frontTorsoMat = new THREE.MeshStandardMaterial({ map: torsoTex, roughness: 0.86, metalness: 0.03 });
-    const torsoMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(torsoW, torsoH, torsoD),
-        [sideShirtMat, sideShirtMat, sideShirtMat, sideShirtMat, frontTorsoMat, sideShirtMat]
-    );
-    torsoMesh.position.set(0, torsoH * 0.5, 0);
-    torsoMesh.castShadow = true;
-    torsoMesh.receiveShadow = true;
-    spine.add(torsoMesh);
+    if (!headOnly) {
+        // Pelvis voxel block
+        const pv = 0.032;
+        pelvis.add(buildVoxelCluster([
+            [0, 0, 0, 8.6 * wScale, 3.6, 5.2, spec.pantsColor]
+        ], pv));
 
-    // Belly tier for heavy-set characters
-    if ((b.belly || 0) > 0.09) {
-        const bellyBox = new THREE.Mesh(unitBoxGeo, sideShirtMat);
-        bellyBox.scale.set(torsoW * 0.86, torsoH * 0.46, 0.06 + b.belly * 0.14);
-        bellyBox.position.set(0, torsoH * 0.30, torsoD * 0.5);
-        bellyBox.castShadow = true;
-        spine.add(bellyBox);
-    }
+        // Torso box with cached 16x16 weathered texture & shared unitBoxGeo
+        const sideShirtMat = getVoxelMat(spec.shirtColor, 0.86);
+        const frontTorsoMat = getTorsoMatCached(spec.shirtColor, spec.underShirtColor, spec.torsoPattern);
+        const torsoMesh = new THREE.Mesh(
+            unitBoxGeo,
+            [sideShirtMat, sideShirtMat, sideShirtMat, sideShirtMat, frontTorsoMat, sideShirtMat]
+        );
+        torsoMesh.scale.set(torsoW, torsoH, torsoD);
+        torsoMesh.position.set(0, torsoH * 0.5, 0);
+        torsoMesh.castShadow = false;
+        torsoMesh.receiveShadow = true;
+        spine.add(torsoMesh);
 
-    // Shoulder sweat towel
-    if (b.towel) {
-        spine.add(buildVoxelCluster([
-            [-3.2, 12.2, 2.2, 2.2, 5.5, 1.2, 0xb8b2a2],
-            [3.2, 12.2, 2.2, 2.2, 5.5, 1.2, 0xb8b2a2],
-            [0, 14.5, -1.5, 8.2, 1.6, 2.8, 0xb8b2a2]
-        ], 0.028 * hScale));
-    }
+        // Belly tier for heavy-set characters
+        if ((b.belly || 0) > 0.09) {
+            const bellyBox = new THREE.Mesh(unitBoxGeo, sideShirtMat);
+            bellyBox.scale.set(torsoW * 0.86, torsoH * 0.46, 0.06 + b.belly * 0.14);
+            bellyBox.position.set(0, torsoH * 0.30, torsoD * 0.5);
+            bellyBox.castShadow = false;
+            bellyBox.receiveShadow = true;
+            spine.add(bellyBox);
+        }
 
-    // Tool belt for Hardware / Electrician
-    if (b.toolBelt) {
-        spine.add(buildVoxelCluster([
-            [0, 1.2, 0, 11.2 * wScale, 1.6, 6.8, 0x452d1c],
-            [-4.8 * wScale, 0.8, 1.8, 2.2, 2.6, 2.0, 0x5c3c24],
-            [4.8 * wScale, 0.8, 1.8, 2.2, 2.6, 2.0, 0x5c3c24]
-        ], 0.032));
+        // Shoulder sweat towel
+        if (b.towel) {
+            spine.add(buildVoxelCluster([
+                [-3.2, 12.2, 2.2, 2.2, 5.5, 1.2, 0xb8b2a2],
+                [3.2, 12.2, 2.2, 2.2, 5.5, 1.2, 0xb8b2a2],
+                [0, 14.5, -1.5, 8.2, 1.6, 2.8, 0xb8b2a2]
+            ], 0.028 * hScale));
+        }
+
+        // Tool belt for Hardware / Electrician
+        if (b.toolBelt) {
+            spine.add(buildVoxelCluster([
+                [0, 1.2, 0, 11.2 * wScale, 1.6, 6.8, 0x452d1c],
+                [-4.8 * wScale, 0.8, 1.8, 2.2, 2.6, 2.0, 0x5c3c24],
+                [4.8 * wScale, 0.8, 1.8, 2.2, 2.6, 2.0, 0x5c3c24]
+            ], 0.032));
+        }
     }
 
     // Neck & Head
     const neck = new THREE.Group();
     neck.position.set(0, torsoH, 0);
     spine.add(neck);
-    addJointMarker(neck);
 
     const head = new THREE.Group();
     head.position.set(0, 0.05 * hScale, 0);
@@ -24041,15 +24170,15 @@ function studioBuildCharacter(spec) {
 
     const headScale = isChild ? 1.18 : 1.0;
     const hv = 0.032 * headScale;
-    const faceTex = getProceduralFaceTexture(spec);
     const skinMat = getVoxelMat(spec.skinColor, 0.82);
-    const faceMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.82, metalness: 0.02 });
+    const faceMat = getFaceMatCached(spec);
     const headBox = new THREE.Mesh(
-        new THREE.BoxGeometry(7.2 * hv, 7.4 * hv, 6.8 * hv),
+        unitBoxGeo,
         [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat]
     );
+    headBox.scale.set(7.2 * hv, 7.4 * hv, 6.8 * hv);
     headBox.position.set(0, 3.7 * hv, 0);
-    headBox.castShadow = true;
+    headBox.castShadow = false;
     headBox.receiveShadow = true;
     head.add(headBox);
 
@@ -24216,6 +24345,10 @@ function studioBuildCharacter(spec) {
         ], hv));
     }
 
+    if (headOnly) {
+        return { spec, root, pelvis, spine, neck, head, hScale, basePelvisY: 0.86 * hScale };
+    }
+
     // Arms Builder (Left & Right)
     function buildArm(side) {
         const shoulder = new THREE.Group();
@@ -24291,13 +24424,7 @@ function studioBuildCharacter(spec) {
     rightProp.position.set(0, -0.05 * hScale, 0.02);
     rightArm.hand.add(rightProp);
 
-    // Attach Voxel Umbrella to Right Hand (hidden unless umbrella_rain)
-    const umbrellaPalette = [0x3b4d5e, 0x5c3638, 0x3b5245, 0x4b4459, 0x6b5838];
-    const umbrellaProp = createKowloonVoxelUmbrella(umbrellaPalette[spec.index % umbrellaPalette.length]);
-    umbrellaProp.position.set(0, -0.04 * hScale, 0.02);
-    rightArm.hand.add(umbrellaProp);
-
-    // Attach Dynamic Carry Stack Holder to Spine
+    // Lazy-attached props: umbrella, stool, and goodsBike are built on first use instead of bloating every NPC with ~120 hidden meshes.
     const cargoHolder = new THREE.Group();
     cargoHolder.position.set(0, 0.12 * hScale, 0.28);
     cargoHolder.visible = false;
@@ -24309,7 +24436,6 @@ function studioBuildCharacter(spec) {
         const hip = new THREE.Group();
         hip.position.set(side * 0.105 * wScale, -0.04 * hScale, 0);
         pelvis.add(hip);
-        addJointMarker(hip);
 
         const thighLen = 0.38 * hScale;
         const shinLen = 0.36 * hScale;
@@ -24318,24 +24444,26 @@ function studioBuildCharacter(spec) {
         const thigh = new THREE.Mesh(unitBoxGeo, getVoxelMat(spec.pantsColor, 0.88));
         thigh.scale.set(legW, thighLen, legW);
         thigh.position.set(0, -thighLen * 0.5, 0);
-        thigh.castShadow = true;
+        thigh.castShadow = false;
+        thigh.receiveShadow = true;
         hip.add(thigh);
 
         const knee = new THREE.Group();
         knee.position.set(0, -thighLen, 0);
         hip.add(knee);
-        addJointMarker(knee);
 
         const shin = new THREE.Mesh(unitBoxGeo, getVoxelMat(spec.pantsColor, 0.88));
         shin.scale.set(legW * 0.9, shinLen, legW * 0.9);
         shin.position.set(0, -shinLen * 0.5, 0);
-        shin.castShadow = true;
+        shin.castShadow = false;
+        shin.receiveShadow = true;
         knee.add(shin);
 
         const shoe = new THREE.Mesh(unitBoxGeo, getVoxelMat(spec.shoeColor, 0.82));
         shoe.scale.set(legW * 1.02, 0.085 * hScale, legW * 1.65);
         shoe.position.set(0, -shinLen - 0.03 * hScale, 0.035);
-        shoe.castShadow = true;
+        shoe.castShadow = false;
+        shoe.receiveShadow = true;
         knee.add(shoe);
 
         return { hip, knee };
@@ -24344,15 +24472,6 @@ function studioBuildCharacter(spec) {
     const leftLeg = buildLeg(-1);
     const rightLeg = buildLeg(1);
 
-    // Kowloon Red Plastic Stool (for Sitting animations)
-    const stool = createKowloonRedStool();
-    stool.position.set(0, 0, -0.04);
-    root.add(stool);
-
-    // Kowloon Goods Bicycle (for Cycling animation)
-    const goodsBike = createKowloonGoodsBicycle(b.bikeCargo || spec.defaultCargo || 'kerosene_tins');
-    root.add(goodsBike);
-
     return {
         spec, root, pelvis, spine, neck, head,
         lEyelid, rEyelid, lBrow, rBrow, mouth, sweatDrops,
@@ -24360,8 +24479,8 @@ function studioBuildCharacter(spec) {
         rShoulder: rightArm.shoulder, rElbow: rightArm.elbow, rHand: rightArm.hand,
         lHip: leftLeg.hip, lKnee: leftLeg.knee,
         rHip: rightLeg.hip, rKnee: rightLeg.knee,
-        leftProp, rightProp, umbrellaProp, cargoHolder, carryStackManager,
-        stool, goodsBike, jointHelpers,
+        leftProp, rightProp, umbrellaProp: null, cargoHolder, carryStackManager,
+        stool: null, goodsBike: null, jointHelpers,
         basePelvisY: 0.86 * hScale,
         hScale
     };
@@ -24389,25 +24508,61 @@ function resetRigPose(rig) {
     rig.lBrow.rotation.z = 0;
     rig.rBrow.rotation.z = 0;
     rig.mouth.scale.y = 0.48 * 0.032 * (rig.spec.build.isChild ? 1.18 : 1.0);
-    rig.stool.visible = false;
-    rig.stool.scale.set(1, 1, 1);
-    rig.goodsBike.visible = false;
-    rig.umbrellaProp.visible = false;
+    if (rig.stool) {
+        rig.stool.visible = false;
+        rig.stool.scale.set(1, 1, 1);
+    }
+    if (rig.goodsBike) rig.goodsBike.visible = false;
+    if (rig.umbrellaProp) rig.umbrellaProp.visible = false;
     rig.cargoHolder.visible = false;
     rig.leftProp.visible = rig.showProps !== false;
     rig.rightProp.visible = rig.showProps !== false;
     rig.sweatDrops.forEach(s => s.visible = false);
 }
 
+const UMBRELLA_PALETTE = [0x3b4d5e, 0x5c3638, 0x3b5245, 0x4b4459, 0x6b5838];
+function ensureRigStool(rig) {
+    if (rig.stool) return rig.stool;
+    const stool = createKowloonRedStool();
+    stool.position.set(0, 0, -0.04);
+    rig.root.add(stool);
+    if (typeof clipStudio === "function") clipStudio(stool);
+    rig.stool = stool;
+    if (rig.joints) rig.joints.stool = stool;
+    return stool;
+}
+function ensureRigUmbrella(rig) {
+    if (rig.umbrellaProp) return rig.umbrellaProp;
+    const idx = (rig.spec && rig.spec.index) || 0;
+    const umb = createKowloonVoxelUmbrella(UMBRELLA_PALETTE[idx % UMBRELLA_PALETTE.length]);
+    umb.position.set(0, -0.04 * (rig.hScale || 1), 0.02);
+    rig.rHand.add(umb);
+    if (typeof clipStudio === "function") clipStudio(umb);
+    rig.umbrellaProp = umb;
+    if (rig.joints) rig.joints.umbrellaProp = umb;
+    return umb;
+}
+function ensureRigGoodsBike(rig) {
+    if (rig.goodsBike) return rig.goodsBike;
+    const b = (rig.spec && rig.spec.build) || {};
+    const bike = createKowloonGoodsBicycle(b.bikeCargo || (rig.spec && rig.spec.defaultCargo) || 'kerosene_tins');
+    rig.root.add(bike);
+    if (typeof clipStudio === "function") clipStudio(bike);
+    rig.goodsBike = bike;
+    if (rig.joints) rig.joints.goodsBike = bike;
+    return bike;
+}
+
 // Plant seated shoes flush on the floor (pelvisY = 0.52 * h -> soleY = +0.0017 * h)
 // and scale the built-in Hong Kong red plastic stool cleanly to match character height.
 function seatStudioStool(rig, h) {
     const sc = h || 1;
-    if (rig.stool) {
-        rig.stool.visible = true;
+    const stool = ensureRigStool(rig);
+    if (stool) {
+        stool.visible = true;
         const sy = Math.max(0.55, (0.52 * sc - 0.054) / 0.470);
         const sxz = Math.min(1, 0.45 + 0.55 * sc);
-        rig.stool.scale.set(sxz, sy, sxz);
+        stool.scale.set(sxz, sy, sxz);
     }
     rig.pelvis.position.set(0, 0.52 * sc, -0.02);
 }
@@ -24649,8 +24804,9 @@ function studioPoseCharacter(rig, animId, t) {
         rig.carryStackManager.updateStackKinematics(t, isWalking);
     } else if (animId === 'umbrella_rain') {
         // Carrying Umbrella in Monsoon Rain (Fixed Upright Canopy Orientation)
+        const umb = ensureRigUmbrella(rig);
         rig.rightProp.visible = false;
-        rig.umbrellaProp.visible = true;
+        umb.visible = true;
 
         const c = cyc(4.6);
         const gust = Math.max(0, Math.sin(t * 1.15)) * 0.18;
@@ -24679,25 +24835,29 @@ function studioPoseCharacter(rig, animId, t) {
 
         // Exact upright pitch compensation so umbrella shaft points straight UP (+Y)
         // and tilts gently forward into monsoon gusts
-        rig.umbrellaProp.rotation.set(
+        umb.rotation.set(
             Math.PI + spinePitch + shoulderPitch + elbowPitch + gust * 0.45,
             0,
             0.18
         );
 
         // Animate water droplets dripping off umbrella canopy rim
-        if (rig.umbrellaProp.userData.drips) {
-            rig.umbrellaProp.userData.drips.forEach(d => {
+        if (umb.userData.drips) {
+            const dripsArr = umb.userData.drips;
+            for (let di = 0; di < dripsArr.length; di++) {
+                const d = dripsArr[di];
                 const p = (t * 2.6 + d.userData.phase) % 1.0;
                 d.position.y = d.userData.baseY - p * 0.48;
-            });
+            }
         }
         if (gust > 0.1) {
             rig.lBrow.rotation.z = -0.18; rig.rBrow.rotation.z = 0.18;
         }
     } else if (animId === 'ride_bike') {
         // Heavy-Duty 28" Kowloon Goods Bicycle Cycling (suppress built-in voxel bike when mounted on traffic roadster)
-        rig.goodsBike.visible = !rig.mountBike;
+        let bike = rig.goodsBike;
+        if (!rig.mountBike) bike = ensureRigGoodsBike(rig);
+        if (bike) bike.visible = !rig.mountBike;
         rig.leftProp.visible = false;
         rig.rightProp.visible = false;
 
@@ -24719,8 +24879,8 @@ function studioPoseCharacter(rig, animId, t) {
         rig.rKnee.rotation.x = 0.92 - Math.cos(pedal) * 0.52;
 
         // Spin spoked wheels & pedal crank on standalone voxel goodsBike
-        if (rig.goodsBike.visible) {
-            const u = rig.goodsBike.userData;
+        if (bike && bike.visible) {
+            const u = bike.userData;
             if (u) {
                 const wheelAng = (typeof rig.wheelAngle === "number") ? rig.wheelAngle : pedal * 2.15;
                 u.frontWheel.rotation.x = wheelAng;
@@ -25314,12 +25474,18 @@ function studioGesture(fig) {
 // Metres the body should travel in one full step cycle so the planted foot
 // stays with the ground. The reach is the ankle's front-to-back travel in
 // that clip; the other foot covers the same reach on the opposite half.
+const gaitStrideCache = new Map();
 function gaitStride(clip, pack, scale) {
   const build = pack.spec && pack.spec.build;
   const h = (build && build.height) || 1;
+  const sc = scale || FIG_SCALE;
+  const carrySub = clip === "carry_object" ? (pack.carrySubMode || "walk") : "";
+  const carryN = clip === "carry_object" ? Math.max(1, Math.min(5, pack.carryCount || 1)) : 0;
+  const key = clip + "|" + h + "|" + sc.toFixed(3) + "|" + carrySub + "|" + carryN;
+  const cached = gaitStrideCache.get(key);
+  if (cached !== undefined) return cached;
   const L1 = 0.39 * h;
   const L2 = 0.39 * h;
-  const sc = scale || FIG_SCALE;
   let pose = null;
   if (clip === "walk") {
     pose = (p) => ({
@@ -25351,9 +25517,8 @@ function gaitStride(clip, pack, scale) {
       knee: 0.12 + Math.max(0, -Math.cos(p) * 0.72),
       pitch: 0
     });
-  } else if (clip === "carry_object" && (pack.carrySubMode || "walk") === "walk") {
-    const count = Math.max(1, Math.min(5, pack.carryCount || 1));
-    const strain = (count - 1) / 4;
+  } else if (clip === "carry_object" && carrySub === "walk") {
+    const strain = (carryN - 1) / 4;
     const baseKnee = 0.14 + strain * 0.42;
     const amp = 0.48 - strain * 0.20;
     const center = -baseKnee * 0.55;
@@ -25364,21 +25529,26 @@ function gaitStride(clip, pack, scale) {
       pitch: 0
     });
   }
-  if (!pose) return 0;
-  let zMin = Infinity;
-  let zMax = -Infinity;
-  for (let i = 0; i < 24; i++) {
-    const q = pose((i / 24) * Math.PI * 2);
-    const a = q.pitch + q.hip;
-    const z = -(L1 * Math.sin(a) + L2 * Math.sin(a + q.knee));
-    if (z < zMin) zMin = z;
-    if (z > zMax) zMax = z;
+  let res = 0;
+  if (pose) {
+    let zMin = Infinity;
+    let zMax = -Infinity;
+    for (let i = 0; i < 24; i++) {
+      const q = pose((i / 24) * Math.PI * 2);
+      const a = q.pitch + q.hip;
+      const z = -(L1 * Math.sin(a) + L2 * Math.sin(a + q.knee));
+      if (z < zMin) zMin = z;
+      if (z > zMax) zMax = z;
+    }
+    res = Math.max(0.25, (zMax - zMin) * 2 * sc);
   }
-  return Math.max(0.25, (zMax - zMin) * 2 * sc);
+  gaitStrideCache.set(key, res);
+  return res;
 }
 function poseStudioCast(now, dt) {
   const step = dt > 0 ? Math.min(0.05, dt) : 0.016;
-  const seen = new Set();
+  const seen = poseStudioCast.seen || (poseStudioCast.seen = new Set());
+  seen.clear();
   function take(fig) {
     if (!fig || !fig.studio) return;
     const ud = fig.userData;
@@ -25449,34 +25619,20 @@ function poseStudioCast(now, dt) {
 
 function dressHead(portrait, wear, matOf) {
   const spec = studioSpecOf(wear || {});
-  const fig = createKowloonCharacter(spec);
-  fig.studio = fig.userData;
-  const head = fig.studio.joints.head;
-  const neck = fig.studio.joints.neck;
-  fig.traverse(function (obj) {
+  const rig = studioBuildCharacter(spec, { headOnly: true });
+  const neck = rig.neck;
+  const head = rig.head;
+  neck.position.set(0, -head.position.y, 0);
+  neck.traverse(function (obj) {
     if (!obj.isMesh) return;
-    let p = obj, keep = false;
-    while (p) {
-      if (p === head || p === neck) { keep = true; break; }
-      p = p.parent;
-    }
     obj.castShadow = false;
     obj.receiveShadow = false;
-    if (!keep) { obj.visible = false; return; }
     if (matOf) {
       if (Array.isArray(obj.material)) obj.material = obj.material.map(matOf);
       else obj.material = matOf(obj.material);
     }
   });
-  portrait.add(fig);
-  fig.updateMatrixWorld(true);
-  const hp = new THREE.Vector3();
-  const rp = new THREE.Vector3();
-  head.getWorldPosition(hp);
-  fig.getWorldPosition(rp);
-  fig.position.x -= hp.x - rp.x;
-  fig.position.y -= hp.y - rp.y;
-  fig.position.z -= hp.z - rp.z;
+  portrait.add(neck);
 }
 
 function bakeDirect(group, skip) {
@@ -27040,7 +27196,7 @@ function disposeOwned(fig) {
       mat.dispose();
     }
     const geo = obj.geometry;
-    if (!geo || geo === unitBoxGeo || dumped.has(geo)) return;
+    if (!geo || geo === unitBoxGeo || (geo.userData && geo.userData.voxelSharedGeo) || dumped.has(geo)) return;
     dumped.add(geo);
     geo.dispose();
   });
@@ -29626,6 +29782,7 @@ const walkShadow = {
   lastX: SITE_W / 2, lastZ: SITE_D / 2, lastW: 210
 };
 function syncWalkShadow(dt) {
+  if (sun.intensity < 0.02) return;
   const step = Math.min(0.05, Math.max(0.001, dt || 0.016));
   const k = 1 - Math.exp(-step * 4.5);
   const wantTight = !!walkMode && !roofStay;
@@ -29641,7 +29798,7 @@ function syncWalkShadow(dt) {
   walkShadow.cz += (goalZ - walkShadow.cz) * k;
   const movedPos = Math.hypot(walkShadow.cx - walkShadow.lastX, walkShadow.cz - walkShadow.lastZ);
   const movedFrustum = Math.abs(walkShadow.halfW - walkShadow.lastW);
-  if (movedPos < 0.35 && movedFrustum < 0.25) return;
+  if (movedPos < 2.5 && movedFrustum < 1.2) return;
   walkShadow.lastX = walkShadow.cx;
   walkShadow.lastZ = walkShadow.cz;
   walkShadow.lastW = walkShadow.halfW;
@@ -29746,7 +29903,7 @@ function todShort(from, to) {
   return d;
 }
 function setTod(name) {
-  if (run.day) return;
+  if (run && run.day) return;
   if (name === "auto") {
     const heldByUs = todLock != null || stepSky.glide;
     todLock = null;
@@ -29784,7 +29941,7 @@ function setTod(name) {
   paintSky();
 }
 // Half the showers carry a storm. A dry spell, and the next rain, roll again.
-const storm = { on: false, rolled: false, armed: false, next: 0, t0: -20, far: true, az: 0, seed: 1, k: 0, exp: null, lit: false };
+var storm = { on: false, rolled: false, armed: false, next: 0, t0: -20, far: true, az: 0, seed: 1, k: 0, exp: null, lit: false };
 function shiftAtmosphereClocks(delta) {
   if (!(delta > 0)) return;
   if (stepSky.t0 != null) stepSky.t0 += delta;
@@ -31567,9 +31724,15 @@ function runCargoKey(item) {
 }
 function disposeCarryStack(holder) {
   if (!holder) return;
-  // Cargo voxels share the studio box and the material cache. Detach the
-  // stack and leave those shared pieces for the next load.
-  while (holder.children.length) holder.remove(holder.children[0]);
+  while (holder.children.length) {
+    const ch = holder.children[0];
+    ch.traverse(function (obj) {
+      if (obj.isMesh && obj.geometry && obj.geometry !== unitBoxGeo && !(obj.geometry.userData && obj.geometry.userData.voxelSharedGeo)) {
+        obj.geometry.dispose();
+      }
+    });
+    holder.remove(ch);
+  }
 }
 function dressCarryStack(holder) {
   holder.traverse(function (obj) {
@@ -31902,7 +32065,7 @@ const RUN_COPY = {
 const SHIFT_SECS = 180;
 const START_PURSE = 0;
 const FARE_BASE = { green: 12, yellow: 22, red: 36 };
-const run = {
+var run = {
   purse: START_PURSE, day: false, ended: false, sheet: false, intro: 3,
   jobs: [], slips: [], runs: [], openRun: null, shops: null,
   seq: 1, speed: 0, wasFast: false, fastAt: -10, dropCool: 0,
@@ -34818,9 +34981,27 @@ function miniMapDraw() {
   const view = miniMapEls();
   if (!view || !walkMode) return;
   view.hidden = false;
+  if ((typeof runPaused === "function" && runPaused()) || (typeof run !== "undefined" && run && run.sheet)) return;
+  let fogMoved = false;
   if (!roofStay && (miniMap.lastX == null || Math.hypot(walkX - miniMap.lastX, walkZ - miniMap.lastZ) > 0.45)) {
     miniMapVisit(walkX, walkZ);
+    fogMoved = true;
   }
+  const nowSec = performance.now() * 0.001;
+  let sig = Math.round(walkX * 20) + "|" + Math.round(walkZ * 20) + "|" + Math.round(miniMapYaw() * 200) + "|" + (roofStay ? 1 : 0);
+  const jobs = (typeof run !== "undefined" && run && run.jobs) ? run.jobs : [];
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (j.state === "carried" || j.state === "dropped") sig += "|" + j.id + j.state + runFareHue(j, nowSec);
+  }
+  const shops = (typeof run !== "undefined" && run && run.shops) ? run.shops : [];
+  let slipBits = 0;
+  for (let i = 0; i < shops.length; i++) {
+    if (shops[i].slip) slipBits = (slipBits * 31 + (i + 1)) | 0;
+  }
+  sig += "|" + slipBits;
+  if (!fogMoved && miniMap.drawSig === sig) return;
+  miniMap.drawSig = sig;
   const ctx = miniMap.ctx;
   const metersW = miniMap.span;
   const pxPerM = view.width / metersW;
@@ -35584,6 +35765,7 @@ clipPavement();
   });
 })();
 function squareMovers() {
+  if (Math.abs(SHEAR_K) < 1e-6) return;
   for (let i = 0; i < laundry.length; i++) applySquare(laundry[i], false);
   if (wxNow.rain < 0.04) return;
   for (let i = 0; i < drips.length; i++) applySquare(drips[i], false);
@@ -35725,14 +35907,18 @@ function packMasses() {
     // one block each, so those can go with the shell.
     if (mesh.material && mesh.material !== addMass.roofMat && mesh.material !== addMass.tempMat) mesh.material.dispose();
     mesh.material = null;
-    // The packed mesh holds the vertices that are drawn. Roofs keep their
-    // box, because the children read its width and depth. Wall shells do not.
-    if (geo && packKind === 1) {
+    // Dispose both wall shells and packed roofSlab source geometries; roofMirrorY only reads plain positions.
+    if (geo && (packKind === 1 || packKind === 2)) {
       mesh.geometry = null;
       geo.dispose();
     }
     if (mesh.parent) mesh.parent.remove(mesh);
   });
+  // Replace retained roof Mesh references with lightweight { position } records for roofMirrorY().
+  for (let ri = 0; ri < roofMeshes.length; ri++) {
+    const rm = roofMeshes[ri];
+    if (rm && rm.position) roofMeshes[ri] = { position: { x: rm.position.x, y: rm.position.y, z: rm.position.z } };
+  }
   const dropped = new Set(drop);
   for (let i = pickables.length - 1; i >= 0; i--) {
     if (dropped.has(pickables[i])) pickables.splice(i, 1);
@@ -35932,7 +36118,14 @@ function releaseGpuAttr(attr, asIndex) {
 function releaseGpuIndex(attr) {
   releaseGpuAttr(attr, true);
 }
-function parkInstanceMesh(mesh) {
+function parkInstanceMesh(mesh, hardRelease) {
+  // During active walk streaming, hide in-place and keep the high-water-mark VBO
+  // so turning down an alley never triggers mid-frame GPU allocations or 1x1 FBO flushes.
+  if (!hardRelease && walkMode) {
+    mesh.count = 0;
+    mesh.visible = false;
+    return;
+  }
   if (mesh.userData.gpuParked) {
     mesh.count = 0;
     mesh.visible = false;
@@ -35943,8 +36136,6 @@ function parkInstanceMesh(mesh) {
     if (attrs) {
       for (const name in attrs) {
         const attr = attrs[name];
-        // Only the per-instance data. Position and the index are shared with
-        // every other batch that came from the same box.
         if (!attr || !attr.isInstancedBufferAttribute || !attr.gpuHeld) continue;
         releaseGpuAttr(attr, false);
         attr.gpuHeld = 0;
@@ -35966,22 +36157,23 @@ function armInstanceMesh(mesh, count, colorCount) {
   const col = mesh.instanceColor;
   const have = mat && mat !== gpuStub.mat ? mat.count : 0;
   const haveC = needColor && col ? col.count : 0;
-  const fit = have >= need && have <= Math.max(need + 48, (need * 1.25) | 0);
-  const fitC = !needColor || (haveC >= need && haveC <= Math.max(need + 48, (need * 1.25) | 0));
-  if (mesh.userData.gpuArmed && fit && fitC && !mesh.userData.gpuParked) return false;
+  // Monotonic high-water mark: reuse existing VBO whenever it fits, growing with headroom to prevent thrashing.
+  if (mesh.userData.gpuArmed && !mesh.userData.gpuParked && have >= need && (!needColor || haveC >= need)) return false;
+  const cap = Math.max(need, Math.ceil(need * 1.35) + 16);
   if (mesh.userData.gpuArmed && mat && mat !== gpuStub.mat) mesh.dispose();
-  mesh.instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(need * 16), 16);
+  mesh.instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(cap * 16), 16);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.instanceColor = needColor
-    ? new THREE.InstancedBufferAttribute(new Float32Array(need * 3), 3)
+    ? new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3)
     : null;
   if (needColor && colorCount < 1) mesh.instanceColor.array.fill(1);
   mesh.userData.gpuParked = false;
   mesh.userData.gpuArmed = true;
   return true;
 }
-function parkNet(net) {
+function parkNet(net, hardRelease) {
   net.visible = false;
+  if (!hardRelease && walkMode) return;
   if (net.userData.geoParked || !net.geometry) return;
   net.geometry.dispose();
   net.userData.geoParked = true;
@@ -35992,17 +36184,16 @@ function fitSheetAxis(mesh, n) {
   if (!cur) return null;
   const need = Math.max(n | 0, 1);
   const have = cur.count | 0;
-  if (have >= need && have <= Math.max(need + 48, (need * 1.25) | 0)) {
+  if (have >= need) {
     cur.gpuHeld = 1;
     return cur;
   }
-  // The tail of a full-length axis stays on the GPU until this buffer is
-  // deleted. A fresh one is only as long as the instances in the frame.
+  const cap = Math.max(need, Math.ceil(need * 1.35) + 16);
   if (cur.gpuHeld) {
     releaseGpuAttr(cur, false);
     cur.gpuHeld = 0;
   }
-  const next = new THREE.InstancedBufferAttribute(new Float32Array(need), 1);
+  const next = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
   next.setUsage(THREE.DynamicDrawUsage);
   next.gpuHeld = 1;
   geo.setAttribute("sheetAxis", next);
@@ -36161,9 +36352,10 @@ function syncShopFronts() {
   const flipped = shopsHourFlip;
   shopsHourFlip = false;
   if (!streetPropsLive()) {
-    if (shopCam.walk || flipped || walkMode) {
+    if (shopCam.walk || flipped || !shopCam.stayPacked) {
       for (let i = 0; i < shopStreams.length; i++) packShopStay(shopStreams[i]);
       shopCam.walk = false;
+      shopCam.stayPacked = true;
       if (!walkMode) releaseUnusedTextures();
     }
     return;
@@ -36174,6 +36366,7 @@ function syncShopFronts() {
   // 0.3 m drift was a few milliseconds on the walking frame.
   if (!flipped && shopCam.walk && shopCam.pos.distanceToSquared(camera.position) < 6.25 && turned > 0.9996) return;
   shopCam.walk = true;
+  shopCam.stayPacked = false;
   shopCam.pos.copy(camera.position);
   shopCam.quat.copy(camera.quaternion);
   keeperView.mat.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -36286,6 +36479,23 @@ function packStatic() {
     if (mesh.parent) mesh.parent.remove(mesh);
   });
   if (made) scene.add(pack);
+  // Dispose unshared source geometries from dropped static meshes so duplicate buffers do not linger in RAM.
+  if (drop.length) {
+    const liveGeos = new Set();
+    liveGeos.add(unitBoxGeo);
+    scene.traverse(obj => {
+      if (obj.geometry) liveGeos.add(obj.geometry);
+    });
+    const disposed = new Set();
+    for (let i = 0; i < drop.length; i++) {
+      const g = drop[i].geometry;
+      drop[i].geometry = null;
+      if (g && !liveGeos.has(g) && !disposed.has(g)) {
+        disposed.add(g);
+        g.dispose();
+      }
+    }
+  }
 }
 packStatic();
 // View mode keeps the big wall faces and drops the smaller half of the
@@ -36424,10 +36634,12 @@ function streetPropsLive() {
 function syncAlleyStreams() {
   const live = streetPropsLive();
   if (!live) {
-    if (!syncAlleyStreams.parked) {
+    const hard = !walkMode;
+    if (!syncAlleyStreams.parked || (hard && !syncAlleyStreams.hardParked)) {
       syncAlleyStreams.parked = true;
-      for (let i = 0; i < alleyStreams.length; i++) parkInstanceMesh(alleyStreams[i]);
-      for (let i = 0; i < alleyNets.length; i++) parkNet(alleyNets[i]);
+      syncAlleyStreams.hardParked = hard;
+      for (let i = 0; i < alleyStreams.length; i++) parkInstanceMesh(alleyStreams[i], hard);
+      for (let i = 0; i < alleyNets.length; i++) parkNet(alleyNets[i], hard);
     }
     if (!walkMode && syncAlleyStreams.texHeld !== 0) {
       releaseUnusedTextures();
@@ -36444,6 +36656,7 @@ function syncAlleyStreams() {
     || syncAlleyStreams.cam.distanceToSquared(camera.position) > 0.08
     || Math.abs(syncAlleyStreams.quat.dot(camera.quaternion)) < 0.9996;
   syncAlleyStreams.parked = false;
+  syncAlleyStreams.hardParked = false;
   if (!moved) return;
   syncAlleyStreams.cam.copy(camera.position);
   syncAlleyStreams.quat.copy(camera.quaternion);
@@ -37648,8 +37861,10 @@ function renderWetReflection() {
   const showGround = ground.visible;
   const showRain = rain.visible;
   const showSplash = splash.visible;
-  const hiddenSlabs = [];
-  const figs = [];
+  const hiddenSlabs = renderWetReflection._slabs || (renderWetReflection._slabs = []);
+  const figs = renderWetReflection._figs || (renderWetReflection._figs = []);
+  hiddenSlabs.length = 0;
+  figs.length = 0;
   const shadows = renderer.shadowMap.needsUpdate;
   const su = sky.material.uniforms;
   const prevViewX = su.uView.value.x;
@@ -37674,10 +37889,20 @@ function renderWetReflection() {
         hiddenSlabs.push(ch);
       }
     }
-    // The mirrored lens uses a tilted near plane. Keep walkers, player avatar, keepers, gang fighters & receivers un-culled.
+    // The mirrored lens uses a tilted near plane. Keep nearby visible actors & vehicles un-culled while skipping hidden subtrees.
+    const refCamX = camera.position.x, refCamZ = camera.position.z;
+    const maxRefD2 = walkMode ? (40 * 40) : (260 * 260);
+    const pushVisible = function (node) {
+      if (!node || !node.visible) return;
+      if (node.isMesh) figs.push(node);
+      const ch = node.children;
+      for (let ci = 0; ci < ch.length; ci++) pushVisible(ch[ci]);
+    };
     const pushFig = function (root) {
       if (!root || !root.visible) return;
-      root.traverse(function (obj) { figs.push(obj); });
+      const dx = root.position.x - refCamX, dz = root.position.z - refCamZ;
+      if (dx * dx + dz * dz > maxRefD2) return;
+      pushVisible(root);
     };
     for (let wi = 0; wi < walkers.length; wi++) pushFig(walkers[wi]);
     for (let hi = 0; hi < alleyHeat.length; hi++) pushFig(alleyHeat[hi].fig);
@@ -38478,6 +38703,7 @@ function quietBodyLight(mat) {
   };
 }
 function fillBodyLights(now, dt) {
+  if (fillBodyLights.slots && ((typeof runPaused === "function" && runPaused()) || (typeof run !== "undefined" && run && run.sheet))) return;
   const tNow = now || 0;
   const step = Math.min(0.05, Math.max(0.001, dt || 0.016));
   const first = !fillBodyLights.slots;
@@ -38522,11 +38748,6 @@ function fillBodyLights(now, dt) {
   const fz = (walkMode && !roofStay) ? walkZ : camera.position.z;
   const lit = lightAmount();
   const inAlley = !!walkMode && !roofStay;
-  const held = Object.create(null);
-  for (let i = 0; i < BODY_LIGHT_N; i++) {
-    if (slots[i].id) held[slots[i].id] = 1;
-  }
-
   if (!fillBodyLights.tubeGrid) {
     const tGrid = Object.create(null);
     const tCell = 14;
@@ -38548,189 +38769,220 @@ function fillBodyLights(now, dt) {
     fillBodyLights.signGrid = bGrid;
     fillBodyLights.signCell = bCell;
   }
-
-  // 1) Active street lamps & instanced alley ceiling fluorescent tubes
-  const candLamps = [];
-  for (let i = 0; i < lampList.length; i++) {
-    const item = lampList[i];
-    const lamp = item.lamp;
-    if (lamp.intensity < 0.02) continue;
-    const dx = item.w.x - fx, dz = item.w.z - fz;
-    const d = Math.hypot(dx, dz);
-    const maxD = lamp.userData.nightOnly ? 46 : 32;
-    if (d > maxD) continue;
-    const gain = lamp.userData.nightOnly
-      ? Math.min(1.35, Math.sqrt(lamp.intensity) * 0.42)
-      : Math.min(1.65, Math.sqrt(lamp.intensity) * 0.96);
-    const reach = Math.min(lamp.userData.nightOnly ? 22 : 15, Math.max(7, (lamp.distance || 22) * 0.58));
-    candLamps.push({
-      id: item.id, x: item.w.x, y: item.w.y, z: item.w.z,
-      r: lamp.color.r, g: lamp.color.g, b: lamp.color.b,
-      intensity: gain, reach: reach,
-      score: d - (held[item.id] ? 2.4 : 0)
-    });
-  }
-  if (fy < 20) {
-    const tGrid = fillBodyLights.tubeGrid;
-    const tCell = fillBodyLights.tubeCell;
-    const ix0 = Math.floor(fx / tCell), iz0 = Math.floor(fz / tCell);
-    const tubeLevel = 0.28 + lit * 0.72 + wxNow.rain * 0.16;
-    const maxTubeD = inAlley ? 20 : 24;
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const list = tGrid[(ix0 + dx) + "," + (iz0 + dz)];
-        if (!list) continue;
-        for (let i = 0; i < list.length; i++) {
-          const t = list[i];
-          const d = Math.hypot(t.x - fx, t.z - fz);
-          if (d >= maxTubeD) continue;
-          const hum = 0.94 + 0.06 * Math.sin(tNow * 14.0 + t.phase);
-          candLamps.push({
-            id: t.id, x: t.x, y: t.y, z: t.z,
-            r: t.r, g: t.g, b: t.b,
-            intensity: tubeLevel * t.gain * hum,
-            reach: 8.5 + lit * 3.2 + wxNow.rain * 1.4,
-            score: d + 1.5 - (held[t.id] ? 2.2 : 0)
-          });
-        }
-      }
+  const assigned = fillBodyLights.assigned || (fillBodyLights.assigned = new Array(BODY_LIGHT_N).fill(null));
+  const needScan = first
+    || fillBodyLights.scanT == null
+    || (tNow - fillBodyLights.scanT) >= 0.12
+    || Math.hypot(fx - (fillBodyLights.scanX || 0), fz - (fillBodyLights.scanZ || 0)) > 0.65
+    || Math.abs(lit - (fillBodyLights.scanLit || 0)) > 0.03
+    || fillBodyLights.scanAlley !== inAlley;
+  if (needScan) {
+    fillBodyLights.scanT = tNow;
+    fillBodyLights.scanX = fx;
+    fillBodyLights.scanZ = fz;
+    fillBodyLights.scanLit = lit;
+    fillBodyLights.scanAlley = inAlley;
+    const pool = fillBodyLights.pool || (fillBodyLights.pool = []);
+    let poolN = 0;
+    function makeCand(id, x, y, z, r, g, b, intensity, reach, score) {
+      let c = pool[poolN];
+      if (!c) c = pool[poolN] = { id: "", x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, intensity: 0, reach: 0, score: 0 };
+      poolN++;
+      c.id = id; c.x = x; c.y = y; c.z = z;
+      c.r = r; c.g = g; c.b = b;
+      c.intensity = intensity; c.reach = reach; c.score = score;
+      return c;
     }
-  }
-  candLamps.sort(function (a, b) { return a.score - b.score; });
-
-  // 2) Nearby open storefronts (matching live SHOP_HOURS & trade tube color)
-  const candShops = [];
-  if (fy < 24) {
-    const sGrid = fillBodyLights.shopGrid;
-    const sCell = fillBodyLights.shopCell;
-    const ix0 = Math.floor(fx / sCell), iz0 = Math.floor(fz / sCell);
-    const shopBase = (0.34 + lit * 0.86 + wxNow.rain * 0.14) * (inAlley ? 1.0 : 0.7);
-    const maxShopD = inAlley ? 22 : 28;
-    for (let dz = -2; dz <= 2; dz++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const list = sGrid[(ix0 + dx) + "," + (iz0 + dz)];
-        if (!list) continue;
-        for (let i = 0; i < list.length; i++) {
-          const s = list[i];
-          if (!shopOpenNow(s.kind)) continue;
-          const d = Math.hypot(s.x - fx, s.z - fz);
-          if (d >= maxShopD) continue;
-          const hum = 0.95 + 0.05 * Math.sin(tNow * 19.0 + s.phase) * Math.sin(tNow * 6.1 + s.phase);
-          const gain = shopBase * (s.dim ? 0.62 : 1.0) * hum;
-          candShops.push({
-            id: s.id, x: s.x, y: s.y, z: s.z,
-            r: s.r, g: s.g, b: s.b,
-            intensity: gain,
-            reach: 8.5 + lit * 3.8 + wxNow.rain * 1.2,
-            score: d - (held[s.id] ? 2.2 : 0)
-          });
-        }
-      }
+    const cmpScore = fillBodyLights.cmpScore || (fillBodyLights.cmpScore = function (a, b) { return a.score - b.score; });
+    const held = Object.create(null);
+    for (let i = 0; i < BODY_LIGHT_N; i++) {
+      if (slots[i].id) held[slots[i].id] = 1;
     }
-    if (lit > 0.12) {
-      const bGrid = fillBodyLights.signGrid;
-      const bCell = fillBodyLights.signCell;
-      const bix = Math.floor(fx / bCell), biz = Math.floor(fz / bCell);
-      const signScale = (lit - 0.12) / 0.88 * (0.55 + wxNow.rain * 0.22);
+
+    // 1) Active street lamps & instanced alley ceiling fluorescent tubes
+    const candLamps = fillBodyLights.candLamps || (fillBodyLights.candLamps = []);
+    candLamps.length = 0;
+    for (let i = 0; i < lampList.length; i++) {
+      const item = lampList[i];
+      const lamp = item.lamp;
+      if (lamp.intensity < 0.02) continue;
+      const dx = item.w.x - fx, dz = item.w.z - fz;
+      const d = Math.hypot(dx, dz);
+      const maxD = lamp.userData.nightOnly ? 46 : 32;
+      if (d > maxD) continue;
+      const gain = lamp.userData.nightOnly
+        ? Math.min(1.35, Math.sqrt(lamp.intensity) * 0.42)
+        : Math.min(1.65, Math.sqrt(lamp.intensity) * 0.96);
+      const reach = Math.min(lamp.userData.nightOnly ? 22 : 15, Math.max(7, (lamp.distance || 22) * 0.58));
+      candLamps.push(makeCand(
+        item.id, item.w.x, item.w.y, item.w.z,
+        lamp.color.r, lamp.color.g, lamp.color.b,
+        gain, reach, d - (held[item.id] ? 2.4 : 0)
+      ));
+    }
+    if (fy < 20) {
+      const tGrid = fillBodyLights.tubeGrid;
+      const tCell = fillBodyLights.tubeCell;
+      const ix0 = Math.floor(fx / tCell), iz0 = Math.floor(fz / tCell);
+      const tubeLevel = 0.28 + lit * 0.72 + wxNow.rain * 0.16;
+      const maxTubeD = inAlley ? 20 : 24;
       for (let dz = -1; dz <= 1; dz++) {
         for (let dx = -1; dx <= 1; dx++) {
-          const list = bGrid[(bix + dx) + "," + (biz + dz)];
+          const list = tGrid[(ix0 + dx) + "," + (iz0 + dz)];
           if (!list) continue;
           for (let i = 0; i < list.length; i++) {
-            const s = list[i];
-            const d = Math.hypot(s.x - fx, s.z - fz);
-            if (d >= 26) continue;
-            candShops.push({
-              id: s.id, x: s.x, y: s.y, z: s.z,
-              r: s.r, g: s.g, b: s.b,
-              intensity: s.gain * signScale,
-              reach: 10.5 + lit * 3.5,
-              score: d + 3.0 - (held[s.id] ? 2.0 : 0)
-            });
+            const t = list[i];
+            const d = Math.hypot(t.x - fx, t.z - fz);
+            if (d >= maxTubeD) continue;
+            const hum = 0.94 + 0.06 * Math.sin(tNow * 14.0 + t.phase);
+            candLamps.push(makeCand(
+              t.id, t.x, t.y, t.z,
+              t.r, t.g, t.b,
+              tubeLevel * t.gain * hum,
+              8.5 + lit * 3.2 + wxNow.rain * 1.4,
+              d + 1.5 - (held[t.id] ? 2.2 : 0)
+            ));
           }
         }
       }
     }
-    candShops.sort(function (a, b) { return a.score - b.score; });
-  }
+    if (candLamps.length > 1) candLamps.sort(cmpScore);
 
-  // 3) Currently-lit lower/mid-floor apartment windows (synced with winMat shader)
-  const candWins = [];
-  const winGlow = Math.max(0, Math.min(1, (lit - 0.08) / 0.64));
-  const winSmooth = winGlow * winGlow * (3 - 2 * winGlow);
-  if (winSmooth > 0.02 && fy < 26) {
-    const ix0 = Math.floor(fx / WIN_LIGHT_CELL), iz0 = Math.floor(fz / WIN_LIGHT_CELL);
-    const maxWinD = inAlley ? 18 : 24;
-    for (let dz = -2; dz <= 2; dz++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const list = winLightGrid[(ix0 + dx) + "," + (iz0 + dz)];
-        if (!list) continue;
-        for (let i = 0; i < list.length; i++) {
-          const w = list[i];
-          if (w.flicker > 0.7 && Math.sin(tNow * (0.08 + w.flicker * 0.12) + w.phase * 3.7) > 0.55) continue;
-          const d = Math.hypot(w.x - fx, w.z - fz, (w.y - fy) * 0.55);
-          if (d >= maxWinD) continue;
-          let pulse = 0.98 + 0.02 * Math.sin(tNow * 0.2 + w.phase);
-          if (w.mood > 1.5) pulse = Math.sin(tNow * 2.4 + w.phase) > 0.72 ? 0.45 : 1.0;
-          else if (w.mood > 0.5) pulse = 0.94 + 0.06 * Math.sin(tNow * 0.3 + w.phase);
-          const gain = winSmooth * w.gain * pulse * (0.48 + darkness * 0.56);
-          if (gain < 0.04) continue;
-          candWins.push({
-            id: w.id, x: w.x, y: w.y, z: w.z,
-            r: w.r, g: w.g, b: w.b,
-            intensity: gain,
-            reach: 7.5 + darkness * 3.5 + wxNow.rain * 1.0,
-            score: d - (held[w.id] ? 2.0 : 0)
-          });
+    // 2) Nearby open storefronts (matching live SHOP_HOURS & trade tube color)
+    const candShops = fillBodyLights.candShops || (fillBodyLights.candShops = []);
+    candShops.length = 0;
+    if (fy < 24) {
+      const sGrid = fillBodyLights.shopGrid;
+      const sCell = fillBodyLights.shopCell;
+      const ix0 = Math.floor(fx / sCell), iz0 = Math.floor(fz / sCell);
+      const shopBase = (0.34 + lit * 0.86 + wxNow.rain * 0.14) * (inAlley ? 1.0 : 0.7);
+      const maxShopD = inAlley ? 22 : 28;
+      for (let dz = -2; dz <= 2; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const list = sGrid[(ix0 + dx) + "," + (iz0 + dz)];
+          if (!list) continue;
+          for (let i = 0; i < list.length; i++) {
+            const s = list[i];
+            if (!shopOpenNow(s.kind)) continue;
+            const d = Math.hypot(s.x - fx, s.z - fz);
+            if (d >= maxShopD) continue;
+            const hum = 0.95 + 0.05 * Math.sin(tNow * 19.0 + s.phase) * Math.sin(tNow * 6.1 + s.phase);
+            const gain = shopBase * (s.dim ? 0.62 : 1.0) * hum;
+            candShops.push(makeCand(
+              s.id, s.x, s.y, s.z,
+              s.r, s.g, s.b,
+              gain, 8.5 + lit * 3.8 + wxNow.rain * 1.2,
+              d - (held[s.id] ? 2.2 : 0)
+            ));
+          }
         }
       }
+      if (lit > 0.12) {
+        const bGrid = fillBodyLights.signGrid;
+        const bCell = fillBodyLights.signCell;
+        const bix = Math.floor(fx / bCell), biz = Math.floor(fz / bCell);
+        const signScale = (lit - 0.12) / 0.88 * (0.55 + wxNow.rain * 0.22);
+        for (let dz = -1; dz <= 1; dz++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const list = bGrid[(bix + dx) + "," + (biz + dz)];
+            if (!list) continue;
+            for (let i = 0; i < list.length; i++) {
+              const s = list[i];
+              const d = Math.hypot(s.x - fx, s.z - fz);
+              if (d >= 26) continue;
+              candShops.push(makeCand(
+                s.id, s.x, s.y, s.z,
+                s.r, s.g, s.b,
+                s.gain * signScale, 10.5 + lit * 3.5,
+                d + 3.0 - (held[s.id] ? 2.0 : 0)
+              ));
+            }
+          }
+        }
+      }
+      if (candShops.length > 1) candShops.sort(cmpScore);
     }
-    candWins.sort(function (a, b) { return a.score - b.score; });
-  }
 
-  // Balanced quota: up to 3 lamps, 4 storefronts, 3 apartment windows, then backfill to 10.
-  const desired = [];
-  const picked = Object.create(null);
-  function takeFrom(list, cap) {
-    let n = 0;
-    for (let i = 0; i < list.length && n < cap && desired.length < BODY_LIGHT_N; i++) {
-      if (picked[list[i].id]) continue;
-      picked[list[i].id] = 1;
-      desired.push(list[i]);
-      n++;
+    // 3) Currently-lit lower/mid-floor apartment windows (synced with winMat shader)
+    const candWins = fillBodyLights.candWins || (fillBodyLights.candWins = []);
+    candWins.length = 0;
+    const winGlow = Math.max(0, Math.min(1, (lit - 0.08) / 0.64));
+    const winSmooth = winGlow * winGlow * (3 - 2 * winGlow);
+    if (winSmooth > 0.02 && fy < 26) {
+      const ix0 = Math.floor(fx / WIN_LIGHT_CELL), iz0 = Math.floor(fz / WIN_LIGHT_CELL);
+      const maxWinD = inAlley ? 18 : 24;
+      for (let dz = -2; dz <= 2; dz++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const list = winLightGrid[(ix0 + dx) + "," + (iz0 + dz)];
+          if (!list) continue;
+          for (let i = 0; i < list.length; i++) {
+            const w = list[i];
+            if (w.flicker > 0.7 && Math.sin(tNow * (0.08 + w.flicker * 0.12) + w.phase * 3.7) > 0.55) continue;
+            const d = Math.hypot(w.x - fx, w.z - fz, (w.y - fy) * 0.55);
+            if (d >= maxWinD) continue;
+            let pulse = 0.98 + 0.02 * Math.sin(tNow * 0.2 + w.phase);
+            if (w.mood > 1.5) pulse = Math.sin(tNow * 2.4 + w.phase) > 0.72 ? 0.45 : 1.0;
+            else if (w.mood > 0.5) pulse = 0.94 + 0.06 * Math.sin(tNow * 0.3 + w.phase);
+            const gain = winSmooth * w.gain * pulse * (0.48 + darkness * 0.56);
+            if (gain < 0.04) continue;
+            candWins.push(makeCand(
+              w.id, w.x, w.y, w.z,
+              w.r, w.g, w.b,
+              gain, 7.5 + darkness * 3.5 + wxNow.rain * 1.0,
+              d - (held[w.id] ? 2.0 : 0)
+            ));
+          }
+        }
+      }
+      if (candWins.length > 1) candWins.sort(cmpScore);
     }
-  }
-  takeFrom(candLamps, inAlley ? 3 : 6);
-  takeFrom(candShops, inAlley ? 4 : 2);
-  takeFrom(candWins, inAlley ? 3 : 2);
-  if (desired.length < BODY_LIGHT_N) {
-    const rest = [];
-    for (let i = 0; i < candLamps.length; i++) if (!picked[candLamps[i].id]) rest.push(candLamps[i]);
-    for (let i = 0; i < candShops.length; i++) if (!picked[candShops[i].id]) rest.push(candShops[i]);
-    for (let i = 0; i < candWins.length; i++) if (!picked[candWins[i].id]) rest.push(candWins[i]);
-    rest.sort(function (a, b) { return a.score - b.score; });
-    takeFrom(rest, BODY_LIGHT_N - desired.length);
-  }
 
-  // Keep existing slot assignments so lights stay stable and cross-fade cleanly.
-  const wantById = Object.create(null);
-  for (let i = 0; i < desired.length; i++) wantById[desired[i].id] = desired[i];
-  const assigned = new Array(BODY_LIGHT_N).fill(null);
-  const used = Object.create(null);
-  for (let i = 0; i < BODY_LIGHT_N; i++) {
-    const id = slots[i].id;
-    if (id && wantById[id]) {
-      assigned[i] = wantById[id];
-      used[id] = 1;
+    // Balanced quota: up to 3 lamps, 4 storefronts, 3 apartment windows, then backfill to 10.
+    const desired = fillBodyLights.desired || (fillBodyLights.desired = []);
+    desired.length = 0;
+    const picked = Object.create(null);
+    function takeFrom(list, cap) {
+      let n = 0;
+      for (let i = 0; i < list.length && n < cap && desired.length < BODY_LIGHT_N; i++) {
+        if (picked[list[i].id]) continue;
+        picked[list[i].id] = 1;
+        desired.push(list[i]);
+        n++;
+      }
     }
-  }
-  for (let i = 0; i < BODY_LIGHT_N; i++) {
-    if (assigned[i]) continue;
-    for (let j = 0; j < desired.length; j++) {
-      if (!used[desired[j].id]) {
-        assigned[i] = desired[j];
-        used[desired[j].id] = 1;
-        break;
+    takeFrom(candLamps, inAlley ? 3 : 6);
+    takeFrom(candShops, inAlley ? 4 : 2);
+    takeFrom(candWins, inAlley ? 3 : 2);
+    if (desired.length < BODY_LIGHT_N) {
+      const rest = fillBodyLights.rest || (fillBodyLights.rest = []);
+      rest.length = 0;
+      for (let i = 0; i < candLamps.length; i++) if (!picked[candLamps[i].id]) rest.push(candLamps[i]);
+      for (let i = 0; i < candShops.length; i++) if (!picked[candShops[i].id]) rest.push(candShops[i]);
+      for (let i = 0; i < candWins.length; i++) if (!picked[candWins[i].id]) rest.push(candWins[i]);
+      if (rest.length > 1) rest.sort(cmpScore);
+      takeFrom(rest, BODY_LIGHT_N - desired.length);
+    }
+
+    // Keep existing slot assignments so lights stay stable and cross-fade cleanly.
+    const wantById = Object.create(null);
+    for (let i = 0; i < desired.length; i++) wantById[desired[i].id] = desired[i];
+    const used = Object.create(null);
+    for (let i = 0; i < BODY_LIGHT_N; i++) assigned[i] = null;
+    for (let i = 0; i < BODY_LIGHT_N; i++) {
+      const id = slots[i].id;
+      if (id && wantById[id]) {
+        assigned[i] = wantById[id];
+        used[id] = 1;
+      }
+    }
+    for (let i = 0; i < BODY_LIGHT_N; i++) {
+      if (assigned[i]) continue;
+      for (let j = 0; j < desired.length; j++) {
+        if (!used[desired[j].id]) {
+          assigned[i] = desired[j];
+          used[desired[j].id] = 1;
+          break;
+        }
       }
     }
   }
@@ -39098,6 +39350,7 @@ function flushFigure(fig) {
       cloth.rotation.z = Math.sin(atmoNow * flap + cloth.userData.phase) * gust;
       cloth.position.x = cloth.userData.x + Math.sin(atmoNow * (1 + wxNow.rain * 1.1) + cloth.userData.phase) * (0.07 + wxNow.rain * 0.13);
     }
+    if (!cloth.matrixAutoUpdate && Math.abs(SHEAR_K) < 1e-6) cloth.updateMatrix();
   });
   dripOpacity.value = wxNow.rain * 0.85;
   // A dry phone was still rewriting twenty-five hidden drip meshes a frame.
@@ -39134,6 +39387,7 @@ function flushFigure(fig) {
       d.position.set(d.userData.x, eave - h * 0.5, d.userData.z);
     }
     d.scale.set(1, 1, 1);
+    if (!d.matrixAutoUpdate && Math.abs(SHEAR_K) < 1e-6) d.updateMatrix();
     uni.uW.value = w;
     uni.uH.value = h;
     uni.uFade.value = fade;
