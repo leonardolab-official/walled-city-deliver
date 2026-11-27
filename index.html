@@ -396,7 +396,6 @@
     text-shadow: 0 0 8px #ff2a22;
   }
   /* The bottom selection uses the same green tube as a lit place. */
-  #zones button.on, #zones button.on:active,
   #controls .tabs button.on, #controls .tabs button.on:active,
   #controls .tabs button:active,
   #walk-pad button.on, #walk-pad button.on:active,
@@ -414,8 +413,6 @@
     button:hover,
     #tools button:hover,
     #walk-pad button:hover,
-    #zones button:hover,
-    #zones button.on:hover,
     #controls .tabs button:hover,
     #controls .tabs button.on:hover,
     #walk-pad button.on:hover,
@@ -516,7 +513,6 @@
   }
   .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; min-width: 0; }
   .tabs button { width: 100%; min-width: 0; padding-inline: 6px; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
-  #walk { flex: 1 1 0; min-width: 0; }
   #walk-pad {
     display: none;
     position: relative; left: auto; bottom: auto;
@@ -593,15 +589,27 @@
   }
   #start[hidden] { display: none !important; }
   #ui.walk-bare header.panel { order: -1; align-self: flex-start; width: max-content; max-width: 100%; }
-  #ui.walk-bare header.panel h1,
-  #ui.walk-bare header.panel .when,
-  #ui.walk-bare header.panel #wx-read,
-  #ui.walk-bare header.panel #wx-line {
+  #ui.walk-bare header.panel:not(.wrap) h1,
+  #ui.walk-bare header.panel:not(.wrap) .when,
+  #ui.walk-bare header.panel:not(.wrap) #wx-read,
+  #ui.walk-bare header.panel:not(.wrap) #wx-line {
     width: max-content;
     max-width: 100%;
     min-width: 0;
     flex-wrap: nowrap;
     white-space: nowrap;
+  }
+  #ui.walk-bare header.panel.wrap h1,
+  #ui.walk-bare header.panel.wrap .when,
+  #ui.walk-bare header.panel.wrap #wx-read,
+  #ui.walk-bare header.panel.wrap #wx-line,
+  #ui.walk-bare header.panel.wrap #wx-purse {
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   /* The order card and the carried parcel sit together at the bottom right.
      The card is first, so it stays above the note when both are open. */
@@ -805,10 +813,14 @@
     pointer-events: none;
   }
   #run-arrows[hidden] { display: none !important; }
-  .run-arrow { min-width: 60px; max-width: clamp(78px, 20vw, 112px); width: auto; text-align: center; color: #ffc56a; }
+  .run-arrow { min-width: 56px; max-width: clamp(72px, 20vw, 112px); width: auto; text-align: center; color: #ffc56a; }
   .run-arrow svg { width: clamp(26px, 5vmin, 34px); height: clamp(26px, 5vmin, 34px); display: block; margin: 0 auto; filter: drop-shadow(0 0 6px rgba(255, 190, 70, 0.85)); }
   .run-arrow b { display: block; font-size: clamp(11px, 2.2vmin, 13px); font-weight: 600; letter-spacing: 0.04em; }
   .run-arrow span { display: block; font-size: clamp(10px, 1.8vmin, 11px); line-height: 1.25; color: #ffe7df; white-space: normal; overflow-wrap: anywhere; }
+  @media (max-width: 430px) {
+    .run-arrow { min-width: 52px; max-width: clamp(64px, 21vw, 86px); }
+    .run-arrow svg { width: 24px; height: 24px; }
+  }
   .run-arrow.ok { color: #3dff88; }
   .run-arrow.ok svg { filter: drop-shadow(0 0 6px rgba(61, 255, 136, 0.85)); }
   .run-arrow.warm { color: #ffc56a; }
@@ -825,20 +837,23 @@
   #run-prompt.red { border-color: #ff3a2a; box-shadow: 0 0 12px rgba(255, 58, 42, 0.45); }
   #run-sheet {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    z-index: 30; pointer-events: auto; width: min(420px, calc(100vw - 48px));
-    max-height: min(78vh, 640px); overflow: hidden;
+    z-index: 30; pointer-events: auto;
+    width: min(420px, calc(100vw - var(--inset-x) - var(--inset-r) - 16px));
+    max-height: min(84vh, 640px);
+    max-height: min(84dvh, calc(100dvh - var(--inset-t) - var(--inset-b) - 16px), 640px);
+    overflow: hidden;
     display: flex; flex-direction: column; gap: 10px;
     padding: 16px 16px 14px;
     background: #120806; border: 1px solid #ff4a38;
     box-shadow: 0 0 18px rgba(255, 74, 56, 0.28);
   }
   #run-sheet[hidden] { display: none !important; }
-  #run-sheet h2 { margin: 0; font-size: 18px; letter-spacing: 0.16em; color: #ff4a38; font-weight: 700; }
-  .run-sum { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: #e4d3b8; font-size: 13px; }
+  #run-sheet h2 { flex-shrink: 0; margin: 0; font-size: 18px; letter-spacing: 0.16em; color: #ff4a38; font-weight: 700; }
+  .run-sum { flex-shrink: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: #e4d3b8; font-size: 13px; }
   .run-sum b { color: #fffaf2; font-size: 16px; font-weight: 650; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; text-align: right; }
   .run-sum.net b { color: #ffc56a; }
   #run-sheet-log {
-    overflow: auto; min-height: 72px; max-height: 38vh;
+    flex: 1 1 auto; overflow: auto; min-height: 52px; max-height: none;
     border-top: 1px solid #4a342c; border-bottom: 1px solid #4a342c;
     -webkit-overflow-scrolling: touch;
   }
@@ -856,7 +871,8 @@
   .run-order.done .run-order-state { color: #3dff88; }
   .run-order.failed .run-order-state { color: #ff4a38; }
   #run-sheet-close {
-    margin: 2px 0 0; width: 100%; min-height: 48px;
+    flex-shrink: 0;
+    margin: 2px 0 0; width: 100%; min-height: 46px;
     font-size: 16px; font-weight: 700; letter-spacing: 0.14em;
     color: #120806; background: #3dff88; border: 1px solid #3dff88;
   }
@@ -864,8 +880,20 @@
   #ui:not(.walk-bare) #dock-wrap,
   #ui:not(.walk-bare) #toggle-legend { display: none; }
   #ui.walk-bare #dock-wrap { display: none; }
-  #ui.walk-bare #toggle-legend,
-  #ui.walk-bare #toggle-settings { display: none; }
+  #ui.walk-bare #toggle-legend { display: none; }
+  /* Keep Settings reachable during delivery shifts, tucked cleanly under the minimap. */
+  #ui.walk-bare #tools {
+    position: fixed;
+    top: calc(var(--inset-t) + var(--map-h, 118px) + 6px);
+    right: var(--inset-r);
+    z-index: 6;
+    width: auto;
+    max-width: none;
+  }
+  #ui.walk-bare #tools button {
+    width: 36px; height: 36px; min-height: 36px; padding: 6px;
+  }
+  #ui.walk-bare #tools button svg { width: 22px; height: 22px; }
   /* The place note is a view-mode sheet. Walking keeps the street clear. */
   #ui.walk-bare #card { display: none; }
   #ui.walk-bare {
@@ -885,28 +913,6 @@
   .row { flex: 1 1 150px; min-width: 0; }
   .btns { display: flex; flex-wrap: wrap; gap: 6px; }
   .btns button { margin: 0; white-space: normal; text-align: center; line-height: 1.25; max-width: 100%; }
-  /* Portrait, and a phone on its side: the View choices stay on one line and slide sideways. */
-  @media (aspect-ratio <= 1), (pointer: coarse) {
-    #dock-places.on { min-width: 0; width: 100%; align-self: stretch; }
-    #dock-places .row { min-width: 0; width: 100%; }
-    #zones {
-      flex-wrap: nowrap;
-      width: 100%;
-      max-width: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
-      overscroll-behavior-x: contain;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-x;
-      scrollbar-width: none;
-    }
-    #zones::-webkit-scrollbar { display: none; }
-    #zones button {
-      flex: 0 0 auto;
-      white-space: nowrap;
-      max-width: none;
-    }
-  }
   #settings-layer[hidden] { display: none !important; }
   body:has(#settings-layer:not([hidden])) #ui { visibility: hidden; }
   #settings-layer {
@@ -1010,7 +1016,7 @@
     header.panel { order: 1; align-self: flex-start; width: max-content; max-width: 100%; }
     header.panel h1 { font-size: clamp(13px, 4.4vw, 18px); }
     /* Same top edge as the clock, on the right. Out of the column so it does not take a row. */
-    #tools {
+    #ui:not(.walk-bare) #tools {
       position: absolute;
       top: max(var(--frame), env(safe-area-inset-top));
       right: max(var(--frame), env(safe-area-inset-right));
@@ -1088,12 +1094,12 @@
     h1 { font-size: 18px; }
     #walk-stick { width: 72px; height: 72px; }
     #walk-stick i { width: 30px; height: 30px; }
+    #run-sheet { padding: 10px 12px; gap: 6px; }
+    #run-sheet h2 { font-size: 15px; }
+    #run-sheet-close { min-height: 40px; font-size: 14px; }
     #roof-go {
-      width: 36px;
-      height: 36px;
-      min-width: 36px;
-      max-width: 36px;
-      min-height: 36px;
+      width: 38px; height: 38px;
+      min-width: 38px; max-width: 38px; min-height: 38px;
       padding: 6px;
     }
   }
@@ -1103,27 +1109,29 @@
     header.panel { padding: 6px 8px; width: max-content; max-width: 100%; }
     header.panel h1, h1 { font-size: 15px; white-space: normal; }
     #roof-go {
-      width: 34px;
-      height: 34px;
-      min-width: 34px;
-      max-width: 34px;
-      min-height: 34px;
+      width: 36px; height: 36px;
+      min-width: 36px; max-width: 36px; min-height: 36px;
       padding: 5px;
     }
-    h1 > .when, #wx-read, #wx-line { flex-wrap: nowrap; white-space: nowrap; }
+    header.panel:not(.wrap) h1 > .when,
+    header.panel:not(.wrap) #wx-read,
+    header.panel:not(.wrap) #wx-line { flex-wrap: nowrap; white-space: nowrap; }
   }
   @media (max-width: 560px) and (min-height: 541px) {
     #roof-go {
-      width: 42px;
-      height: 42px;
-      min-width: 42px;
-      max-width: 42px;
-      min-height: 42px;
+      width: 42px; height: 42px;
+      min-width: 42px; max-width: 42px; min-height: 42px;
       padding: 7px;
     }
   }
   @media (pointer: coarse) {
-    button, #tools button, .tabs button, .switch, #roof-go { min-height: 42px; }
+    button, #tools button, .tabs button, .switch { min-height: 42px; }
+    #ui.walk-bare #tools button { width: 40px; height: 40px; min-height: 40px; padding: 7px; }
+    #roof-go {
+      width: 44px; height: 44px;
+      min-width: 44px; max-width: 44px; min-height: 44px;
+      padding: 7px;
+    }
     #card .close { min-width: 42px; min-height: 42px; }
     input[type="range"] { height: 28px; }
     #walk-stick { width: 112px; height: 112px; }
@@ -1132,25 +1140,20 @@
   @media (pointer: coarse) and (max-height: 540px) {
     #walk-stick { width: 84px; height: 84px; }
     #walk-stick i { width: 36px; height: 36px; }
+    #ui.walk-bare #tools button { width: 36px; height: 36px; min-height: 36px; padding: 6px; }
+    #roof-go {
+      width: 40px; height: 40px;
+      min-width: 40px; max-width: 40px; min-height: 40px;
+      padding: 6px;
+    }
   }
   @media (max-width: 420px) {
     #walk-stick { width: 84px; height: 84px; }
     #walk-stick i { width: 36px; height: 36px; }
-    #run-use {
-      letter-spacing: 0.02em;
-      padding: 6px 8px;
-      font-size: 11px;
-      max-width: 34vw;
-      white-space: normal;
-      text-align: center;
-    }
     #roof-go {
-      width: 40px;
-      height: 40px;
-      min-width: 40px;
-      max-width: 40px;
-      min-height: 40px;
-      padding: 6px;
+      width: 42px; height: 42px;
+      min-width: 42px; max-width: 42px; min-height: 42px;
+      padding: 7px;
     }
   }
   @media (pointer: coarse), (aspect-ratio <= 1) {
@@ -18012,48 +18015,90 @@ let sheetPortrait = null;
 // Keep the delivery HUD inside the frame. The arrow icons stay on the slot
 // line, and the row moves into the gap beside the map when centering would
 // cover the board. Called on resize and when the buttons or the arrow count change.
+function uiBounds() {
+  const ui = document.getElementById("ui");
+  if (!ui) {
+    return {
+      left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight,
+      width: window.innerWidth, height: window.innerHeight,
+      padL: 16, padR: 16, padT: 16, padB: 16
+    };
+  }
+  const r = ui.getBoundingClientRect();
+  const cs = getComputedStyle(ui);
+  return {
+    left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+    width: r.width || window.innerWidth, height: r.height || window.innerHeight,
+    padL: parseFloat(cs.paddingLeft) || 16,
+    padR: parseFloat(cs.paddingRight) || 16,
+    padT: parseFloat(cs.paddingTop) || 16,
+    padB: parseFloat(cs.paddingBottom) || 16
+  };
+}
 function fitPurseRoom() {
   const header = document.querySelector("header.panel");
   const line = document.getElementById("wx-line");
   const h1 = header && header.querySelector("h1");
   const clockEl = document.getElementById("run-clock");
+  const mapEl = document.getElementById("minimap");
   const toolsEl = document.getElementById("tools");
-  if (!header || !h1) return;
-  h1.style.fontSize = "";
-  header.style.maxWidth = "";
-  header.classList.remove("wrap");
-  if (!line) return;
+  if (!header || !h1 || !line) return;
+  const ub = uiBounds();
   const hr = header.getBoundingClientRect();
-  let rightBound = window.innerWidth - 16;
+  if (hr.height < 1) return;
+  let rightBound = ub.right - ub.padR;
   if (clockEl && !clockEl.hidden && getComputedStyle(clockEl).display !== "none") {
     const cr = clockEl.getBoundingClientRect();
-    if (cr.width > 1) rightBound = Math.min(rightBound, cr.left - 16);
+    if (cr.width > 1) rightBound = Math.min(rightBound, cr.left - 14);
+  } else if (mapEl && !mapEl.hidden && getComputedStyle(mapEl).display !== "none") {
+    const mr = mapEl.getBoundingClientRect();
+    if (mr.width > 1 && mr.left > hr.left + 40) rightBound = Math.min(rightBound, mr.left - 12);
   } else if (toolsEl && getComputedStyle(toolsEl).display !== "none") {
     const tr = toolsEl.getBoundingClientRect();
-    if (tr.width > 1 && tr.left > hr.left + 40) rightBound = Math.min(rightBound, tr.left - 12);
+    if (tr.width > 1 && tr.left > hr.left + 40 && tr.top < hr.bottom + 8) rightBound = Math.min(rightBound, tr.left - 12);
   }
-  const box = rightBound - hr.left;
+  const box = Math.floor(rightBound - hr.left);
   if (!(box > 32)) return;
-  header.style.maxWidth = Math.floor(box) + "px";
+  const wantMaxW = box + "px";
+  if (header.style.maxWidth !== wantMaxW) header.style.maxWidth = wantMaxW;
   const cs = getComputedStyle(header);
   const padL = parseFloat(cs.paddingLeft) || 0;
   const padR = parseFloat(cs.paddingRight) || 0;
   const border = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
   const inner = box - padL - padR - border;
   if (!(inner > 16)) return;
+  // Measure single-line natural width via inline style without toggling .wrap (prevents MutationObserver flicker).
+  const prevFs = h1.style.fontSize;
+  const prevWs = line.style.whiteSpace;
+  const prevFw = line.style.flexWrap;
+  const prevLw = line.style.width;
+  h1.style.fontSize = "";
+  line.style.whiteSpace = "nowrap";
+  line.style.flexWrap = "nowrap";
+  line.style.width = "max-content";
+  const baseSize = parseFloat(getComputedStyle(h1).fontSize);
   const purse = document.getElementById("wx-purse");
   const purseW = purse && purse.textContent && getComputedStyle(purse).display !== "none" ? purse.scrollWidth : 0;
   const need = Math.max(line.scrollWidth, purseW);
-  if (need <= inner + 1) return;
-  const size = parseFloat(getComputedStyle(h1).fontSize);
-  if (!(size > 0)) return;
-  const minSize = 11;
-  const scaled = (size * inner) / need;
-  if (scaled >= minSize) {
-    h1.style.fontSize = scaled.toFixed(2) + "px";
-  } else {
-    h1.style.fontSize = minSize + "px";
-    header.classList.add("wrap");
+  line.style.whiteSpace = prevWs;
+  line.style.flexWrap = prevFw;
+  line.style.width = prevLw;
+  let wantFs = "";
+  let wantWrap = false;
+  if (need > inner + 1 && baseSize > 0) {
+    const minSize = 11;
+    const scaled = (baseSize * inner) / need;
+    if (scaled >= minSize) {
+      wantFs = scaled.toFixed(2) + "px";
+    } else {
+      wantFs = minSize + "px";
+      wantWrap = true;
+    }
+  }
+  if (prevFs !== wantFs) h1.style.fontSize = wantFs;
+  else h1.style.fontSize = prevFs;
+  if (header.classList.contains("wrap") !== wantWrap) {
+    header.classList.toggle("wrap", wantWrap);
   }
 }
 function fitRunHub() {
@@ -18066,9 +18111,24 @@ function fitRunHub() {
     const stick = document.getElementById("walk-stick");
     const corner = document.getElementById("run-corner");
     const mapEl = document.getElementById("minimap");
+    const toolsEl = document.getElementById("tools");
+    const header = document.querySelector("header.panel");
     const fxEl = document.getElementById("run-fx");
+    const cashEl = document.getElementById("run-cash");
     if (!ui || !arrows) return;
+    const ub = uiBounds();
+    // Sync walk-mode Settings gear offset directly below #minimap before measuring top-right clearance.
+    let mapR = null;
+    if (mapEl && !mapEl.hidden && getComputedStyle(mapEl).display !== "none") {
+      const mr = mapEl.getBoundingClientRect();
+      if (mr.height > 1) {
+        mapR = mr;
+        ui.style.setProperty("--map-h", Math.ceil(mr.height) + "px");
+      }
+    }
     fitPurseRoom();
+    const hdrR = header && getComputedStyle(header).display !== "none" ? header.getBoundingClientRect() : null;
+    const toolsR = toolsEl && getComputedStyle(toolsEl).display !== "none" ? toolsEl.getBoundingClientRect() : null;
     const padOn = pad && getComputedStyle(pad).display !== "none";
     const stickW = padOn && stick ? stick.getBoundingClientRect().width : 0;
     ui.style.setProperty("--stick-clear", stickW > 0 ? Math.ceil(stickW + 10) + "px" : "0px");
@@ -18082,15 +18142,11 @@ function fitRunHub() {
       }
     }
     ui.style.setProperty("--corner-clear", cornerW > 0 ? Math.ceil(cornerW + 10) + "px" : "0px");
-    // Keep #run-center clear of #minimap vertically on short landscape viewports.
-    const uiCs = getComputedStyle(ui);
-    const padB = parseFloat(uiCs.paddingBottom) || 16;
-    let topFloor = (parseFloat(uiCs.paddingTop) || 16) + 56;
-    if (mapEl && !mapEl.hidden && getComputedStyle(mapEl).display !== "none") {
-      const mr = mapEl.getBoundingClientRect();
-      if (mr.height > 1) topFloor = Math.max(topFloor, mr.bottom + 10);
-    }
-    const centerMaxH = Math.max(96, Math.floor(window.innerHeight - padB - topFloor));
+    // Keep #run-center clear of #minimap and walk-mode Settings gear vertically.
+    let topFloor = ub.top + ub.padT + 56;
+    if (mapR) topFloor = Math.max(topFloor, mapR.bottom + 10);
+    if (walkMode && toolsR && toolsR.height > 1) topFloor = Math.max(topFloor, toolsR.bottom + 8);
+    const centerMaxH = Math.max(96, Math.floor(ub.bottom - ub.padB - topFloor));
     ui.style.setProperty("--run-center-max-h", centerMaxH + "px");
     arrows.style.left = "";
     arrows.style.right = "";
@@ -18106,14 +18162,46 @@ function fitRunHub() {
     if (arrows.hidden || getComputedStyle(arrows).display === "none") {
       arrows.style.top = "";
       if (fxEl && clockBot > 0) fxEl.style.top = Math.round(clockBot + 14) + "px";
-      return;
+    } else {
+      const midX = ub.left + ub.width * 0.5;
+      const baseTop = clockBot > 0 ? Math.round(clockBot + 10) : Math.round(ub.top + ub.padT + 56);
+      const arrNeed = Math.max(64, arrows.scrollWidth || arrows.getBoundingClientRect().width || 0);
+      let leftEdge = ub.left + ub.padL + 8;
+      let rightEdge = ub.right - ub.padR - 8;
+      if (hdrR && hdrR.height > 1 && baseTop < hdrR.bottom + 6) leftEdge = Math.max(leftEdge, hdrR.right + 10);
+      if (mapR && baseTop < mapR.bottom + 6) rightEdge = Math.min(rightEdge, mapR.left - 10);
+      if (walkMode && toolsR && toolsR.height > 1 && baseTop < toolsR.bottom + 6 && baseTop + 48 > toolsR.top) {
+        rightEdge = Math.min(rightEdge, toolsR.left - 10);
+      }
+      const symRoom = Math.floor(Math.min(midX - leftEdge, rightEdge - midX) * 2);
+      if (symRoom >= Math.min(arrNeed + 4, 240) && symRoom >= 112) {
+        arrows.style.top = baseTop + "px";
+        arrows.style.maxWidth = symRoom + "px";
+      } else {
+        // Drop cleanly below header & minimap on narrow portrait viewports so arrows never cover the minimap.
+        const dropTop = Math.max(
+          baseTop,
+          hdrR && hdrR.height > 1 ? Math.round(hdrR.bottom + 8) : 0,
+          mapR ? Math.round(mapR.bottom + 8) : 0
+        );
+        let dropRight = ub.right - ub.padR - 8;
+        if (walkMode && toolsR && toolsR.height > 1 && dropTop < toolsR.bottom + 6) {
+          dropRight = Math.min(dropRight, toolsR.left - 10);
+        }
+        const dropLeft = ub.left + ub.padL + 8;
+        const dropRoom = Math.max(120, Math.floor(Math.min(midX - dropLeft, dropRight - midX) * 2));
+        arrows.style.top = dropTop + "px";
+        arrows.style.maxWidth = dropRoom + "px";
+      }
+      if (fxEl) {
+        const ar = arrows.getBoundingClientRect();
+        const below = ar.height > 1 ? ar.bottom : clockBot;
+        if (below > 0) fxEl.style.top = Math.round(below + 10) + "px";
+      }
     }
-    if (clockBot > 0) arrows.style.top = Math.round(clockBot + 10) + "px";
-    if (fxEl) {
-      const ar = arrows.getBoundingClientRect();
-      const below = ar.height > 1 ? ar.bottom : clockBot;
-      if (below > 0) fxEl.style.top = Math.round(below + 10) + "px";
-    }
+    if (typeof placeRoofExit === "function") placeRoofExit();
+    if (fxEl && fxEl.children.length && typeof runPlaceFx === "function") runPlaceFx();
+    if (cashEl && cashEl.children.length && typeof runPlaceCash === "function") runPlaceCash();
   } finally {
     fitRunHub.busy = false;
   }
@@ -18502,6 +18590,7 @@ function applyLang(next) {
   if (paintClock.ready) paintClock(true);
   focusViewButton();
   fitDockText();
+  fitRunHub();
   if (typeof flushGlass === "function") flushGlass();
 }
 let pointerX = 0, pointerY = 0;
@@ -29437,6 +29526,7 @@ function paintClock(force) {
     hourB.textContent = whenLabel(h1, lang);
     skyA.textContent = t(wxKey(wxLeft));
     skyB.textContent = t(wxKey(fading ? weather : wxLeft));
+    if (typeof fitPurseRoom === "function") fitPurseRoom();
   }
   const ws = fading ? wxBlend : 0;
   setGlowFade(hourA, 1 - hs);
@@ -31579,12 +31669,40 @@ function leaveRoof(keepEye) {
   setFloor(14);
   if (!keepEye && walkMode && !walkGlide) placeWalkEye();
 }
+function placeRoofExit() {
+  const btn = document.getElementById("roof-go");
+  if (!btn || btn.hidden || !btn.classList.contains("exit")) return;
+  const ub = uiBounds();
+  btn.style.left = "";
+  btn.style.top = "";
+  btn.style.bottom = "";
+  const stack = document.getElementById("run-center");
+  if (!stack) return;
+  const r = stack.getBoundingClientRect();
+  const b = btn.getBoundingClientRect();
+  if (!(r.width > 1 && r.height > 1 && b.width > 1)) return;
+  if (r.left < b.right + 4 && r.right > b.left - 4) {
+    // On narrow portrait viewports where #run-center crosses screen center, dock cleanly above the thumb stick.
+    const stick = document.getElementById("walk-stick");
+    const pad = document.getElementById("walk-pad");
+    const sr = (pad && getComputedStyle(pad).display !== "none" && stick) ? stick.getBoundingClientRect() : null;
+    if (sr && sr.width > 1 && sr.height > 1) {
+      btn.style.left = Math.round(sr.left + sr.width * 0.5) + "px";
+      btn.style.bottom = Math.ceil(ub.bottom - sr.top + 10) + "px";
+    } else if (r.left - (ub.left + ub.padL) >= b.width + 16) {
+      btn.style.left = Math.round(r.left - b.width * 0.5 - 12) + "px";
+    } else {
+      btn.style.bottom = Math.ceil(ub.bottom - r.top + 12) + "px";
+    }
+  }
+}
 function syncRoofButton() {
   const btn = document.getElementById("roof-go");
   if (!btn) return;
   roofOffer = roofStay ? null : roofDoorNear();
   const show = walkMode && !walkGlide && (roofStay || roofOffer);
   function hide() {
+    if (btn.hidden && !btn.classList.contains("on")) return;
     btn.hidden = true;
     btn.classList.remove("on", "enter", "exit");
     btn.style.left = "";
@@ -31598,20 +31716,11 @@ function syncRoofButton() {
     if (btn.getAttribute("aria-label") !== label) btn.setAttribute("aria-label", label);
     if (btn.hasAttribute("data-i18n")) btn.removeAttribute("data-i18n");
     if (roofStay) {
+      const enteringExit = btn.hidden || !btn.classList.contains("exit");
       btn.classList.remove("enter");
       btn.classList.add("on", "exit");
       btn.hidden = false;
-      btn.style.left = "";
-      btn.style.top = "";
-      btn.style.bottom = "";
-      const stack = document.getElementById("run-center");
-      if (stack) {
-        const r = stack.getBoundingClientRect();
-        const b = btn.getBoundingClientRect();
-        if (r.width > 1 && r.height > 1 && b.width > 1 && r.left < b.right - 1 && r.right > b.left + 1) {
-          btn.style.bottom = Math.ceil(window.innerHeight - r.top + 12) + "px";
-        }
-      }
+      if (enteringExit) placeRoofExit();
     } else {
       btn.classList.remove("exit");
       btn.classList.add("on", "enter");
@@ -32685,36 +32794,47 @@ function runPlaceFx() {
 }
 function runPlaceCash() {
   const root = document.getElementById("run-cash");
-  if (!root) return;
+  if (!root || !root.children.length) return;
   const purse = document.getElementById("wx-purse");
   if (!purse || !purse.textContent || getComputedStyle(purse).display === "none") return;
+  const ub = uiBounds();
   const pr = purse.getBoundingClientRect();
   if (pr.height < 1) return;
   const plate = purse.closest("header.panel");
   const below = plate ? plate.getBoundingClientRect().bottom : pr.bottom;
+  const topY = Math.round(below + 8);
   root.style.left = Math.round(pr.left) + "px";
-  root.style.top = Math.round(below + 8) + "px";
+  root.style.top = topY + "px";
   root.style.fontSize = "";
   root.style.maxWidth = "";
-  let room = window.innerWidth - pr.left - 16;
+  let room = ub.right - ub.padR - pr.left;
   const clock = document.getElementById("run-clock");
   if (clock && !clock.hidden && getComputedStyle(clock).display !== "none") {
     const cr = clock.getBoundingClientRect();
-    if (cr.width > 1 && cr.left > pr.left) room = Math.min(room, cr.left - pr.left - 12);
+    if (cr.width > 1 && cr.left > pr.left && topY < cr.bottom + 8) room = Math.min(room, cr.left - pr.left - 10);
+  }
+  const arrows = document.getElementById("run-arrows");
+  if (arrows && !arrows.hidden && getComputedStyle(arrows).display !== "none") {
+    const ar = arrows.getBoundingClientRect();
+    if (ar.width > 1 && ar.left > pr.left + 40 && topY < ar.bottom + 6 && topY + 38 > ar.top) {
+      room = Math.min(room, ar.left - pr.left - 10);
+    }
   }
   if (!(room > 32)) return;
   let need = 0;
   for (let i = 0; i < root.children.length; i++) need = Math.max(need, root.children[i].scrollWidth);
-  if (need > room + 1) root.style.fontSize = Math.max(7, 11 * room / need).toFixed(2) + "px";
+  if (need > room + 1) root.style.fontSize = Math.max(9, 11 * room / need).toFixed(2) + "px";
   root.style.maxWidth = Math.floor(room) + "px";
 }
 function runSyncFx(now) {
   const timeRoot = document.getElementById("run-fx");
   const cashRoot = document.getElementById("run-cash");
   if (!timeRoot && !cashRoot) return;
+  const notes = run.notices || [];
+  if (!notes.length && (!timeRoot || !timeRoot.children.length) && (!cashRoot || !cashRoot.children.length)) return;
   const keep = [];
   const seen = {};
-  const notes = run.notices || [];
+  let changedTime = false, changedCash = false;
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
     if (now >= n.t0 + n.life) continue;
@@ -32730,6 +32850,8 @@ function runSyncFx(now) {
     const value = n.kind === "time" ? runDeltaClock(n.delta) : runDeltaCash(n.delta);
     el.innerHTML = "<em>" + runEsc(label) + "</em><span>" + runEsc(value) + "</span>";
     root.appendChild(el);
+    if (n.kind === "cash") changedCash = true;
+    else changedTime = true;
   }
   run.notices = keep;
   const roots = [timeRoot, cashRoot];
@@ -32738,11 +32860,15 @@ function runSyncFx(now) {
     if (!root) continue;
     const kids = root.children;
     for (let i = kids.length - 1; i >= 0; i--) {
-      if (!seen[kids[i].dataset.id]) root.removeChild(kids[i]);
+      if (!seen[kids[i].dataset.id]) {
+        root.removeChild(kids[i]);
+        if (r === 1) changedCash = true;
+        else changedTime = true;
+      }
     }
   }
-  runPlaceFx();
-  runPlaceCash();
+  if (changedTime && timeRoot && timeRoot.children.length) runPlaceFx();
+  if (changedCash && cashRoot && cashRoot.children.length) runPlaceCash();
 }
 function runClearFx() {
   run.notices = [];
@@ -33533,11 +33659,22 @@ function placeFloatingPrompt(btn, x, y, z, span) {
   function overlaps(p, r) {
     return p.x - w / 2 < r.right && p.x + w / 2 > r.left && p.y - h / 2 < r.bottom && p.y + h / 2 > r.top;
   }
+  const ub = uiBounds();
+  const minX = ub.left + ub.padL + w / 2;
+  const maxX = ub.right - ub.padR - w / 2;
+  const minY = ub.top + ub.padT + h / 2;
+  const maxY = ub.bottom - ub.padB - h / 2;
+  function clampPt(pt) {
+    return {
+      x: Math.max(minX, Math.min(maxX, pt.x)),
+      y: Math.max(minY, Math.min(maxY, pt.y))
+    };
+  }
   function panels() {
     const list = [];
     const head = document.querySelector("header.panel");
     if (head) list.push(head);
-    const ids = ["walk-stick", "run-order", "run-corner", "run-board", "minimap", "run-prompt", "roof-go"];
+    const ids = ["walk-stick", "run-clock", "run-arrows", "run-fx", "run-cash", "tools", "run-order", "run-corner", "run-board", "minimap", "run-prompt", "roof-go"];
     for (let i = 0; i < ids.length; i++) {
       const el = document.getElementById(ids[i]);
       if (el && el !== btn) list.push(el);
@@ -33545,8 +33682,8 @@ function placeFloatingPrompt(btn, x, y, z, span) {
     return list;
   }
   // Beside the entrance, on the side that misses the HUD. If that point is
-  // behind a panel, the prompt sits on that panel's nearest edge.
-  let p = pin(1);
+  // behind a panel, pick the nearest clamped edge that clears other HUD elements.
+  let p = clampPt(pin(1));
   const hud = panels();
   function hits(pt) {
     for (let i = 0; i < hud.length; i++) {
@@ -33559,31 +33696,30 @@ function placeFloatingPrompt(btn, x, y, z, span) {
     return null;
   }
   if (hits(p)) {
-    const other = pin(-1);
+    const other = clampPt(pin(-1));
     if (!hits(other)) p = other;
   }
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 4; pass++) {
     const hit = hits(p);
     if (!hit) break;
     const gap = 8;
     const options = [
-      { x: hit.left - w / 2 - gap, y: p.y },
-      { x: hit.right + w / 2 + gap, y: p.y },
-      { x: p.x, y: hit.top - h / 2 - gap },
-      { x: p.x, y: hit.bottom + h / 2 + gap }
+      clampPt({ x: hit.left - w / 2 - gap, y: p.y }),
+      clampPt({ x: hit.right + w / 2 + gap, y: p.y }),
+      clampPt({ x: p.x, y: hit.top - h / 2 - gap }),
+      clampPt({ x: p.x, y: hit.bottom + h / 2 + gap })
     ];
-    let best = options[0], bestC = Infinity;
+    let best = options[0], bestScore = Infinity;
     for (let i = 0; i < options.length; i++) {
-      const c = (options[i].x - p.x) * (options[i].x - p.x) + (options[i].y - p.y) * (options[i].y - p.y);
-      if (c < bestC) { bestC = c; best = options[i]; }
+      const cand = options[i];
+      const dist2 = (cand.x - p.x) * (cand.x - p.x) + (cand.y - p.y) * (cand.y - p.y);
+      const penalty = hits(cand) ? 1e6 : 0;
+      const score = dist2 + penalty;
+      if (score < bestScore) { bestScore = score; best = cand; }
     }
     p = { x: best.x, y: best.y };
   }
-  const box = renderer.domElement.getBoundingClientRect();
-  const edgeX = 24 + w / 2;
-  const edgeY = 24 + h / 2;
-  p.x = Math.max(box.left + edgeX, Math.min(box.right - edgeX, p.x));
-  p.y = Math.max(box.top + edgeY, Math.min(box.bottom - edgeY, p.y));
+  p = clampPt(p);
   btn.style.left = p.x + "px";
   btn.style.top = p.y + "px";
   btn.style.bottom = "";
@@ -33720,7 +33856,11 @@ function runPaint() {
         }
       }
     } else clock.classList.remove("bonus", "gain", "mid", "low", "late", "warn");
-    fitPurseRoom();
+    const purseSig = (on ? "1" : "0") + ":" + (on ? clock.textContent.length : 0) + ":" + (purse ? purse.textContent : "");
+    if (purseSig !== runPaint.purseSig) {
+      runPaint.purseSig = purseSig;
+      fitPurseRoom();
+    }
   }
   runSyncFx(now);
   if (list) {
@@ -33821,7 +33961,12 @@ function runPaint() {
   }
   const hint = document.getElementById("hint");
   if (hint && run.day && walkMode && !run.sheet) hint.textContent = runText("hint");
-  const hubSig = (lip && !lip.hidden ? "1" : "0");
+  const hubSig =
+    (clock && !clock.hidden ? "1" : "0") +
+    (board.hidden ? "0" : "1") +
+    (order && !order.hidden ? "1" : "0") +
+    ":" + (list ? list.children.length : 0) +
+    ":" + (near && near.textContent ? near.textContent.length : 0);
   if (hubSig !== runPaint.hub) {
     runPaint.hub = hubSig;
     fitRunHub();
