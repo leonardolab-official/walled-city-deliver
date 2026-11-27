@@ -8409,7 +8409,7 @@ function addMass(x, z, w, d, floors, meta) {
     pickables.push(mesh);
   });
   massCount++;
-  const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.5, top.w - 0.3), 0.16, Math.max(0.5, top.d - 0.3)), roofMat);
+  const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.5, top.w - 0.16), 0.16, Math.max(0.5, top.d - 0.16)), roofMat);
   roofSlab.geometry.userData.pack = 2;
   roofSlab.position.set(top.x + top.w / 2, h + 0.08, top.z + top.d / 2);
   roofSlab.userData = { roof: 1 };
@@ -8442,20 +8442,7 @@ function addMass(x, z, w, d, floors, meta) {
     fp.plans.forEach(p => placeBay(p.bay, fp.face, p.kind, p.rng, data, fp.clearance, z, x + w * 0.5, z + d * 0.5));
   });
   if (stair) placeStair(stair.bay, stair.face, data, z, x + w * 0.5, z + d * 0.5, stair);
-  if (meta.vents) {
-    const duct = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 1.6, 0.45),
-      addMass.ductMat || (addMass.ductMat = (function () {
-        const mat = new THREE.MeshStandardMaterial({
-          map: roofKitTexOf("galv"), color: 0x5e564c, roughness: 0.94, metalness: 0.06, clippingPlanes: clips
-        });
-        attachBoxTile(mat, 0.64, 0, 0);
-        return mat;
-      })())
-    );
-    duct.position.set(top.x + top.w * 0.55, h + 0.85, top.z + top.d * 0.5);
-    city.add(duct);
-  }
+  // Rooftop exhaust ducts are placed inside dressRoof() so they obey collision, instancing & roof reflections.
   if (meta.buckets && facePlans.length) {
     const fp = facePlans[0];
     const bay0 = fp.plans && fp.plans[0] && fp.plans[0].bay;
@@ -8486,7 +8473,7 @@ function addMass(x, z, w, d, floors, meta) {
   // Open ground faces sit 0.48 m behind the lot line. bakeWalk pulls the
   // walker box back to that plaster, so the lane you see is the lane you walk.
   walkSolids.push({ x, z, x2: x + w, z2: z + d, ground: openFaces.join("") });
-  dressRoof(top.x, top.z, top.w, top.d, h);
+  dressRoof(top.x, top.z, top.w, top.d, h, !!meta.vents);
   roofDeck = null;
   return data;
 }
@@ -8822,7 +8809,7 @@ const roofDoors = [];
 let roofDeck = null;
 let roofStay = null;
 let roofOffer = null;
-const roofQ = { yagi: [], stair: [], tank: [], stand: [], shed: [], rpipe: [], cyl: [], cylStand: [], pot: [], line: [] };
+const roofQ = { yagi: [], stair: [], tank: [], stand: [], shed: [], rpipe: [], cyl: [], cylStand: [], pot: [], line: [], duct: [] };
 // Years of rain on a tank leave rust runs, a soot skirt and a dull skin.
 // The hash is taken from the seat, so neighbouring roofs do not match.
 function soilTint(x, z, salt) {
@@ -8983,30 +8970,40 @@ const TV_YAW = 2.48;
 function roofRand(x, z, salt) {
   return mulberry32((Math.floor(x * 4) * 2246822519) ^ (Math.floor(z * 4) * 3266489917) ^ salt);
 }
-function dressRoof(x, z, w, d, h) {
+function dressRoof(x, z, w, d, h, hasVent) {
   const rng = roofRand(x, z, 0x5a17);
   const roofTop = h + 0.17;
-  const inset = 0.95;
   function occupy(px, pz, hx, hz) {
     if (!roofDeck) return;
     roofDeck.blocks.push({ x: px - hx, z: pz - hz, x2: px + hx, z2: pz + hz });
   }
   if (w < 1.90 || d < 1.90) return;
-  const taken = [];
-  function claim(px, pz, rad) {
-    for (let i = 0; i < taken.length; i++) {
-      if (Math.hypot(taken[i].x - px, taken[i].z - pz) < rad) return false;
+  // Store exact occupied AABBs (plus clearance) so no rooftop prop can overlap another.
+  const rects = [];
+  function rectClear(cx, cz, hx, hz, pad, skipIdx) {
+    const p = pad == null ? 0.12 : pad;
+    const ax0 = cx - hx - p, ax1 = cx + hx + p;
+    const az0 = cz - hz - p, az1 = cz + hz + p;
+    for (let i = 0; i < rects.length; i++) {
+      if (i === skipIdx) continue;
+      const b = rects[i];
+      if (ax0 < b.x1 && ax1 > b.x0 && az0 < b.z1 && az1 > b.z0) return false;
     }
-    taken.push({ x: px, z: pz });
     return true;
   }
-  function spot(rad, margin) {
-    const m = margin == null ? inset : margin;
-    if (w < m * 2 + 0.3 || d < m * 2 + 0.3) return null;
-    for (let n = 0; n < 8; n++) {
-      const px = x + m + rng() * (w - m * 2);
-      const pz = z + m + rng() * (d - m * 2);
-      if (claim(px, pz, rad)) return { x: px, z: pz };
+  function claimRect(cx, cz, hx, hz, pad) {
+    if (!rectClear(cx, cz, hx, hz, pad)) return false;
+    rects.push({ x0: cx - hx, x1: cx + hx, z0: cz - hz, z1: cz + hz });
+    return true;
+  }
+  function spotRect(hx, hz, margin, pad) {
+    const mX = Math.max(margin == null ? 0.42 : margin, hx + 0.28);
+    const mZ = Math.max(margin == null ? 0.42 : margin, hz + 0.28);
+    if (w < mX * 2 + 0.08 || d < mZ * 2 + 0.08) return null;
+    for (let n = 0; n < 14; n++) {
+      const px = x + mX + rng() * (w - mX * 2);
+      const pz = z + mZ + rng() * (d - mZ * 2);
+      if (claimRect(px, pz, hx, hz, pad)) return { x: px, z: pz };
     }
     return null;
   }
@@ -9065,10 +9062,10 @@ function dressRoof(x, z, w, d, h) {
         doorZ = clamp(sz + fz * (frontHalf + 0.62), z + 0.46, z + d - 0.46);
       }
       const r90Final = Math.abs(Math.sin(yaw)) > 0.5;
-      const occX = (r90Final ? bd : bw) * 0.5 + 0.06;
-      const occZ = (r90Final ? bw : bd) * 0.5 + 0.06;
-      claim(sx, sz, Math.max(occX, occZ) + 0.55);
-      claim(doorX, doorZ, 0.72);
+      const occX = (r90Final ? bd : bw) * 0.5 + 0.08;
+      const occZ = (r90Final ? bw : bd) * 0.5 + 0.08;
+      rects.push({ x0: sx - occX, x1: sx + occX, z0: sz - occZ, z1: sz + occZ });
+      rects.push({ x0: doorX - 0.48, x1: doorX + 0.48, z0: doorZ - 0.48, z1: doorZ + 0.48 });
       roofQ.stair.push({
         x: sx, z: sz, y: roofTop, roofTop,
         sx: bw, sy: bh, sz: bd,
@@ -9077,74 +9074,135 @@ function dressRoof(x, z, w, d, h) {
       });
       occupy(sx, sz, occX, occZ);
       if (roofDeck) {
-        roofDeck.stairhead = { x: sx, z: sz, doorX: doorX, doorZ: doorZ, exitYaw: yaw, w: occX * 2, d: occZ * 2 };
+        // stepWalk forward is (-sin(walkYaw), -cos(walkYaw)); add Math.PI so the player emerges facing outward onto the roof.
+        roofDeck.stairhead = { x: sx, z: sz, doorX: doorX, doorZ: doorZ, exitYaw: yaw + Math.PI, w: occX * 2, d: occZ * 2 };
       }
+    }
+  }
+  if (hasVent) {
+    const vp = spotRect(0.28, 0.28, 0.65, 0.16);
+    if (vp) {
+      roofQ.duct.push({
+        x: vp.x, z: vp.z, y: roofTop, roofTop,
+        sx: 0.46, sy: 1.55, sz: 0.46, lift: 0,
+        tint: soilTint(vp.x, vp.z, 1)
+      });
+      occupy(vp.x, vp.z, 0.26, 0.26);
     }
   }
   const nAnt = w < 5 ? 1 + (rng() > 0.45 ? 1 : 0) : 2 + Math.floor(rng() * (w > 8.5 ? 4 : 3));
   for (let i = 0; i < nAnt; i++) {
-    const p = spot(0.9);
+    const p = spotRect(0.26, 0.26, 0.72, 0.18);
     if (!p) break;
     const wild = rng() > 0.86;
     roofQ.yagi.push({
-      x: p.x, z: p.z, y: roofTop, roofTop, lift: 0.02,
-      lean: wild ? (rng() - 0.5) * 0.42 : (rng() - 0.5) * 0.1,
+      x: p.x, z: p.z, y: roofTop, roofTop, lift: 0,
+      lean: wild ? (rng() - 0.5) * 0.36 : (rng() - 0.5) * 0.09,
       yaw: wild ? rng() * Math.PI * 2 : TV_YAW + (rng() - 0.5) * 0.7,
       sy: 0.84 + rng() * 0.36,
       tint: soilTint(p.x, p.z, 1)
     });
-    occupy(p.x, p.z, 0.16, 0.16);
+    occupy(p.x, p.z, 0.18, 0.18);
   }
   if (w < 4.6 || d < 4.6) return;
   const nRound = (w > 7.2 && d > 6.4 && rng() > 0.7) ? 2 : 1;
   if (rng() > 0.14) {
     for (let i = 0; i < nRound; i++) {
-      const p = spot(1.4, 1.25);
+      const p = spotRect(0.50, 0.50, 0.95, 0.18);
       if (!p) break;
       const yaw = rng() * Math.PI;
       const rust = rng() > 0.22;
-      roofQ.cyl.push({ x: p.x, z: p.z, y: roofTop, roofTop, yaw, rust, lift: 0.45, tint: soilTint(p.x, p.z, rust ? 2 : 1) });
+      roofQ.cyl.push({ x: p.x, z: p.z, y: roofTop, roofTop, yaw, rust, lift: 0.46, tint: soilTint(p.x, p.z, rust ? 2 : 1) });
       roofQ.cylStand.push({ x: p.x, z: p.z, y: roofTop, roofTop, yaw, lift: 0, tint: soilTint(p.x, p.z, 2) });
       occupy(p.x, p.z, 0.5, 0.5);
     }
   }
   if (rng() > 0.32) {
-    const p = spot(1.25, 1.2);
+    const p = spotRect(0.68, 0.52, 0.95, 0.18);
     if (p) {
       const sy = 0.68;
       const rust = rng() > 0.18;
-      roofQ.tank.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.28, sy, sz: 0.96, lift: 0.22 + sy / 2, rust, tint: soilTint(p.x, p.z, rust ? 2 : 1) });
+      const tankTint = soilTint(p.x, p.z, rust ? 2 : 1);
+      const standTint = soilTint(p.x, p.z, 2);
+      const pipeTint = soilTint(p.x, p.z, 1);
+      roofQ.tank.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.28, sy, sz: 0.96, lift: 0.22 + sy / 2, rust, tint: tankTint });
       occupy(p.x, p.z, 0.68, 0.52);
-      roofQ.stand.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.08, sy: 0.22, sz: 0.78, lift: 0.11, tint: soilTint(p.x, p.z, 2) });
-      const plen = Math.min(w * 0.28, 2.2);
-      roofQ.rpipe.push({
-        x: Math.min(x + w - 0.6, p.x + 0.85 + plen / 2), z: p.z, y: roofTop, roofTop,
-        sx: plen, sy: 0.045, sz: 0.045, lift: 0.06, tint: soilTint(p.x, p.z, 1)
-      });
+      roofQ.stand.push({ x: p.x, z: p.z, y: roofTop, roofTop, sx: 1.08, sy: 0.22, sz: 0.78, lift: 0.11, tint: standTint });
+      // Connected supply pipe: exit tank wall cleanly via elbow + vertical riser down onto roof saddles,
+      // strictly contained inside the parapet edge on whichever side has more open roof.
+      const roomE = (x + w - 0.30) - (p.x + 0.64);
+      const roomW = (p.x - 0.64) - (x + 0.30);
+      const pDir = roomE >= roomW ? 1 : -1;
+      const avail = Math.max(roomE, roomW);
+      if (avail >= 0.42) {
+        const plen = Math.min(avail - 0.10, Math.min(w * 0.28, 2.0));
+        const runMidX = p.x + pDir * (0.70 + plen * 0.5);
+        const tankRectIdx = rects.length - 1;
+        if (rectClear(runMidX, p.z, plen * 0.5, 0.08, 0.04, tankRectIdx)) {
+          // Outlet stub from tank side wall (0.64) to riser (0.70) at y = 0.34
+          roofQ.rpipe.push({
+            x: p.x + pDir * 0.665, z: p.z, y: roofTop, roofTop,
+            sx: 0.09, sy: 0.045, sz: 0.045, lift: 0.34, rayX: p.x, rayZ: p.z, tint: pipeTint
+          });
+          // Vertical drop riser from 0.34 down to horizontal line (0.06)
+          roofQ.rpipe.push({
+            x: p.x + pDir * 0.70, z: p.z, y: roofTop, roofTop,
+            sx: 0.045, sy: 0.32, sz: 0.045, lift: 0.20, rayX: p.x, rayZ: p.z, tint: pipeTint
+          });
+          // Horizontal roof pipe run strictly inside parapet
+          roofQ.rpipe.push({
+            x: runMidX, z: p.z, y: roofTop, roofTop,
+            sx: plen, sy: 0.045, sz: 0.045, lift: 0.06, rayX: p.x, rayZ: p.z, tint: pipeTint
+          });
+          // Roof concrete/iron saddle blocks supporting the horizontal pipe flush on the slab
+          [0.32, 0.82].forEach(frac => {
+            roofQ.rpipe.push({
+              x: p.x + pDir * (0.70 + plen * frac), z: p.z, y: roofTop, roofTop,
+              sx: 0.07, sy: 0.045, sz: 0.09, lift: 0.0225, rayX: p.x, rayZ: p.z, tint: standTint
+            });
+          });
+          rects.push({
+            x0: Math.min(p.x + pDir * 0.64, p.x + pDir * (0.70 + plen)),
+            x1: Math.max(p.x + pDir * 0.64, p.x + pDir * (0.70 + plen)),
+            z0: p.z - 0.10, z1: p.z + 0.10
+          });
+        }
+      }
     }
   }
   if (rng() > 0.28 && w > 5.4 && d > 5.2) {
     const sy = 2.08 + rng() * 0.14;
-    const p = spot(1.3, 1.35);
+    const shedX = Math.min(2.15, w * 0.3);
+    const shedZ = Math.min(1.7, d * 0.26);
+    const p = spotRect(shedX * 0.5 + 0.08, shedZ * 0.5 + 0.08, 0.65, 0.16);
     if (p) {
-      const shedX = Math.min(2.15, w * 0.3);
-      const shedZ = Math.min(1.7, d * 0.26);
+      const cx = x + w * 0.5, cz = z + d * 0.5;
+      const shedYaw = Math.abs(cx - p.x) >= Math.abs(cz - p.z)
+        ? ((cx >= p.x) ? Math.PI / 2 : -Math.PI / 2)
+        : ((cz >= p.z) ? 0 : Math.PI);
+      const r90 = Math.abs(Math.sin(shedYaw)) > 0.5;
       roofQ.shed.push({
         x: p.x, z: p.z, y: roofTop, roofTop,
-        sx: shedX, sy, sz: shedZ, lift: sy / 2, tint: soilTint(p.x, p.z, 2)
+        sx: r90 ? shedZ : shedX, sy, sz: r90 ? shedX : shedZ,
+        yaw: shedYaw, lift: 0, tint: soilTint(p.x, p.z, 2)
       });
-      occupy(p.x, p.z, shedX * 0.5, shedZ * 0.5);
+      occupy(p.x, p.z, shedX * 0.5 + 0.04, shedZ * 0.5 + 0.04);
     }
   }
   if (rng() > 0.42) {
-    const len = Math.min(2.3, w - 3.4);
+    const len = Math.min(2.3, w - 2.2);
     if (len > 1.15) {
-      const lx = x + 1.6, lz = z + 0.85;
-      roofQ.line.push({ x: lx, y: roofTop, z: lz, len, roofTop, lift: 1.15, rayX: lx + len / 2, rayZ: lz });
+      const lp = spotRect(len * 0.5 + 0.10, 0.24, 0.55, 0.14);
+      if (lp) {
+        const lx = lp.x - len * 0.5;
+        roofQ.line.push({ x: lx, y: roofTop, z: lp.z, len, roofTop, lift: 1.18, rayX: lp.x, rayZ: lp.z });
+        occupy(lx, lp.z, 0.10, 0.10);
+        occupy(lx + len, lp.z, 0.10, 0.10);
+      }
     }
   }
   if (rng() > 0.48) {
-    const p = spot(0.7, 0.8);
+    const p = spotRect(0.22, 0.22, 0.58, 0.14);
     if (p) {
       roofQ.pot.push({ x: p.x, z: p.z, y: roofTop, roofTop, lift: 0.1, tint: soilTint(p.x, p.z, 1) });
       occupy(p.x, p.z, 0.22, 0.22);
@@ -9187,9 +9245,12 @@ function mergeGeos(geos) {
   return g;
 }
 function makeYagi() {
-  // Fishbone: a mast, a horizontal boom, a long reflector and directors that shorten toward the front.
+  // Fishbone aerial: grounded concrete/steel footing, mast extending continuously through both
+  // VHF (2.05 m) and UHF (2.26 m) booms, with boom clamps and progressively shorter directors.
   return mergedBoxes([
-    { sx: 0.032, sy: 2.2, sz: 0.032, x: 0, y: 1.1, z: 0 },
+    { sx: 0.22, sy: 0.07, sz: 0.22, x: 0, y: 0.035, z: 0 },
+    { sx: 0.08, sy: 0.09, sz: 0.08, x: 0, y: 0.11, z: 0 },
+    { sx: 0.032, sy: 2.34, sz: 0.032, x: 0, y: 1.17, z: 0 },
     { sx: 0.024, sy: 0.024, sz: 1.32, x: 0, y: 2.05, z: 0.1 },
     { sx: 1.02, sy: 0.02, sz: 0.02, x: 0, y: 2.05, z: -0.52 },
     { sx: 0.9, sy: 0.02, sz: 0.02, x: 0, y: 2.05, z: -0.28 },
@@ -9201,7 +9262,8 @@ function makeYagi() {
     { sx: 0.34, sy: 0.014, sz: 0.014, x: 0, y: 2.26, z: -0.16 },
     { sx: 0.24, sy: 0.014, sz: 0.014, x: 0, y: 2.26, z: 0.04 },
     { sx: 0.16, sy: 0.014, sz: 0.014, x: 0, y: 2.26, z: 0.2 },
-    { sx: 0.07, sy: 0.07, sz: 0.06, x: 0, y: 2.0, z: 0 }
+    { sx: 0.07, sy: 0.07, sz: 0.06, x: 0, y: 2.05, z: 0 },
+    { sx: 0.055, sy: 0.05, sz: 0.05, x: 0, y: 2.26, z: 0 }
   ]);
 }
 function makeRoundStand() {
@@ -9217,8 +9279,28 @@ function makeRoundStand() {
     { sx: s * 2, sy: t, sz: t, x: 0, y: h - t / 2, z: s },
     { sx: t, sy: t, sz: s * 2, x: -s, y: h - t / 2, z: 0 },
     { sx: t, sy: t, sz: s * 2, x: s, y: h - t / 2, z: 0 },
-    { sx: s * 2.15, sy: t, sz: t, x: 0, y: h * 0.4, z: 0 },
-    { sx: t, sy: t, sz: s * 2.2, x: 0, y: h * 0.4, z: 0 }
+    { sx: s * 2, sy: t, sz: t, x: 0, y: h * 0.38, z: -s },
+    { sx: s * 2, sy: t, sz: t, x: 0, y: h * 0.38, z: s },
+    { sx: t, sy: t, sz: s * 2, x: -s, y: h * 0.38, z: 0 },
+    { sx: t, sy: t, sz: s * 2, x: s, y: h * 0.38, z: 0 }
+  ]);
+}
+function makeRectStand() {
+  // Open 4-leg galvanized angle-iron frame unit-normalized to [-0.5, 0.5] in X, Y, Z.
+  const tx = 0.045, ty = 0.14, tz = 0.055;
+  const px = 0.5 - tx * 0.5, pz = 0.5 - tz * 0.5;
+  return mergedBoxes([
+    { sx: tx, sy: 1.0, sz: tz, x: -px, y: 0, z: -pz },
+    { sx: tx, sy: 1.0, sz: tz, x: px, y: 0, z: -pz },
+    { sx: tx, sy: 1.0, sz: tz, x: -px, y: 0, z: pz },
+    { sx: tx, sy: 1.0, sz: tz, x: px, y: 0, z: pz },
+    { sx: 1.0, sy: ty, sz: tz, x: 0, y: 0.5 - ty * 0.5, z: -pz },
+    { sx: 1.0, sy: ty, sz: tz, x: 0, y: 0.5 - ty * 0.5, z: pz },
+    { sx: tx, sy: ty, sz: 1.0, x: -px, y: 0.5 - ty * 0.5, z: 0 },
+    { sx: tx, sy: ty, sz: 1.0, x: px, y: 0.5 - ty * 0.5, z: 0 },
+    { sx: tx, sy: ty, sz: 1.0, x: 0, y: 0.5 - ty * 0.5, z: 0 },
+    { sx: 1.0, sy: ty * 0.85, sz: tz * 0.85, x: 0, y: -0.22, z: -pz },
+    { sx: 1.0, sy: ty * 0.85, sz: tz * 0.85, x: 0, y: -0.22, z: pz }
   ]);
 }
 function makeRoundTank() {
@@ -9361,7 +9443,7 @@ function seatRoofClutter() {
     }
     return out;
   }
-  ["yagi", "stair", "tank", "stand", "shed", "rpipe", "cyl", "cylStand", "pot", "line"].forEach(k => {
+  ["yagi", "stair", "tank", "stand", "shed", "rpipe", "cyl", "cylStand", "pot", "line", "duct"].forEach(k => {
     roofQ[k] = seat(roofQ[k]);
   });
   clutterStats.missed = missed;
@@ -9482,8 +9564,8 @@ function buildRoof() {
     const lx = 0.224 * it.sx;
     const lz = 0.502 * it.sz;
     o.position.set(it.x + lx * cy + lz * sy, it.y + 0.055 * it.sy, it.z - lx * sy + lz * cy);
-    // Swung open ~140 deg outward from the right hinge jamb, propped clear of both pier and landing apron.
-    o.rotation.set(0, yaw + 2.45, 0);
+    // Swung open ~121 deg outward from the right hinge jamb, staying inside the exterior corner wall (x < 0.50).
+    o.rotation.set(0, yaw + 2.12, 0);
     o.scale.set(0.436 * it.sx, 0.765 * it.sy, 0.045);
   };
   const stairVoidMat = shopMat("roof-stair-void", () => new THREE.MeshBasicMaterial({ color: 0x050505 }));
@@ -9506,16 +9588,83 @@ function buildRoof() {
   }
   tagKit(fillInst(unit, galv, roofQ.tank.filter(t => !t.rust), placeBox), "tank");
   tagKit(fillInst(unit, galvRust, roofQ.tank.filter(t => t.rust), placeBox), "tank");
-  tagKit(fillInst(unit, standMat, roofQ.stand, placeBox), "stand");
-  tagKit(fillInst(unit, shedMat, roofQ.shed, placeBox), "shed");
+  tagKit(fillInst(makeRectStand(), standMat, roofQ.stand, placeBox), "stand");
+  // Detailed 1980s corrugated tin roof shack (天台鐵皮屋): corrugated walls, overhanging pitched tin lid,
+  // weathered door, and barred side window.
+  function makeRoofShedBody() {
+    return mergedBoxes([
+      { sx: 0.98, sy: 0.90, sz: 0.98, x: 0, y: 0.45, z: 0 }
+    ]);
+  }
+  function makeRoofShedLid() {
+    const g = new THREE.BoxGeometry(1.12, 0.045, 1.16);
+    g.rotateX(0.065);
+    g.translate(0, 0.935, 0.02);
+    return g;
+  }
+  function makeRoofShedTrim() {
+    return mergedBoxes([
+      // Front doorway frame + weathered metal door leaf (+Z)
+      { sx: 0.42, sy: 0.78, sz: 0.03, x: -0.14, y: 0.39, z: 0.495 },
+      { sx: 0.46, sy: 0.035, sz: 0.05, x: -0.14, y: 0.79, z: 0.50 },
+      // Barred ventilation window on front right & side wall
+      { sx: 0.24, sy: 0.24, sz: 0.03, x: 0.28, y: 0.58, z: 0.495 },
+      { sx: 0.03, sy: 0.24, sz: 0.34, x: 0.495, y: 0.58, z: 0.0 }
+    ]);
+  }
+  const placeShed = (o, it) => {
+    o.position.set(it.x, it.y, it.z);
+    o.rotation.set(0, it.yaw || 0, 0);
+    o.scale.set(it.sx, it.sy, it.sz);
+  };
+  if (roofQ.shed.length) {
+    tagKit(fillInst(makeRoofShedBody(), shedMat, roofQ.shed, placeShed), "shed");
+    tagKit(fillInst(makeRoofShedLid(), galvRust, roofQ.shed, placeShed), "shed");
+    tagKit(fillInst(makeRoofShedTrim(), standMat, roofQ.shed, placeShed), "shed");
+  }
+  // Instanced galvanized exhaust ducts with base flange and angled rain hood (Kwong Ming St).
+  function makeRoofDuct() {
+    const hood = new THREE.BoxGeometry(1.24, 0.07, 1.24);
+    hood.rotateX(0.12);
+    hood.translate(0, 0.97, 0);
+    return mergeGeos([
+      mergedBoxes([
+        { sx: 1.18, sy: 0.06, sz: 1.18, x: 0, y: 0.03, z: 0 },
+        { sx: 0.96, sy: 0.86, sz: 0.96, x: 0, y: 0.48, z: 0 },
+        { sx: 0.10, sy: 0.14, sz: 0.10, x: -0.42, y: 0.91, z: -0.42 },
+        { sx: 0.10, sy: 0.14, sz: 0.10, x: 0.42, y: 0.91, z: -0.42 },
+        { sx: 0.10, sy: 0.14, sz: 0.10, x: -0.42, y: 0.91, z: 0.42 },
+        { sx: 0.10, sy: 0.14, sz: 0.10, x: 0.42, y: 0.91, z: 0.42 }
+      ]),
+      hood
+    ]);
+  }
+  if (roofQ.duct.length) {
+    tagKit(fillInst(makeRoofDuct(), galv, roofQ.duct, placeBox), "pipe");
+  }
   tagKit(fillInst(unit, rpipeMat, roofQ.rpipe, placeBox), "pipe");
   tagKit(fillInst(makeRoundTank(), galv, roofQ.cyl.filter(t => !t.rust), placeRound), "tank");
   tagKit(fillInst(makeRoundTank(), galvRust, roofQ.cyl.filter(t => t.rust), placeRound), "tank");
   tagKit(fillInst(makeRoundStand(), standMat, roofQ.cylStand, placeRound), "stand");
+  // Organic multi-frond rooftop foliage cluster replacing the solid cube bush.
+  function makeRoofPlant() {
+    const fronds = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + (i % 2 ? 0.18 : 0);
+      const h = i % 2 ? 0.24 : 0.18;
+      const g = new THREE.BoxGeometry(0.065, h, 0.018);
+      g.translate(0, h * 0.5, 0);
+      g.rotateX(0.32 + (i % 2) * 0.14);
+      g.rotateY(a);
+      g.translate(Math.sin(a) * 0.035, 0, Math.cos(a) * 0.035);
+      fronds.push(g);
+    }
+    return mergeGeos(fronds);
+  }
   tagKit(fillInst(new THREE.CylinderGeometry(0.16, 0.14, 0.2, 8), potMat, roofQ.pot, (o, it) => o.position.set(it.x, it.y, it.z)), "pot");
-  tagKit(fillInst(unit, leafMat, roofQ.pot, (o, it) => {
-    o.position.set(it.x, it.y + 0.16, it.z);
-    o.scale.set(0.24, 0.16, 0.24);
+  tagKit(fillInst(makeRoofPlant(), leafMat, roofQ.pot, (o, it) => {
+    o.position.set(it.x, it.y + 0.08, it.z);
+    o.rotation.y = (it.x * 3.1 + it.z * 2.7) % 6.28;
   }), "pot");
   const clothMap = roofKitTexOf("cloth");
   const cloths = [0x6a4036, 0x6e6860, 0x3e5254, 0x645438, 0x8a4e34, 0x3a5560].map(color => {
@@ -9525,22 +9674,33 @@ function buildRoof() {
     attachBoxTile(mat, 0.08, 0, 0);
     return mat;
   });
-  const clothGeo = new THREE.BoxGeometry(0.4, 0.62, 0.05);
+  const clothGeo = new THREE.BoxGeometry(0.4, 0.62, 0.045);
+  const lineWires = [], linePosts = [], lineFoots = [];
+  const lineCloths = cloths.map(() => []);
   roofQ.line.forEach(it => {
-    const wire = new THREE.Mesh(new THREE.BoxGeometry(it.len, 0.02, 0.02), aerial);
-    wire.position.set(it.x + it.len / 2, it.y, it.z);
-    wire.castShadow = false;
-    wire.userData.kit = "line";
-    city.add(wire);
+    const baseY = it.y - (it.lift || 1.18);
+    const poleH = (it.lift || 1.18) + 0.06;
+    lineWires.push({ x: it.x + it.len * 0.5, y: it.y, z: it.z, sx: it.len, sy: 0.018, sz: 0.018 });
+    [it.x, it.x + it.len].forEach(px => {
+      linePosts.push({ x: px, y: baseY + poleH * 0.5, z: it.z, sx: 0.032, sy: poleH, sz: 0.032 });
+      lineFoots.push({ x: px, y: baseY + 0.045, z: it.z, sx: 0.16, sy: 0.09, sz: 0.16 });
+    });
     const n = Math.min(3, Math.floor(it.len / 0.6));
+    const step = it.len / (n + 1);
     for (let i = 0; i < n; i++) {
-      const cloth = new THREE.Mesh(clothGeo, cloths[(i + Math.floor(it.x)) % cloths.length]);
-      cloth.position.set(it.x + 0.35 + i * 0.58, it.y - 0.36, it.z);
-      cloth.castShadow = false;
-      cloth.userData.kit = "line";
-      city.add(cloth);
+      const ci = Math.abs(i + Math.floor(it.x)) % cloths.length;
+      // Garment height 0.62 centered at it.y - 0.31 -> top edge touches wire at it.y directly (0 mm air gap).
+      lineCloths[ci].push({ x: it.x + step * (i + 1), y: it.y - 0.31, z: it.z, sx: 1, sy: 1, sz: 1 });
     }
   });
+  if (lineWires.length) {
+    tagKit(fillInst(unit, aerial, lineWires, placeBox), "line");
+    tagKit(fillInst(unit, standMat, linePosts, placeBox), "line");
+    tagKit(fillInst(unit, concrete, lineFoots, placeBox), "line");
+    lineCloths.forEach((bucket, ci) => {
+      if (bucket.length) tagKit(fillInst(clothGeo, cloths[ci], bucket, placeBox), "line");
+    });
+  }
   for (let i = before; i < city.children.length; i++) {
     const obj = city.children[i];
     if (!obj) continue;
@@ -11231,6 +11391,38 @@ function dressAlleys() {
   pipes.cable = pipes.cable.concat(cross.cable);
   pipes.tube = cross.tube;
   pipes.warm = cross.warm;
+  // Register spatially-thinned seated alley ceiling fluorescent tubes for dynamic alley lighting.
+  const alleyTubeLights = (dressAlleys.tubeLights = []);
+  const tubeGroups = [
+    [cross.tube, 0xe2f0e8, 0.82],
+    [cross.warm, 0xffdfb0, 0.88],
+    [cross.green, 0xbce6c4, 0.72]
+  ];
+  for (let gi = 0; gi < tubeGroups.length; gi++) {
+    const list = tubeGroups[gi][0];
+    const col = new THREE.Color(tubeGroups[gi][1]);
+    const gain = tubeGroups[gi][2];
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (!b || b.y < 1.8 || b.y > 5.8) continue;
+      let close = false;
+      for (let j = 0; j < alleyTubeLights.length; j++) {
+        const q = alleyTubeLights[j];
+        const dx = q.x - b.x, dz = q.z - b.z;
+        if (dx * dx + dz * dz < 16.0) { close = true; break; }
+      }
+      if (close) continue;
+      alleyTubeLights.push({
+        id: "t" + alleyTubeLights.length,
+        x: b.x + SHEAR_K * (b.az == null ? b.z : b.az),
+        y: b.y,
+        z: b.z,
+        r: col.r, g: col.g, b: col.b,
+        gain: gain,
+        phase: (alleyTubeLights.length * 2.17) % 6.2832
+      });
+    }
+  }
   const seatedDrains = splitLong(drains).filter(seatOnWall);
   // Goods were measured for the alley pour. On the earth they were a hand
   // above the road: crates, buckets, sacks and the low end of a downpipe.
@@ -12280,13 +12472,9 @@ placeFootprint();
 // kind of front on Tung Tsing Road and Carpenter Road) show blade signs
 // projecting over the pavement: separate boards, different sizes, irregular
 // spacing. They name the trade. Inner alleys do not get these boards.
-const bladeRainMat = new THREE.MeshStandardMaterial({
-  color: 0xc5d4dc, roughness: 0.16, metalness: 0.02,
-  transparent: true, depthWrite: false,
-  polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
-  clippingPlanes: clips
-});
-attachPaneRain(bladeRainMat, 0.3, true);
+// Outer blade signs already receive running rain beads via attachWetWall() in alleySignMat();
+// spatially-thinned night sign-bank light anchors feed fillBodyLights() along perimeter streets.
+const outerSignLights = [];
 // The board has to sit on plaster that is actually there. A setback, or a lot
 // the footprint skipped, used to leave the enamel hanging over the pavement.
 function faceWallTop(x, z, w, d, face) {
@@ -12314,6 +12502,17 @@ function dressOuterBlades() {
   ];
   const metal = shopFinish.metal;
   let nBlade = 0;
+  const placedBlades = { n: [], e: [], s: [], w: [] };
+  function bladeFits(face, wall, pos, y, h) {
+    const list = placedBlades[face];
+    const y0 = y - h * 0.5, y1 = y + h * 0.5;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (Math.abs(b.wall - wall) > 1.2) continue;
+      if (Math.abs(b.pos - pos) < 0.28 && Math.min(y1, b.y1) - Math.max(y0, b.y0) > -0.06) return false;
+    }
+    return true;
+  }
   function openOutside(x, z, w, d, face) {
     if (face === "n") {
       if (z > 4.2 && !marginOpen(x, z, w, d, face)) return false;
@@ -12384,16 +12583,24 @@ function dressOuterBlades() {
     addShopMesh(shopGeo.plane, matA, x + ox, y, z + oz, rot, proj, h, 1);
     put("board");
     addShopMesh(shopGeo.plane, matB, x - ox, y, z - oz, rot + Math.PI, proj, h, 1);
-    // A clear skin just off the enamel. Drops sit on it, and the street
-    // mirror is weaker than the same film on window glass.
-    if (vertical) {
-      const skin = gap + 0.016;
-      const sx = Math.sin(rot) * skin;
-      const sz = Math.cos(rot) * skin;
-      put("board");
-      addShopMesh(shopGeo.plane, bladeRainMat, x + sx, y, z + sz, rot, proj * 0.96, h * 0.96, 1);
-      put("board");
-      addShopMesh(shopGeo.plane, bladeRainMat, x - sx, y, z - sz, rot + Math.PI, proj * 0.96, h * 0.96, 1);
+    // Record representative outer sign glow anchors (spaced >= 7.5 m) for night wall/pavement spill.
+    if (y >= 2.0 && y <= 8.5) {
+      let nearSign = false;
+      for (let si = 0; si < outerSignLights.length; si++) {
+        const q = outerSignLights[si];
+        const dx = q.x - x, dz = q.z - z;
+        if (dx * dx + dz * dz < 56.25) { nearSign = true; break; }
+      }
+      if (!nearSign) {
+        const c = new THREE.Color(pal[0]).lerp(new THREE.Color(pal[1]), 0.25);
+        outerSignLights.push({
+          id: "b" + outerSignLights.length,
+          x: x, y: Math.min(4.8, y), z: z,
+          r: c.r, g: c.g, b: c.b,
+          gain: 0.42 + (pal[2] || 0.25) * 0.85,
+          phase: (outerSignLights.length * 1.73) % 6.2832
+        });
+      }
     }
     const armY = y + h * 0.5 + 0.016;
     put("arm");
@@ -12456,7 +12663,19 @@ function dressOuterBlades() {
           if (massCovers(tip.x, tip.z, x, z, w, d)) continue;
           const pal = PAL[Math.floor(rng() * PAL.length)];
           const jitter = (rng() - 0.5) * 0.16;
-          board(face, ax, wall, along, y, proj, h, word, pal, jitter, z, vertical, x + w * 0.5, z + d * 0.5);
+          const pos = ax + along;
+          const yMin = 2.05 + h * 0.5;
+          const yMax = wallTop - 0.2 - h * 0.5;
+          let placedY = null;
+          const nudges = [0, 0.42, -0.42, 0.85, -0.85, 1.3];
+          for (let ni = 0; ni < nudges.length; ni++) {
+            const cy = y + nudges[ni];
+            if (cy < yMin || cy > yMax) continue;
+            if (bladeFits(face, wall, pos, cy, h)) { placedY = cy; break; }
+          }
+          if (placedY == null) continue;
+          placedBlades[face].push({ wall: wall, pos: pos, y0: placedY - h * 0.5, y1: placedY + h * 0.5 });
+          board(face, ax, wall, along, placedY, proj, h, word, pal, jitter, z, vertical, x + w * 0.5, z + d * 0.5);
         }
         cursor += gap * (0.45 + rng() * 1.15);
       }
@@ -12962,7 +13181,7 @@ function lowBlock(x, z, w, d, h, name, opt) {
     attachWetRoof(deckMat);
   } else deckMat.color.setHex(0x8e8880);
   const slab = new THREE.Mesh(
-    new THREE.BoxGeometry(Math.max(0.4, w - 0.32), 0.12, Math.max(0.4, d - 0.32)),
+    new THREE.BoxGeometry(Math.max(0.4, w - 0.16), 0.12, Math.max(0.4, d - 0.16)),
     deckMat
   );
   slab.position.set(x + w / 2, h + 0.08, z + d / 2);
@@ -14836,6 +15055,7 @@ const traffic = [];
     mesh.position.set(x, y, z);
     mesh.receiveShadow = true;
     mesh.castShadow = false;
+    mesh.userData.roadSlab = 1;
     roads.add(mesh);
     return mesh;
   }
@@ -18322,12 +18542,12 @@ const LAMP_LIT = [
   "uniform vec3 uLampCol[6];",
   "uniform float uNight;",
   "vec3 lampLit(vec3 p) {",
-  "  vec3 c = vec3(0.62, 0.70, 0.84);",
+  "  vec3 c = vec3(0.60, 0.68, 0.82);",
   "  for (int i = 0; i < 6; i++) {",
+  "    vec3 lc = uLampCol[i];",
+  "    if (lc.r + lc.g + lc.b < 0.002) continue;",
   "    vec3 d = uLampPos[i] - p;",
-  "    c += uLampCol[i] * (8.0 / (dot(d, d) + 6.0));",
-  "    vec3 shop = d + vec3(0.0, 1.6, 0.0);",
-  "    c += vec3(1.0, 0.52, 0.24) * (2.6 / (dot(shop, shop) + 4.2));",
+  "    c += lc * (9.5 / (dot(d, d) + 5.5));",
   "  }",
   "  return min(c, vec3(1.85));",
   "}",
@@ -18547,15 +18767,15 @@ function mountFitting(x, y, z) {
     len: len
   };
 }
-[[9.75, 3.2, 48, 0xd7f0e4], [57.75, 2.6, 82, 0xd4eee2], [104.25, 3.6, 100, 0xc5ead2], [138.75, 3.4, 52, 0xb7e2c8], [180.75, 3.2, 72, 0xd7f0e4], [160, 2.4, 95.25]].forEach(([x, y, z, color]) => {
+[[9.75, 3.2, 48, 0xd7f0e4], [57.75, 2.6, 82, 0xd4eee2], [104.25, 3.6, 100, 0xc5ead2], [138.75, 3.4, 52, 0xb7e2c8], [180.75, 3.2, 72, 0xd7f0e4], [160, 2.4, 95.25, 0xcbe9d8]].forEach(([x, y, z, color]) => {
   const tint = new THREE.Color(color);
   const seat = mountFitting(x, y, z);
   const lamp = new THREE.PointLight(color, 0.62, 16, 1.85);
   lamp.position.set(seat ? seat.x : x, seat ? seat.y : y, seat ? seat.z : z);
   vfx.add(lamp);
   lamps.push(lamp);
-  rainUniforms.uLampPos.value[lamps.length - 1] = lamp.position;
-  rainUniforms.uLampCol.value[lamps.length - 1] = lamp.color;
+  rainUniforms.uLampPos.value[lamps.length - 1].copy(lamp.position);
+  rainUniforms.uLampCol.value[lamps.length - 1].copy(lamp.color);
   if (!seat) {
     lampBulbs.push(null);
     return;
@@ -18580,7 +18800,7 @@ function mountFitting(x, y, z) {
   city.add(bulb);
   lampBulbs.push(bulb);
 });
-fittingWalls.length = 0;
+// Keep fittingWalls until eave drips seat against real wall faces below.
 // Tung Tau Tsuen Road only. A slim galvanised pole on the north pavement, a
 // short arm, and a white head just past the kerb. On at night and in the rain.
 // Not a surveyed lamp map, and not repeated along the south edge.
@@ -18760,11 +18980,20 @@ function dripMaterial() {
     ].join("\n")
   });
 }
+// Seat each eave drip cluster against an actual adjacent building facade/canopy lip instead of mid-alley air.
 [[138.75, 50], [138.75, 66], [104.25, 101], [57.75, 86], [180.75, 74]].forEach(([x, z]) => {
+  const wallSeat = mountFitting(x, 6.9, z);
+  const bx = wallSeat ? (wallSeat.x + (wallSeat.x - wallSeat.bx) * 4.5) : x;
+  const bz = wallSeat ? (wallSeat.z + (wallSeat.z - wallSeat.bz) * 4.5) : z;
+  const by = wallSeat ? wallSeat.y : 6.9;
+  const alongZ = wallSeat ? wallSeat.alongZ : false;
   for (let i = 0; i < 5; i++) {
+    const off = (i - 2) * 0.18;
+    const dx = alongZ ? bx : bx + off;
+    const dz = alongZ ? bz + off : bz;
     const d = new THREE.Mesh(dripGeo, dripMaterial());
-    d.position.set(x + (i - 2) * 0.18, 6.9, z);
-    d.userData = { x: x + (i - 2) * 0.18, z, t: i * 0.46, eave: 6.9, live: 1 };
+    d.position.set(dx, by, dz);
+    d.userData = { x: dx, z: dz, t: i * 0.46, eave: by, live: 1 };
     d.renderOrder = 4;
     d.frustumCulled = false;
     pinSquare(d);
@@ -18773,6 +19002,7 @@ function dripMaterial() {
     drips.push(d);
   }
 });
+fittingWalls.length = 0;
 const winHosts = [];
 const winSeen = new Set();
 pickables.forEach(mesh => {
@@ -21110,10 +21340,10 @@ dressCages.openings.forEach(op => {
       Math.min(1.35, soil * (0.8 + cool * 0.14))
     ]
   });
-  // Outside the night light, so a drop still sits on the pane when the room is lit.
+  // Sit droplets directly on the lit pane (seat + 0.052), behind the iron security grille (seat + 0.065).
   rainQ.push({
-    x: x + (ns ? 0 : dir[0] * 0.055),
-    y, z: z + (ns ? dir[1] * 0.055 : 0),
+    x: x + (ns ? 0 : dir[0] * 0.032),
+    y, z: z + (ns ? dir[1] * 0.032 : 0),
     sx: w, sy: h, yaw, az: op.az
   });
   const glow = seat + 0.045;
@@ -21137,10 +21367,12 @@ dressCages.openings.forEach(op => {
   const moodRoll = u01(b + f * 3, hi + faceId + 41);
   const mood = moodRoll > 0.92 ? 2 : moodRoll > 0.78 ? 1 : 0;
   const phase = u01(b + f, hi + faceId * 11 + 7) * 6.2832;
-  const x0 = faceId < 2 ? gx - hw : gx;
-  const x1 = faceId < 2 ? gx + hw : gx;
-  const z0 = faceId < 2 ? gz : gz - hw;
-  const z1 = faceId < 2 ? gz : gz + hw;
+  // Ensure strict outward counter-clockwise winding on all 4 cardinal faces so FrontSide culls back faces cleanly.
+  const flipFace = (faceId === 0 || faceId === 3);
+  const x0 = faceId < 2 ? (flipFace ? gx + hw : gx - hw) : gx;
+  const x1 = faceId < 2 ? (flipFace ? gx - hw : gx + hw) : gx;
+  const z0 = faceId < 2 ? gz : (flipFace ? gz + hw : gz - hw);
+  const z1 = faceId < 2 ? gz : (flipFace ? gz - hw : gz + hw);
   const y0 = y - hh, y1 = y + hh;
   winPos.push(
     x0, y0, z0, x1, y0, z1, x1, y1, z1,
@@ -21630,9 +21862,12 @@ const winMat = new THREE.ShaderMaterial({
     "  #include <tonemapping_fragment>",
     "  #include <encodings_fragment>",
     "  #include <fog_fragment>",
+    "  #ifdef USE_FOG",
+    "    gl_FragColor.a *= (1.0 - fogFactor * 0.88);",
+    "  #endif",
     "}"
   ].join("\n"),
-  side: THREE.DoubleSide,
+  side: THREE.FrontSide,
   fog: true,
   transparent: true,
   depthWrite: false,
@@ -28906,7 +29141,8 @@ function paintSky() {
   su.uFog.value.copy(fogCol);
   sun.intensity = phaseMixNum(ph, "sun") * sunHorizonFade;
   phaseMixCol(ph, "sunColor", sun.color);
-  renderer.toneMappingExposure = phaseMixNum(ph, "exp");
+  paintSky.baseExp = phaseMixNum(ph, "exp");
+  renderer.toneMappingExposure = paintSky.baseExp;
   if (hemi) {
     hemi.intensity = phaseMixNum(ph, "hemi");
     phaseMixCol(ph, "hemiSky", hemi.color);
@@ -28957,8 +29193,11 @@ function paintSky() {
   const veil = Math.min(1, wet);
   rain.visible = veil > 0.02;
   splash.visible = rain.visible;
-  rainUniforms.uOpacity.value = (0.86 - dark * 0.22) * veil;
+  paintSky.baseRainOp = (0.86 - dark * 0.22) * veil;
+  rainUniforms.uOpacity.value = paintSky.baseRainOp;
   mixHex(0x101820, 0x4e5e70, dark, rainUniforms.uColor.value);
+  if (!paintSky.baseRainCol) paintSky.baseRainCol = new THREE.Color();
+  paintSky.baseRainCol.copy(rainUniforms.uColor.value);
   mixHex(0xaeb8c0, 0x8e9cac, dark, rainUniforms.uSplashCol.value);
   rainUniforms.uSplash.value = (0.7 + dark * 0.15) * veil;
   rainUniforms.uNight.value = dark;
@@ -30144,28 +30383,23 @@ function stepLightning(now) {
   su.uBoltSeed.value = storm.seed;
   flashLamp.intensity = k * (0.35 + darkness * 1.5);
   if (k > 0.004) {
-    if (!storm.lit) {
-      storm.exp = renderer.toneMappingExposure;
-      storm.rainCol = rainUniforms.uColor.value.clone();
-      storm.rainOp = rainUniforms.uOpacity.value;
-      storm.lit = true;
-    }
-    renderer.toneMappingExposure = storm.exp * (1 + k * 0.42);
+    const baseExp = paintSky.baseExp != null ? paintSky.baseExp : renderer.toneMappingExposure;
+    const baseRainCol = paintSky.baseRainCol || rainUniforms.uColor.value;
+    const baseRainOp = paintSky.baseRainOp != null ? paintSky.baseRainOp : rainUniforms.uOpacity.value;
+    storm.lit = true;
+    renderer.toneMappingExposure = baseExp * (1 + k * 0.42);
     scene.background.copy(skyCol).lerp(stepLightning.white, k * 0.55);
     scene.fog.color.copy(fogCol).lerp(stepLightning.white, k * 0.34);
     su.uFog.value.copy(fogCol).lerp(stepLightning.white, k * 0.4);
-    rainUniforms.uColor.value.copy(storm.rainCol).lerp(stepLightning.white, Math.min(1, k * 0.9));
-    rainUniforms.uOpacity.value = Math.min(1, storm.rainOp + k * 0.22);
+    rainUniforms.uColor.value.copy(baseRainCol).lerp(stepLightning.white, Math.min(1, k * 0.9));
+    rainUniforms.uOpacity.value = Math.min(1, baseRainOp + k * 0.22);
   } else if (storm.lit) {
-    if (storm.exp != null) renderer.toneMappingExposure = storm.exp;
-    storm.exp = null;
+    if (paintSky.baseExp != null) renderer.toneMappingExposure = paintSky.baseExp;
     scene.background.copy(skyCol);
     scene.fog.color.copy(fogCol);
     su.uFog.value.copy(fogCol);
-    if (storm.rainCol) {
-      rainUniforms.uColor.value.copy(storm.rainCol);
-      rainUniforms.uOpacity.value = storm.rainOp;
-    }
+    if (paintSky.baseRainCol) rainUniforms.uColor.value.copy(paintSky.baseRainCol);
+    if (paintSky.baseRainOp != null) rainUniforms.uOpacity.value = paintSky.baseRainOp;
     storm.lit = false;
   }
 }
@@ -36592,7 +36826,7 @@ function updateWetReflCamera(farLimit, planeY, clipDrop) {
   return true;
 }
 function renderWetReflection() {
-  if (uWet.value < 0.08) {
+  if (uWet.value < 0.08 || roofStay) {
     uWetReflOn.value = 0;
     return;
   }
@@ -36614,8 +36848,13 @@ function renderWetReflection() {
   // standing in the last frame.
   const restN = high ? pace.reflRest + 4 : pace.reflMove;
   const moveN = (!walkMode && high) ? Math.max(2, pace.reflMove) : pace.reflMove;
-  if (uWetReflOn.value > 0.5 && ((resting && (renderWetReflection.n % restN) !== 0) || (!resting && moveN > 1 && (renderWetReflection.n % moveN) !== 0))) return;
-  if (!updateWetReflCamera(Math.min(camera.far, high ? (pace.tier === 0 ? 220 : 420) : (pace.tier === 0 ? 140 : 190)), 0.22)) {
+  // Align planar reflection height to the active pavement: 0.285 m inside alleys, 0.085 m on Tung Tau Tsuen Rd & aerial outer roads.
+  const reflY = walkMode
+    ? (pourTopAt(walkX, walkZ) > 0.05 ? 0.285 : (walkZ < 1.5 ? 0.085 : 0.015))
+    : 0.085;
+  const samePlane = renderWetReflection.planeY != null && Math.abs(renderWetReflection.planeY - reflY) < 0.02;
+  if (uWetReflOn.value > 0.5 && samePlane && ((resting && (renderWetReflection.n % restN) !== 0) || (!resting && moveN > 1 && (renderWetReflection.n % moveN) !== 0))) return;
+  if (!updateWetReflCamera(Math.min(camera.far, high ? (pace.tier === 0 ? 220 : 420) : (pace.tier === 0 ? 140 : 190)), reflY, 0.04)) {
     uWetReflOn.value = 0;
     return;
   }
@@ -36640,26 +36879,38 @@ function renderWetReflection() {
   const th = Math.max(walkMode ? 96 : 48, Math.min((pace.reflMax * 0.62) | 0, wetReflBuf.y * scale | 0));
   if (wetReflect.width !== tw || wetReflect.height !== th) wetReflect.setSize(tw, th);
   const showGround = ground.visible;
-  const showRoads = roads.visible;
   const showRain = rain.visible;
   const showSplash = splash.visible;
   ground.visible = false;
-  roads.visible = false;
   rain.visible = false;
   splash.visible = false;
-  // The mirrored lens uses a tilted near plane. A resident is small enough
-  // that the culling test drops the body even though the puddle can see it.
-  if (!renderWetReflection.figs) {
-    const figs = [];
-    for (let wi = 0; wi < walkers.length; wi++) {
-      walkers[wi].traverse(function (obj) { figs.push(obj); });
+  // Hide ONLY road slabs/kerbs/dashes during the mirror pass so all 10 street vehicles & headlamps reflect in wet asphalt.
+  const hiddenSlabs = [];
+  for (let ri = 0; ri < roads.children.length; ri++) {
+    const ch = roads.children[ri];
+    if (ch && ch.visible && ch.userData && ch.userData.roadSlab) {
+      ch.visible = false;
+      hiddenSlabs.push(ch);
     }
-    for (let hi = 0; hi < alleyHeat.length; hi++) {
-      if (alleyHeat[hi].fig) alleyHeat[hi].fig.traverse(function (obj) { figs.push(obj); });
-    }
-    renderWetReflection.figs = figs;
   }
-  const figs = renderWetReflection.figs;
+  // The mirrored lens uses a tilted near plane. Keep walkers, player avatar, keepers, gang fighters & receivers un-culled.
+  const figs = [];
+  const pushFig = function (root) {
+    if (!root || !root.visible) return;
+    root.traverse(function (obj) { figs.push(obj); });
+  };
+  for (let wi = 0; wi < walkers.length; wi++) pushFig(walkers[wi]);
+  for (let hi = 0; hi < alleyHeat.length; hi++) pushFig(alleyHeat[hi].fig);
+  for (let ki = 0; ki < keepers.length; ki++) pushFig(keepers[ki]);
+  for (let gi = 0; gi < gangFight.length; gi++) pushFig(gangFight[gi].fig);
+  if (typeof run !== "undefined" && run) {
+    pushFig(run.rider);
+    if (run.jobs) {
+      for (let ji = 0; ji < run.jobs.length; ji++) {
+        if (run.jobs[ji] && !run.jobs[ji].roof) pushFig(run.jobs[ji].fig);
+      }
+    }
+  }
   for (let fi = 0; fi < figs.length; fi++) {
     const obj = figs[fi];
     obj.userData.wetCull = obj.frustumCulled;
@@ -36691,19 +36942,21 @@ function renderWetReflection() {
   renderer.setRenderTarget(prev);
   releaseMirrorSamplers();
   for (let fi = 0; fi < figs.length; fi++) figs[fi].frustumCulled = figs[fi].userData.wetCull;
+  for (let si = 0; si < hiddenSlabs.length; si++) hiddenSlabs[si].visible = true;
   renderer.shadowMap.needsUpdate = shadows;
   sky.position.copy(renderWetReflection.skyPos);
   su.uView.value.set(prevViewX, prevViewY);
   su.uInvVP.value.copy(renderWetReflection.inv);
   ground.visible = showGround;
-  roads.visible = showRoads;
   rain.visible = showRain;
   splash.visible = showSplash;
   uWetReflOn.value = 1;
+  renderWetReflection.planeY = reflY;
   renderWetReflection.anchor.copy(camera.position);
   renderWetReflection.quat.copy(camera.quaternion);
 }
 function roofMirrorY() {
+  if (roofStay && roofStay.y != null) return roofStay.y;
   const tx = controls.target.x, tz = controls.target.z;
   const camY = camera.position.y;
   if (roofMirrorY.hit) {
@@ -37372,6 +37625,15 @@ function shopInteriorShader(shader) {
   const chunk = [
     "float shopDark = clamp(uDark, 0.0, 1.0);",
     "if (shopDark > 0.12) {",
+    "  float shopLive = 0.0;",
+    "  for (int si = 0; si < " + BODY_LIGHT_N + "; si++) {",
+    "    float sr = uBodyReach[si];",
+    "    if (sr > 0.001) {",
+    "      float sd = length(uBodyPos[si] - vBodyWorld);",
+    "      float sm = clamp(1.0 - sd / max(sr * 0.45, 0.001), 0.0, 1.0);",
+    "      shopLive = max(shopLive, sm * min(1.0, dot(uBodyCol[si], vec3(0.4, 0.5, 0.4))));",
+    "    }",
+    "  }",
     "  vec3 shopN = normalize(vBodyN);",
     "  float shopY = vBodyWorld.y;",
     "  float shopFall = 1.0 - smoothstep(1.15, 2.35, abs(shopY - 2.05));",
@@ -37381,7 +37643,7 @@ function shopInteriorShader(shader) {
     "  float shopCavity = shopDown * 0.55 + shopContact * 0.7;",
     "  float shopWrap = mix(0.35, 1.0, shopUp);",
     "  vec3 shopWarm = vec3(1.12, 0.92, 0.68);",
-    "  float shopK = shopDark * shopFall * shopWrap * (1.0 - shopCavity * 0.72);",
+    "  float shopK = shopDark * shopLive * shopFall * shopWrap * (1.0 - shopCavity * 0.72);",
     "  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * shopWarm, shopK * 0.55);",
     "  diffuseColor.rgb *= mix(1.0, 0.62, shopCavity * shopDark);",
     "}"
@@ -37465,7 +37727,29 @@ function fillBodyLights(now, dt) {
     if (slots[i].id) held[slots[i].id] = 1;
   }
 
-  // 1) Active street & alley fluorescent lamps
+  if (!fillBodyLights.tubeGrid) {
+    const tGrid = Object.create(null);
+    const tCell = 14;
+    const tList = dressAlleys.tubeLights || [];
+    for (let i = 0; i < tList.length; i++) {
+      const t = tList[i];
+      const ck = Math.floor(t.x / tCell) + "," + Math.floor(t.z / tCell);
+      (tGrid[ck] || (tGrid[ck] = [])).push(t);
+    }
+    fillBodyLights.tubeGrid = tGrid;
+    fillBodyLights.tubeCell = tCell;
+    const bGrid = Object.create(null);
+    const bCell = 16;
+    for (let i = 0; i < outerSignLights.length; i++) {
+      const s = outerSignLights[i];
+      const ck = Math.floor(s.x / bCell) + "," + Math.floor(s.z / bCell);
+      (bGrid[ck] || (bGrid[ck] = [])).push(s);
+    }
+    fillBodyLights.signGrid = bGrid;
+    fillBodyLights.signCell = bCell;
+  }
+
+  // 1) Active street lamps & instanced alley ceiling fluorescent tubes
   const candLamps = [];
   for (let i = 0; i < lampList.length; i++) {
     const item = lampList[i];
@@ -37485,6 +37769,32 @@ function fillBodyLights(now, dt) {
       intensity: gain, reach: reach,
       score: d - (held[item.id] ? 2.4 : 0)
     });
+  }
+  if (fy < 20) {
+    const tGrid = fillBodyLights.tubeGrid;
+    const tCell = fillBodyLights.tubeCell;
+    const ix0 = Math.floor(fx / tCell), iz0 = Math.floor(fz / tCell);
+    const tubeLevel = 0.28 + lit * 0.72 + wxNow.rain * 0.16;
+    const maxTubeD = inAlley ? 20 : 24;
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const list = tGrid[(ix0 + dx) + "," + (iz0 + dz)];
+        if (!list) continue;
+        for (let i = 0; i < list.length; i++) {
+          const t = list[i];
+          const d = Math.hypot(t.x - fx, t.z - fz);
+          if (d >= maxTubeD) continue;
+          const hum = 0.94 + 0.06 * Math.sin(tNow * 14.0 + t.phase);
+          candLamps.push({
+            id: t.id, x: t.x, y: t.y, z: t.z,
+            r: t.r, g: t.g, b: t.b,
+            intensity: tubeLevel * t.gain * hum,
+            reach: 8.5 + lit * 3.2 + wxNow.rain * 1.4,
+            score: d + 1.5 - (held[t.id] ? 2.2 : 0)
+          });
+        }
+      }
+    }
   }
   candLamps.sort(function (a, b) { return a.score - b.score; });
 
@@ -37514,6 +37824,30 @@ function fillBodyLights(now, dt) {
             reach: 8.5 + lit * 3.8 + wxNow.rain * 1.2,
             score: d - (held[s.id] ? 2.2 : 0)
           });
+        }
+      }
+    }
+    if (lit > 0.12) {
+      const bGrid = fillBodyLights.signGrid;
+      const bCell = fillBodyLights.signCell;
+      const bix = Math.floor(fx / bCell), biz = Math.floor(fz / bCell);
+      const signScale = (lit - 0.12) / 0.88 * (0.55 + wxNow.rain * 0.22);
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const list = bGrid[(bix + dx) + "," + (biz + dz)];
+          if (!list) continue;
+          for (let i = 0; i < list.length; i++) {
+            const s = list[i];
+            const d = Math.hypot(s.x - fx, s.z - fz);
+            if (d >= 26) continue;
+            candShops.push({
+              id: s.id, x: s.x, y: s.y, z: s.z,
+              r: s.r, g: s.g, b: s.b,
+              intensity: s.gain * signScale,
+              reach: 10.5 + lit * 3.5,
+              score: d + 3.0 - (held[s.id] ? 2.0 : 0)
+            });
+          }
         }
       }
     }
@@ -37959,7 +38293,7 @@ function flushFigure(fig) {
   // A dry phone was still rewriting twenty-five hidden drip meshes a frame.
   // The first dry frame hides them; after that they stay hidden until rain.
   const dripDry = wxNow.rain <= 0.04;
-  if (!(handset && dripDry && tick.dripsDry)) {
+  if (!(dripDry && tick.dripsDry)) {
   const dripDt = Math.min(0.05, now - (tick.dripT == null ? now : tick.dripT));
   tick.dripT = now;
   drips.forEach(d => {
@@ -38066,14 +38400,21 @@ function flushFigure(fig) {
     let rn = 0;
     for (let i = 0; i < BODY_LIGHT_N && rn < 6; i++) {
       if (bodyLight.reach[i] > 0.01) {
-        rPos[rn] = bodyLight.pos[i];
-        rCol[rn] = bodyLight.col[i];
+        rPos[rn].copy(bodyLight.pos[i]);
+        rCol[rn].copy(bodyLight.col[i]);
         rn++;
       }
     }
     for (let i = 0; i < lamps.length && rn < 6; i++) {
-      rPos[rn] = lamps[i].position;
-      rCol[rn] = lamps[i].color;
+      if (lamps[i].intensity < 0.02) continue;
+      const sc = Math.min(1.15, lamps[i].intensity * 0.45);
+      rPos[rn].copy(lamps[i].position);
+      rCol[rn].copy(lamps[i].color).multiplyScalar(sc);
+      rn++;
+    }
+    while (rn < 6) {
+      rPos[rn].set(0, -100, 0);
+      rCol[rn].setRGB(0, 0, 0);
       rn++;
     }
   }
@@ -38084,12 +38425,17 @@ function flushFigure(fig) {
   sky.position.copy(camera.position);
   stepRainSound(now);
   if (rain.visible) {
-    const high = camera.position.y > 70;
-    const bot = high ? Math.max(8, camera.position.y - 74) : 0.28;
-    const reach = high ? Math.min(70, Math.max(18, camera.position.y - bot)) : 12;
+    const high = !walkMode && camera.position.y > 70;
+    const onRoof = !!(walkMode && roofStay);
+    const bot = onRoof
+      ? roofStay.y
+      : (high
+        ? Math.max(8, camera.position.y - 74)
+        : (walkMode ? (pourTopAt(walkX, walkZ) > 0.05 ? 0.285 : (walkZ < -2.6 ? 0.085 : 0.015)) : 0.085));
+    const reach = high ? Math.min(70, Math.max(18, camera.position.y - bot)) : (onRoof ? 14 : 12);
     rainUniforms.uTime.value = now;
-    rainUniforms.uSpanX.value = high ? 100 : 22;
-    rainUniforms.uSpanZ.value = high ? 74 : 16;
+    rainUniforms.uSpanX.value = high ? 100 : (onRoof ? 24 : 22);
+    rainUniforms.uSpanZ.value = high ? 74 : (onRoof ? 18 : 16);
     rainUniforms.uReach.value = reach;
     rainUniforms.uBot.value = bot;
     rainUniforms.uFall.value = high ? 20 : 12.5;
