@@ -19087,13 +19087,15 @@ function dressPerimeter() {
     if (u.x < 7) faces.push("w");
     if (u.x + u.w > SITE_W - 7) faces.push("e");
     faces.forEach(face => {
+      if (wallInFront(u.x, u.z, u.w, u.d, face)) return;
       const rng = roofRand(u.x + (face === "e" ? 5 : 1), u.z + (face === "s" ? 5 : 1), 80 + face.charCodeAt(0) + hi);
-      const along0 = face === "n" || face === "s" ? u.x : u.z;
-      const span = face === "n" || face === "s" ? u.w : u.d;
+      const ns = face === "n" || face === "s";
+      const along0 = ns ? u.x : u.z;
+      const span = ns ? u.w : u.d;
       if (span < 3.2) return;
       const wall = face === "n" ? u.z : face === "s" ? u.z + u.d : face === "w" ? u.x : u.x + u.w;
       const dir = outward(face);
-      const proud = (u.floors * FLOOR_H > 15) ? 0.3 : 0.05;
+      const openFace = !!(u.openFaces && u.openFaces.indexOf(face) >= 0);
       const pitch = blockPitch(u.x, u.z);
       const piers = floorSlots(span, pitch, 1, u.x, u.z, true);
       let pipeTop = u.floors * FLOOR_H - 0.3;
@@ -19111,43 +19113,42 @@ function dressPerimeter() {
           along = along0 + piers[pier].a0;
         }
         const pipeH = Math.max(3.2, pipeTop);
-        pipeQ.push({
-          x: (face === "n" || face === "s") ? along : wall + dir[0] * (proud + 0.1),
-          y: pipeH / 2,
-          z: (face === "e" || face === "w") ? along : wall + dir[1] * (proud + 0.1),
-          sx: 0.08, sy: pipeH, sz: 0.08,
-          rust: rng() > 0.5
-        });
-      }
-      if (rng() > 0.42) {
-        [3, 7, 11].forEach((f, fi) => {
-          if (f >= u.floors || rng() < 0.4) return;
-          const laid = faceStorey(u, face, f, pitch);
-          if (!laid.slots.length) return;
-          const bay = Math.min(laid.slots.length - 1, Math.floor(rng() * laid.slots.length));
-          const y = f * FLOOR_H + OPEN_YC + 0.15;
-          const along = laid.along0 + laid.slots[bay].mid;
-          const x = (face === "n" || face === "s") ? along : laid.wall;
-          const z = (face === "e" || face === "w") ? along : laid.wall;
-          const len = 1.25;
-          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, len, 5), bamboo);
-          if (face === "n" || face === "s") pole.rotation.x = Math.PI / 2;
-          else pole.rotation.z = Math.PI / 2;
-          pole.position.set(x + dir[0] * (len / 2 + 0.06), y, z + dir[1] * (len / 2 + 0.06));
-          pole.castShadow = false;
-          city.add(pole);
-          for (let c = 0; c < 2; c++) {
-            const cloth = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.78), clothColors[(hi + fi + c) % clothColors.length]);
-            const t = 0.32 + c * 0.46;
-            cloth.position.set(x + dir[0] * (t + 0.06), y - 0.42, z + dir[1] * (t + 0.06));
-            if (face === "e" || face === "w") cloth.rotation.y = Math.PI / 2;
-            cloth.userData = { x: cloth.position.x, y: cloth.position.y, z: cloth.position.z, phase: hi * 0.3 + fi + c, live: 1 };
-            pinSquare(cloth);
-            cloth.castShadow = false;
-            vfx.add(cloth);
-            laundry.push(cloth);
-          }
-        });
+        const rust = rng() > 0.5;
+        if (openFace) {
+          // Hug the recessed upper plaster (-0.28 m -> pipe center at -0.24 m), step inward at the
+          // first-floor line via a flush elbow, and hug the recessed ground wall (-0.48 m -> -0.44 m).
+          const upH = Math.max(0.5, pipeH - FLOOR_H);
+          const upOut = -0.24;
+          const loOut = -0.44;
+          const midOut = (upOut + loOut) * 0.5;
+          pipeQ.push({
+            x: ns ? along : wall + dir[0] * upOut,
+            y: FLOOR_H + upH * 0.5,
+            z: ns ? wall + dir[1] * upOut : along,
+            sx: 0.08, sy: upH, sz: 0.08, rust
+          });
+          pipeQ.push({
+            x: ns ? along : wall + dir[0] * midOut,
+            y: FLOOR_H - 0.04,
+            z: ns ? wall + dir[1] * midOut : along,
+            sx: ns ? 0.08 : 0.28, sy: 0.08, sz: ns ? 0.28 : 0.08, rust
+          });
+          pipeQ.push({
+            x: ns ? along : wall + dir[0] * loOut,
+            y: FLOOR_H * 0.5,
+            z: ns ? wall + dir[1] * loOut : along,
+            sx: 0.08, sy: FLOOR_H, sz: 0.08, rust
+          });
+        } else {
+          // Non-open shell sits at -0.035 m; pipe center at +0.005 m seats its back flush on the wall.
+          const flushOut = 0.005;
+          pipeQ.push({
+            x: ns ? along : wall + dir[0] * flushOut,
+            y: pipeH * 0.5,
+            z: ns ? wall + dir[1] * flushOut : along,
+            sx: 0.08, sy: pipeH, sz: 0.08, rust
+          });
+        }
       }
     });
   });
@@ -19156,8 +19157,10 @@ function dressPerimeter() {
   sharedAcMat = acMat;
   sharedGrilleMats = grilleMats;
   sharedGrilleMat = grilleMats[0];
+  sharedBambooMat = bamboo;
+  sharedClothColors = clothColors;
 }
-let sharedAcMat = null, sharedGrilleMat = null, sharedGrilleMats = null;
+let sharedAcMat = null, sharedGrilleMat = null, sharedGrilleMats = null, sharedBambooMat = null, sharedClothColors = null;
 dressPerimeter();
 // Bamboo scaffolds on a few alley and outer faces, the repair frames in the 1980s photographs.
 // The bay stays off the walking line. A lane under about two metres is left clear.
@@ -19192,6 +19195,10 @@ function dressScaffold() {
     if (u.x + u.w > SITE_W - 5.5 && !seen.e && !wallInFront(u.x, u.z, u.w, u.d, "e")) {
       const runs = faceOpenRuns(u.x, u.z, u.w, u.d, "e");
       if (runs.length) seen.e = { f: "e", clearance: 5.5, runs: runs };
+    }
+    if (u.x < 5.5 && !seen.w && !wallInFront(u.x, u.z, u.w, u.d, "w")) {
+      const runs = faceOpenRuns(u.x, u.z, u.w, u.d, "w");
+      if (runs.length) seen.w = { f: "w", clearance: 5.5, runs: runs };
     }
     const options = Object.keys(seen).map(k => seen[k]).filter(h => {
       if (h.f === "n" && u.z < 6) return false;
@@ -19277,10 +19284,13 @@ function dressScaffold() {
         if (ns) ledgers.push({ x: a.x, y: a.y, z: a.z, len: bayW, rx: 0, ry: 0, rz: Math.PI / 2 });
         else ledgers.push({ x: a.x, y: a.y, z: a.z, len: bayW, rx: Math.PI / 2, ry: 0, rz: 0 });
       });
+      // Anchor putlog tie poles directly back into the concrete facade (-wallInset) so the scaffold never floats off the wall.
+      const wallInset = (u.openFaces && u.openFaces.indexOf(face.f) >= 0) ? (y < FLOOR_H ? 0.48 : 0.28) : 0.035;
+      const tieIn = -wallInset - 0.02;
       for (let p = 0; p < nPole; p += (nPole > 5 ? 2 : 1)) {
         const along = bay0 + p * stepA;
-        const q = pos(along, (outNear + outFar) / 2, y);
-        const plen = outFar - outNear;
+        const q = pos(along, (tieIn + outFar) / 2, y);
+        const plen = outFar - tieIn;
         if (ns) putlogs.push({ x: q.x, y: q.y, z: q.z, len: plen, rx: Math.PI / 2, ry: 0, rz: 0 });
         else putlogs.push({ x: q.x, y: q.y, z: q.z, len: plen, rx: 0, ry: 0, rz: Math.PI / 2 });
       }
@@ -19521,79 +19531,7 @@ function dressCages() {
     g.translate(x, y, z);
     return g;
   }
-  function panel(w, h, x, y, z, rotY) {
-    const g = new THREE.PlaneGeometry(w, h);
-    if (rotY) g.rotateY(rotY);
-    g.translate(x, y, z);
-    return g;
-  }
-  function roof(w, d, x, y, z) {
-    const g = new THREE.PlaneGeometry(w, d);
-    g.rotateX(-Math.PI / 2);
-    g.translate(x, y, z);
-    return g;
-  }
-  function flowerParts() {
-    const W = 0.64, H = 1.02, D = 0.48;
-    const mesh = [];
-    const frame = [];
-    mesh.push(panel(W * 0.9, H * 0.78, 0, 0.02, D * 0.96, 0));
-    mesh.push(panel(D * 0.88, H * 0.8, -W * 0.46, 0, D * 0.48, Math.PI / 2));
-    mesh.push(panel(D * 0.88, H * 0.8, W * 0.46, 0, D * 0.48, -Math.PI / 2));
-    [[-1, 0.06], [1, 0.06], [-1, 0.92], [1, 0.92]].forEach(([side, zt]) => {
-      frame.push(box(0.028, H * 0.9, 0.028, side * W * 0.44, 0, D * zt));
-    });
-    frame.push(box(W * 0.9, 0.03, 0.03, 0, H * 0.4, D * 0.9));
-    frame.push(box(W * 0.86, 0.028, 0.03, 0, -H * 0.36, D * 0.9));
-    for (let i = 0; i < 5; i++) {
-      const t = i / 4;
-      const ang = (t - 0.5) * Math.PI * 0.85;
-      frame.push(box(0.09, 0.026, 0.026, Math.sin(ang) * W * 0.36, H * 0.34 + Math.cos(ang) * 0.07, D * 0.9));
-    }
-    frame.push(box(0.16, 0.026, 0.03, -0.14, -H * 0.42, D * 0.9));
-    frame.push(box(0.16, 0.026, 0.03, 0.14, -H * 0.42, D * 0.9));
-    frame.push(box(0.2, 0.026, 0.03, 0, -H * 0.44, D * 1.04));
-    const tray = [box(W * 0.92, 0.04, D * 0.9, 0, -H * 0.46, D * 0.46)];
-    const pot = new THREE.CylinderGeometry(0.075, 0.058, 0.12, 6);
-    pot.translate(0.08, -H * 0.36, D * 0.4);
-    const leaf = box(0.16, 0.11, 0.12, 0.08, -H * 0.24, D * 0.4);
-    return {
-      mesh: mergeGeos(mesh), frame: mergeGeos(frame), tray: mergeGeos(tray),
-      pot, leaf, nom: { w: W, h: H, d: D }
-    };
-  }
-  function balconyParts() {
-    const W = 0.86, H = 1.16, D = 0.74;
-    const mesh = [];
-    const frame = [];
-    mesh.push(panel(W * 0.92, H * 0.86, 0, 0.02, D * 0.98, 0));
-    mesh.push(panel(D * 0.92, H * 0.86, -W * 0.47, 0.02, D * 0.5, Math.PI / 2));
-    mesh.push(panel(D * 0.92, H * 0.86, W * 0.47, 0.02, D * 0.5, -Math.PI / 2));
-    mesh.push(roof(W * 0.9, D * 0.9, 0, H * 0.44, D * 0.48));
-    [[-1, 0.04], [1, 0.04], [-1, 0.96], [1, 0.96]].forEach(([side, zt]) => {
-      frame.push(box(0.034, H * 0.92, 0.034, side * W * 0.45, 0, D * zt));
-    });
-    frame.push(box(W * 0.92, 0.04, 0.04, 0, H * 0.42, D * 0.96));
-    frame.push(box(W * 0.92, 0.045, 0.05, 0, -H * 0.4, D * 0.96));
-    frame.push(box(W * 0.9, 0.028, 0.028, 0, 0.02, D * 0.97));
-    const tray = [box(W * 0.94, 0.055, D * 0.96, 0, -H * 0.46, D * 0.48)];
-    const sheet = [];
-    const tarp = new THREE.PlaneGeometry(W * 1.08, D * 1.05);
-    tarp.rotateX(-Math.PI / 2 + 0.08);
-    tarp.translate(0, H * 0.5, D * 0.5);
-    sheet.push(tarp);
-    const flap = panel(W * 0.96, H * 0.34, 0, H * 0.22, D * 1.02, 0);
-    sheet.push(flap);
-    const cloths = [[], []];
-    cloths[0].push(panel(0.3, 0.58, -0.16, -0.02, D * 0.55, 0.15));
-    cloths[1].push(panel(0.26, 0.66, 0.18, -0.06, D * 0.62, -0.2));
-    return {
-      mesh: mergeGeos(mesh), frame: mergeGeos(frame), tray: mergeGeos(tray),
-      sheet: mergeGeos(sheet), clothA: mergeGeos(cloths[0]), clothB: mergeGeos(cloths[1]),
-      nom: { w: W, h: H, d: D }
-    };
-  }
-  const flower = flowerParts();
+  // Active cage runs build directly from instanced unit planes, bars, boards, pots and props.
   const frontGeo = new THREE.PlaneGeometry(1.45, 1.15);
   const sideGeo = new THREE.PlaneGeometry(0.82, 1.15);
   const flatGeo = new THREE.PlaneGeometry(1.45, 0.82);
@@ -19669,41 +19607,6 @@ function dressCages() {
     g.translate(0, h * 0.5, 0);
     return g;
   }
-  function drape(w, h, thick, kick) {
-    const g = new THREE.BoxGeometry(w, h, thick);
-    g.translate(0, -h * 0.5, 0);
-    g.rotateX(-kick);
-    return g;
-  }
-  function shirtGeo() {
-    const slL = new THREE.BoxGeometry(0.11, 0.26, 0.075);
-    slL.rotateZ(0.32);
-    slL.translate(-0.18, -0.24, 0.02);
-    const slR = new THREE.BoxGeometry(0.11, 0.26, 0.075);
-    slR.rotateZ(-0.32);
-    slR.translate(0.18, -0.24, 0.02);
-    return mergeGeos([
-      box(0.28, 0.48, 0.085, 0, -0.3, 0),
-      slL, slR,
-      box(0.12, 0.05, 0.095, 0, -0.04, 0.008)
-    ]);
-  }
-  function towelGeo() {
-    const hem = drape(0.26, 0.18, 0.032, 0.5);
-    hem.translate(0, -0.4, 0.02);
-    return mergeGeos([
-      box(0.28, 0.4, 0.055, 0, -0.22, 0),
-      hem
-    ]);
-  }
-  function sheetGeo() {
-    const hem = drape(0.52, 0.34, 0.035, 0.72);
-    hem.translate(0, -0.38, 0.02);
-    return mergeGeos([
-      box(0.56, 0.4, 0.04, 0, -0.21, 0),
-      hem
-    ]);
-  }
   function bottleGeo() {
     const body = new THREE.CylinderGeometry(0.038, 0.044, 0.13, 6);
     body.translate(0, 0.065, 0);
@@ -19720,9 +19623,6 @@ function dressCages() {
       lid
     ]);
   }
-  const shirtG = shirtGeo();
-  const towelG = towelGeo();
-  const sheetG = sheetGeo();
   // A flower cage is only about half a metre deep. Cloth in it is a thin blade,
   // painted on both broad faces, so it hangs inside the wire instead of a
   // thick shirt swinging through the bow.
@@ -19749,61 +19649,70 @@ function dressCages() {
     return g;
   }
   const clothBlade = clothBladeGeo();
+  function drawPegs(g, xA, xB) {
+    g.fillStyle = "#6e4e34";
+    g.fillRect(xA, 0, 7, 11);
+    g.fillRect(xB, 0, 7, 11);
+  }
   const bladeShirtMat = bladeMat(bladeTex(g => {
     g.fillStyle = "#f6f1e6";
     g.beginPath();
-    g.moveTo(36, 26); g.lineTo(92, 26); g.lineTo(98, 170); g.lineTo(30, 170); g.closePath();
+    g.moveTo(36, 4); g.lineTo(92, 4); g.lineTo(98, 154); g.lineTo(30, 154); g.closePath();
     g.fill();
     g.beginPath();
-    g.moveTo(36, 34); g.lineTo(8, 54); g.lineTo(12, 88); g.lineTo(38, 74); g.closePath();
+    g.moveTo(36, 12); g.lineTo(8, 34); g.lineTo(12, 68); g.lineTo(38, 54); g.closePath();
     g.fill();
     g.beginPath();
-    g.moveTo(92, 34); g.lineTo(120, 54); g.lineTo(116, 88); g.lineTo(90, 74); g.closePath();
+    g.moveTo(92, 12); g.lineTo(120, 34); g.lineTo(116, 68); g.lineTo(90, 54); g.closePath();
     g.fill();
     g.fillStyle = "rgba(40,28,16,0.2)";
     g.beginPath();
-    g.moveTo(52, 26); g.lineTo(76, 26); g.lineTo(70, 50); g.lineTo(64, 38); g.lineTo(58, 50); g.closePath();
+    g.moveTo(52, 4); g.lineTo(76, 4); g.lineTo(70, 28); g.lineTo(64, 16); g.lineTo(58, 28); g.closePath();
     g.fill();
     g.strokeStyle = "rgba(40,28,16,0.16)";
     g.lineWidth = 2;
     g.beginPath();
-    g.moveTo(48, 72); g.lineTo(46, 162);
-    g.moveTo(82, 76); g.lineTo(86, 164);
+    g.moveTo(48, 52); g.lineTo(46, 146);
+    g.moveTo(82, 56); g.lineTo(86, 148);
     g.stroke();
+    drawPegs(g, 38, 83);
   }));
   const bladeTowelMat = bladeMat(bladeTex(g => {
     g.fillStyle = "#f4efe4";
-    g.fillRect(28, 18, 72, 158);
+    g.fillRect(28, 3, 72, 162);
     g.fillStyle = "rgba(50,36,20,0.22)";
-    g.fillRect(28, 150, 72, 14);
+    g.fillRect(28, 138, 72, 14);
     g.strokeStyle = "rgba(50,36,20,0.12)";
     g.lineWidth = 1;
-    for (let y = 28; y < 146; y += 8) {
+    for (let y = 16; y < 134; y += 8) {
       g.beginPath();
       g.moveTo(32, y);
       g.lineTo(96, y + 1);
       g.stroke();
     }
+    drawPegs(g, 32, 89);
   }));
   const bladeSheetMat = bladeMat(bladeTex(g => {
     g.fillStyle = "#f7f4ee";
-    g.fillRect(14, 16, 100, 164);
+    g.fillRect(14, 3, 100, 168);
     g.strokeStyle = "rgba(40,32,22,0.14)";
     g.lineWidth = 2;
     g.beginPath();
-    g.moveTo(40, 24); g.quadraticCurveTo(36, 96, 44, 170);
-    g.moveTo(78, 20); g.quadraticCurveTo(88, 100, 74, 172);
+    g.moveTo(40, 12); g.quadraticCurveTo(36, 86, 44, 160);
+    g.moveTo(78, 10); g.quadraticCurveTo(88, 90, 74, 162);
     g.stroke();
     g.fillStyle = "rgba(40,32,22,0.08)";
-    g.fillRect(14, 156, 100, 16);
+    g.fillRect(14, 146, 100, 16);
+    drawPegs(g, 20, 101);
   }));
   const bladeStripeMat = bladeMat(bladeTex(g => {
     g.fillStyle = "#e7eef4";
-    g.fillRect(18, 14, 92, 166);
+    g.fillRect(18, 3, 92, 170);
     g.fillStyle = "#2c5f96";
-    for (let y = 14; y < 180; y += 22) g.fillRect(18, y, 92, 9);
+    for (let y = 3; y < 172; y += 22) g.fillRect(18, y, 92, 9);
     g.fillStyle = "rgba(16,32,54,0.2)";
-    g.fillRect(18, 164, 92, 16);
+    g.fillRect(18, 154, 92, 16);
+    drawPegs(g, 24, 97);
   }));
   const crateG = crateGeo();
   const basinG = cylBottom(0.16, 0.12, 0.07, 8);
@@ -19813,7 +19722,6 @@ function dressCages() {
   const foldG = box(0.26, 0.04, 0.18, 0, 0.02, 0);
   const lineG = new THREE.BoxGeometry(1, 0.012, 0.012);
   const buckets = {
-    flowerMesh: [], flowerFrame: [], flowerTray: [], flowerPot: [], flowerLeaf: [],
     frontSteel: [], frontMint: [], frontRust: [], frontChalk: [],
     sideSteel: [], sideMint: [], sideRust: [], sideChalk: [],
     barSteel: [], barMint: [], barRust: [], barChalk: [],
@@ -19822,7 +19730,6 @@ function dressCages() {
     roofSteel: [], roofMint: [], roofRust: [], roofChalk: [],
     boardGalv: [], boardRust: [],
     pot: [], leaf: [], tarp: [], flap: [],
-    clothShirt: [], clothTowel: [], clothSheet: [], clothStripe: [],
     bladeShirt: [], bladeTowel: [], bladeSheet: [], bladeStripe: [],
     crate: [], basin: [], bucket: [], galv: [], bag: [], bottle: [], fold: [], line: []
   };
@@ -19830,22 +19737,74 @@ function dressCages() {
   // and a window in a narrow gap sit closer to the neighbour, and used to take
   // the neighbour's row, so the mesh slid off its own wall.
   let pinAz = null;
+  let curHost = -1;
   Object.keys(buckets).forEach(key => {
     const list = buckets[key];
     const push = list.push.bind(list);
     list.push = function () {
       for (let i = 0; i < arguments.length; i++) {
         const it = arguments[i];
-        if (it && pinAz != null) it.az = pinAz;
+        if (it) {
+          if (pinAz != null) it.az = pinAz;
+          if (curHost >= 0 && it.hi == null) it.hi = curHost;
+        }
       }
       return push.apply(null, arguments);
     };
   });
-  function seatPot(x, z, deckY, s) {
+  function seatPot(x, z, deckTop, s) {
     const potH = 0.11 * s;
-    const yPot = deckY + 0.015 + potH / 2;
+    const yPot = deckTop + potH * 0.5;
     buckets.pot.push({ x, y: yPot, z, sx: s, sy: s, sz: s });
-    buckets.leaf.push({ x, y: yPot + potH / 2 - 0.01, z, sx: s, sy: s, sz: s });
+    buckets.leaf.push({ x, y: yPot + potH * 0.5 - 0.01, z, sx: s, sy: s, sz: s });
+  }
+  // 3D height-aware spatial index of every tenement and landmark volume so buried party walls
+  // never spawn hidden windows/cages and high floors overlooking low halls are never wrongly clipped.
+  const SOLID_CELL = 4;
+  const solidGrid3D = new Map();
+  function indexSolid3D(x0, z0, x1, z1, hTop, hostIdx, step) {
+    const rec = { x0, z0, x1, z1, h: hTop, hi: hostIdx, step: step || null };
+    const ix0 = Math.floor(x0 / SOLID_CELL), ix1 = Math.floor(x1 / SOLID_CELL);
+    const iz0 = Math.floor(z0 / SOLID_CELL), iz1 = Math.floor(z1 / SOLID_CELL);
+    for (let ix = ix0; ix <= ix1; ix++) {
+      for (let iz = iz0; iz <= iz1; iz++) {
+        const k = ix + "," + iz;
+        let list = solidGrid3D.get(k);
+        if (!list) solidGrid3D.set(k, list = []);
+        list.push(rec);
+      }
+    }
+  }
+  winHosts.forEach((h, idx) => indexSolid3D(h.x, h.z, h.x + h.w, h.z + h.d, h.floors * FLOOR_H, idx, h.step));
+  indexSolid3D(82, 39.05, 123.18, 51.48, 5.75, -2, null);   // 青年中心
+  indexSolid3D(82, 51.43, 99.24, 78.30, 20.15, -3, null);   // 義學大樓
+  indexSolid3D(99.18, 51.43, 123.18, 78.25, 6.95, -4, null);// 老人中心
+  indexSolid3D(103.42, 78.25, 123.18, 84.55, 6.95, -5, null);// 老人中心南翼
+  indexSolid3D(91.15, 78.22, 103.42, 84.55, 6.05, -6, null);// 衙門閘樓
+  indexSolid3D(TEMPLE_X, TEMPLE_Z, TEMPLE_X + TEMPLE_W, TEMPLE_Z + TEMPLE_D, 5.75, -7, null); // 天后廟
+  function solidHitAt(px, pz, y, skipHi) {
+    const list = solidGrid3D.get(Math.floor(px / SOLID_CELL) + "," + Math.floor(pz / SOLID_CELL));
+    if (!list) return false;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (b.hi === skipHi) continue;
+      if (y > b.h + 0.35) continue;
+      let x0 = b.x0, x1 = b.x1, z0 = b.z0, z1 = b.z1;
+      if (b.step && y >= b.step.from * FLOOR_H) {
+        x0 += b.step.w; x1 -= b.step.e; z0 += b.step.n; z1 -= b.step.s;
+      }
+      if (px > x0 + 0.04 && px < x1 - 0.04 && pz > z0 + 0.04 && pz < z1 - 0.04) return true;
+    }
+    return false;
+  }
+  function slotGapAt(wallCoord, along, dir, ns, y, skipHi, maxDist) {
+    const lim = maxDist || 4.0;
+    for (let s = 0.12; s <= lim; s += 0.14) {
+      const px = ns ? along : wallCoord + dir[0] * s;
+      const pz = ns ? wallCoord + dir[1] * s : along;
+      if (solidHitAt(px, pz, y, skipHi)) return s;
+    }
+    return lim;
   }
   function faceOpen(u, face) {
     const R = 1.6;
@@ -19883,13 +19842,10 @@ function dressCages() {
     flap: "front",
     roofSteel: "roof", roofMint: "roof", roofRust: "roof", roofChalk: "roof",
     tarp: "roof",
-    clothShirt: "point", clothTowel: "point", clothSheet: "point", clothStripe: "point",
     bladeShirt: "point", bladeTowel: "point", bladeSheet: "point", bladeStripe: "point",
     crate: "point", basin: "point", bucket: "point", galv: "point",
     bag: "point", bottle: "point", fold: "point", line: "point",
-    pot: "point", leaf: "point",
-    flowerMesh: "point", flowerFrame: "point", flowerTray: "point",
-    flowerPot: "point", flowerLeaf: "point"
+    pot: "point", leaf: "point"
   };
   function cageKeepSpans(host, faceName, a0, a1, y0, y1) {
     let spans = [[a0, a1]];
@@ -20070,6 +20026,7 @@ function dressCages() {
   let northN = 0, northSum = 0;
   const toneKey = { steel: "Steel", mint: "Mint", rust: "Rust", chalk: "Chalk" };
   winHosts.forEach((u, hi) => {
+    curHost = hi;
     const floors = u.floors | 0;
     const hx = u.x + u.w * 0.5, hz = u.z + u.d * 0.5;
     pinAz = u.street ? streetAz(hx, hz) : anchorNear(hx, hz);
@@ -20100,7 +20057,7 @@ function dressCages() {
       // Upper floors step the plaster back from the lot line. The window sits
       // on that face. A party wall is nearly on the lot line, so it only needs
       // a couple of centimetres of clearance.
-      const plaster = (u.openFaces && u.openFaces.indexOf(face) >= 0) ? 0.28 : 0.02;
+      const plaster = (u.openFaces && u.openFaces.indexOf(face) >= 0) ? 0.28 : 0.035;
       let runTint = [1, 1, 1];
       function point(along, out) {
         const o = out;
@@ -20163,14 +20120,34 @@ function dressCages() {
         let salt = 1;
         const rnd = () => u01(salt++, hi * 19 + faceCode * 7 + f * 5);
         const covered = new Array(grid.bays);
+        const slotClear = new Float32Array(grid.bays);
+        const slotBlocked = new Uint8Array(grid.bays);
+        const fyMid = f * FLOOR_H + OPEN_YC;
+        for (let sb = 0; sb < grid.bays; sb++) {
+          const sl = grid.slots[sb];
+          if (outer) {
+            // Even on rim-adjacent lots, guard against recessed corner neighbours overlapping a side slot.
+            const gMid = slotGapAt(wall, along0 + sl.mid, dir, ns, fyMid, hi, 2.4);
+            slotClear[sb] = gMid;
+            if (gMid < 0.65) slotBlocked[sb] = 1;
+          } else {
+            const gMid = slotGapAt(wall, along0 + sl.mid, dir, ns, fyMid, hi, 4.0);
+            const gA = slotGapAt(wall, along0 + sl.a0 + 0.14, dir, ns, fyMid, hi, 2.4);
+            const gB = slotGapAt(wall, along0 + sl.a1 - 0.14, dir, ns, fyMid, hi, 2.4);
+            const gMin = Math.min(gMid, gA, gB);
+            slotClear[sb] = gMin;
+            if (gMin < 0.65) slotBlocked[sb] = 1;
+          }
+        }
         // A bare floor, or a bare bay, is a household that never built a cage.
         // Neighbouring cages still run up to a thin joint, not a full empty bay.
         const floorBare = rnd() < (north ? 0.03 : narrow ? 0.1 : outer ? 0.045 : 0.06);
         let b = 0;
         while (!floorBare && b < grid.bays) {
+          if (slotBlocked[b]) { b++; continue; }
           let room = 1;
           const bayId = grid.slots[b].bay;
-          while (b + room < grid.bays && grid.slots[b + room].bay === bayId) room++;
+          while (b + room < grid.bays && !slotBlocked[b + room] && grid.slots[b + room].bay === bayId) room++;
           const gap = rnd() < (north ? 0.03 : narrow ? 0.1 : outer ? 0.04 : 0.055);
           if (gap) { b++; continue; }
           let len;
@@ -20236,7 +20213,10 @@ function dressCages() {
               : outer
               ? { shallow: 0.82, deep: 1.32, rust: 1.08, tarp: 1.16, laundry: 1.1 }
               : { shallow: 0.52, deep: 1.02, rust: 0.8, tarp: 0.9, laundry: 0.78 };
-            const deep = (flowerCage ? Math.min(0.56, cap) : Math.min(table[kind], cap)) * (0.95 + rnd() * 0.07);
+            let minRunGap = 99;
+            for (let s = i0; s <= i1; s++) if (slotClear[s] < minRunGap) minRunGap = slotClear[s];
+            const physCap = outer ? cap : Math.min(cap, Math.max(0.20, minRunGap * 0.42));
+            const deep = (flowerCage ? Math.min(0.56, physCap) : Math.min(table[kind], physCap)) * (0.95 + rnd() * 0.07);
             let tone;
             if (flowerCage) tone = "mint";
             else if (kind === "rust") tone = "rust";
@@ -20270,38 +20250,49 @@ function dressCages() {
             const deck = buckets["deck" + key];
             const roof = buckets["roof" + key];
             const deckY = y - height * 0.5 + 0.03;
-            const railOut = flowerCage ? deep * 0.62 : deep;
-            pushBar(deck, mid, deckY, shell + 0.02 + (railOut - 0.02) * 0.5, spanW, 0.06, Math.max(0.18, railOut - 0.02));
-            if (!flowerCage) pushBar(bar, mid, y + height * 0.47, shell + railOut, spanW, 0.046, 0.046);
-            pushBar(bar, mid, y - height * 0.47, shell + railOut, spanW, 0.05, 0.05);
-            if (!flowerCage) pushBar(bar, mid, y + 0.02, shell + railOut, spanW, 0.028, 0.028);
+            const deckTop = deckY + 0.03;
+            function bowDepthAt(alongPos) {
+              if (!flowerCage) return deep;
+              const t = Math.max(0, Math.min(1, (alongPos - a0) / Math.max(0.01, spanW)));
+              return deep * (0.22 + 0.78 * Math.sin(t * Math.PI));
+            }
+            if (!flowerCage) {
+              pushBar(deck, mid, deckY, shell + 0.02 + (deep - 0.02) * 0.5, spanW, 0.06, Math.max(0.18, deep - 0.02));
+              pushBar(bar, mid, y + height * 0.47, shell + deep, spanW, 0.046, 0.046);
+              pushBar(bar, mid, y - height * 0.47, shell + deep, spanW, 0.05, 0.05);
+              pushBar(bar, mid, y + 0.02, shell + deep, spanW, 0.028, 0.028);
+            }
             pushBar(bar, mid, y + height * 0.45, shell + 0.03, spanW, 0.032, 0.032);
             let bowReach = null;
             if (flowerCage) {
-              // One basket across the windows: the front bows out and the top rail arches.
-              // A yawed panel's corner swings past `deep`. Record that reach so a sign
-              // can sit outside the wire at its own place along the basket.
+              // Bowed flower basket: front wire, floor tray, bottom rail and top rail all follow
+              // the exact bow curve so deck corners never poke past the curved wire.
               const bows = Math.max(5, nSeg * 2 + 1);
+              const bowSegW = spanW / bows;
               bowReach = [];
               for (let k = 0; k < bows; k++) {
                 const t = (k + 0.5) / bows;
                 const along = a0 + spanW * t;
                 const bulge = Math.sin(t * Math.PI);
                 const outK = 0.22 + 0.78 * bulge;
+                const bowD = deep * outK;
                 const yawExtra = Math.cos(t * Math.PI) * 0.95;
-                const worldHalf = spanW / bows * 0.6;
+                const worldHalf = bowSegW * 0.6;
                 const swing = worldHalf * Math.abs(Math.sin(yawExtra));
                 bowReach.push({
                   along,
                   half: worldHalf * Math.abs(Math.cos(yawExtra)) + 0.06,
-                  out: deep * outK + swing + 0.02
+                  out: bowD + swing + 0.02
                 });
-                const fp = point(along, shell + deep * outK);
+                const fp = point(along, shell + bowD);
                 front.push({
                   x: fp.x, y: y + height * 0.01 * bulge, z: fp.z, yaw: yaw + yawExtra,
-                  sx: (spanW / bows) / 1.45, sy: (height * (0.9 + 0.05 * bulge)) / 1.15, sz: 1, tint: runTint
+                  sx: bowSegW / 1.45, sy: (height * (0.9 + 0.05 * bulge)) / 1.15, sz: 1, tint: runTint
                 });
-                pushBar(bar, along, y + height * (0.4 + 0.055 * bulge), shell + deep * outK, spanW / bows, 0.032, 0.032);
+                const trayD = Math.max(0.10, bowD - 0.02);
+                pushBar(deck, along, deckY, shell + 0.02 + trayD * 0.5, bowSegW + 0.01, 0.06, trayD);
+                pushBar(bar, along, y - height * 0.47, shell + bowD, bowSegW, 0.038, 0.038);
+                pushBar(bar, along, y + height * (0.4 + 0.055 * bulge), shell + bowD, bowSegW, 0.032, 0.032);
               }
             }
             for (let s = 0; s < nSeg && !flowerCage; s++) {
@@ -20319,8 +20310,8 @@ function dressCages() {
               }
             }
             if (wantBoard) {
-              const lip = 0.08;
-              const boardDeep = Math.max(0.28, deep + lip);
+              const lip = flowerCage ? 0.05 : 0.08;
+              const boardDeep = Math.max(0.26, deep + lip);
               const yBoard = y + height * 0.455;
               const rustSheet = u01(i0 + 5, hi + f * 3 + 93) < (kind === "rust" ? 0.46 : 0.2);
               const sheetTint = rustSheet
@@ -20343,30 +20334,36 @@ function dressCages() {
               (rustSheet ? buckets.boardRust : buckets.boardGalv).push(fascia);
             }
             [a0, a1].forEach(edge => {
-              const sideOut = flowerCage ? deep * 0.42 : deep * 0.5;
-              const sp = point(edge, shell + sideOut);
+              const sideD = flowerCage ? Math.max(0.10, deep * 0.26) : deep;
+              const sp = point(edge, shell + sideD * 0.5);
               side.push({
                 x: sp.x, y, z: sp.z, yaw: yaw + Math.PI / 2,
-                sx: (flowerCage ? deep * 0.72 : deep) / 0.82, sy: (height * 0.98) / 1.15, sz: 1, tint: runTint
+                sx: sideD / 0.82, sy: (height * 0.98) / 1.15, sz: 1, tint: runTint
               });
             });
             for (let s = 0; s <= nSeg; s++) {
               const tuck = s === 0 ? 0.024 : s === nSeg ? -0.024 : 0;
               const ac = a0 + segW * s + tuck;
               pushBar(post, ac, y, shell + 0.03, 0.04, height, 0.04);
-              pushBar(post, ac, y, shell + (flowerCage ? deep * 0.42 : deep), 0.044, height * 0.98, 0.044);
+              const frontPostOut = flowerCage ? bowDepthAt(ac) : deep;
+              pushBar(post, ac, y, shell + frontPostOut, 0.044, height * 0.98, 0.044);
             }
             const deckUsed = [];
             function claimDeck(along, out, rad, keep) {
-              const aMin = a0 + rad + 0.03;
-              const aMax = a1 - rad - 0.03;
-              const oMin = shell + rad + 0.05;
-              const oMax = shell + Math.max(0.12, deep * (flowerCage ? 0.68 : 0.8) - rad);
-              if (!(aMax > aMin) || !(oMax > oMin)) {
+              const aMin = a0 + rad + 0.04;
+              const aMax = a1 - rad - 0.04;
+              if (!(aMax > aMin)) {
                 if (keep) deckUsed.push({ a: along, o: out, r: rad });
                 return null;
               }
               let a = Math.min(aMax, Math.max(aMin, along));
+              const localD = bowDepthAt(a);
+              const oMin = shell + rad + 0.04;
+              const oMax = shell + localD - rad - 0.04;
+              if (!(oMax > oMin)) {
+                if (keep) deckUsed.push({ a: along, o: out, r: rad });
+                return null;
+              }
               let o = Math.min(oMax, Math.max(oMin, out));
               for (let n = 0; n < 7; n++) {
                 let ok = true;
@@ -20382,7 +20379,10 @@ function dressCages() {
                 }
                 const step = rad + 0.06;
                 a = Math.min(aMax, Math.max(aMin, a + (n % 2 ? step : -step)));
-                if (n === 2) o = Math.min(oMax, o + step);
+                const limMax = shell + bowDepthAt(a) - rad - 0.04;
+                if (limMax <= oMin) return null;
+                o = Math.min(limMax, Math.max(oMin, o));
+                if (n === 2) o = Math.min(limMax, o + step);
                 if (n === 4) o = Math.max(oMin, o - step);
               }
               if (keep) deckUsed.push({ a: along, o: out, r: rad });
@@ -20392,16 +20392,26 @@ function dressCages() {
             for (let s = 0; s < nSeg; s += potStep) {
               if (kind !== "flower" && rnd() > (north ? 0.92 : 0.72)) continue;
               const ac = a0 + segW * (s + 0.38);
-              const po = shell + Math.max(0.18, deep * 0.72);
-              const pp = point(ac, po);
-              seatPot(pp.x, pp.z, deckY, 1.15);
-              deckUsed.push({ a: ac, o: po, r: 0.07 * 1.15 + 0.03 });
+              const localD = bowDepthAt(ac);
+              if (localD >= 0.18) {
+                const s1 = Math.min(1.15, Math.max(0.68, (localD - 0.06) / 0.16));
+                const r1 = 0.07 * s1;
+                const po = Math.min(shell + localD - r1 - 0.03, Math.max(shell + r1 + 0.04, shell + localD * 0.68));
+                const pp = point(ac, po);
+                seatPot(pp.x, pp.z, deckTop, s1);
+                deckUsed.push({ a: ac, o: po, r: r1 + 0.03 });
+              }
               if ((kind === "flower" || north || rnd() > 0.45) && deep > 0.55) {
                 const ac2 = a0 + segW * (s + 0.7);
-                const po2 = shell + deep * 0.4;
-                const pp2 = point(ac2, po2);
-                seatPot(pp2.x, pp2.z, deckY, 0.9);
-                deckUsed.push({ a: ac2, o: po2, r: 0.07 * 0.9 + 0.03 });
+                const localD2 = bowDepthAt(ac2);
+                if (localD2 >= 0.24) {
+                  const s2 = Math.min(0.9, Math.max(0.65, (localD2 - 0.08) / 0.18));
+                  const r2 = 0.07 * s2;
+                  const po2 = Math.min(shell + localD2 - r2 - 0.03, Math.max(shell + r2 + 0.04, shell + localD2 * 0.38));
+                  const pp2 = point(ac2, po2);
+                  seatPot(pp2.x, pp2.z, deckTop, s2);
+                  deckUsed.push({ a: ac2, o: po2, r: r2 + 0.03 });
+                }
               }
             }
             if (kind === "tarp") {
@@ -20428,7 +20438,12 @@ function dressCages() {
                 ? Math.max(2, Math.round(nSeg * 0.7))
                 : Math.max(1, Math.round(nSeg * 0.45));
               const pegIn = y + height * 0.26;
-              pushLines(shell + deep * 0.4, pegIn, a0 + spanW * 0.08, a1 - spanW * 0.08);
+              // Anchor every garment directly onto its clothesline (add a second inner line on deep cages).
+              const lineOut1 = shell + Math.min(deep - 0.12, Math.max(0.14, deep * 0.62));
+              const twoLines = deep >= 0.92 && nCloth >= 4;
+              const lineOut2 = shell + Math.max(0.14, deep * 0.34);
+              pushLines(lineOut1, pegIn, a0 + spanW * 0.08, a1 - spanW * 0.08);
+              if (twoLines) pushLines(lineOut2, pegIn, a0 + spanW * 0.10, a1 - spanW * 0.10);
               for (let c = 0; c < nCloth; c++) {
                 const ac = a0 + spanW * ((c + 0.5) / nCloth);
                 const hue = rnd();
@@ -20439,17 +20454,17 @@ function dressCages() {
                 else bucket = "bladeStripe";
                 const gap = spanW / nCloth;
                 const fit = Math.min(0.9, Math.max(0.5, gap / 0.4));
-                const inset = 0.08 + rnd() * Math.min(0.16, deep * 0.28);
+                const gOut = (twoLines && (c % 2 === 1)) ? lineOut2 : lineOut1;
                 pushGarment(
                   bucket, ac,
-                  shell + Math.max(0.14, deep - inset),
+                  gOut,
                   pegIn,
                   bucket === "bladeStripe" ? [1, 1, 1] : hangTint(hue),
                   fit,
                   0.74 + rnd() * 0.28,
                   1,
                   (hue - 0.5) * 0.05,
-                  (rnd() - 0.5) * 0.08
+                  (rnd() - 0.5) * 0.06
                 );
               }
             }
@@ -20457,36 +20472,32 @@ function dressCages() {
             // floor's, so the bays along the wall stay where they were.
             let propN = 0;
             const prop = () => u01(240 + propN++, hi + faceCode * 3 + f * 17 + i0 * 13);
-            if (flowerCage) {
+            if (flowerCage && deep >= 0.28) {
               const pegIn = y + height * 0.22;
-              pushLines(shell + deep * 0.3, pegIn, a0 + spanW * 0.18, a1 - spanW * 0.18);
+              const fLineOut = shell + Math.max(0.11, deep * 0.36);
+              pushLines(fLineOut, pegIn, a0 + spanW * 0.20, a1 - spanW * 0.20);
               const nHang = Math.min(4, 1 + Math.floor(prop() * 2) + Math.min(1, Math.max(0, nSeg - 2)));
               for (let c = 0; c < nHang; c++) {
-                const t = 0.22 + 0.56 * ((c + 0.5) / nHang);
-                const bulge = Math.sin(t * Math.PI);
-                const bow = deep * (0.22 + 0.78 * bulge);
-                const room = bow - 0.08;
-                if (room < 0.14) continue;
+                const t = 0.24 + 0.52 * ((c + 0.5) / nHang);
                 const u = prop();
                 let bucket = "bladeShirt";
                 if (u < 0.3) bucket = "bladeShirt";
                 else if (u < 0.55) bucket = "bladeTowel";
                 else if (u < 0.78) bucket = "bladeSheet";
                 else bucket = "bladeStripe";
-                const inward = 0.06 + prop() * Math.min(0.14, room * 0.4);
-                const gap = spanW * 0.56 / nHang;
+                const gap = spanW * 0.52 / nHang;
                 const fit = Math.min(0.92, Math.max(0.52, gap / 0.36));
                 pushGarment(
                   bucket,
                   a0 + spanW * t,
-                  shell + Math.max(0.12, room - inward),
+                  fLineOut,
                   pegIn,
                   bucket === "bladeStripe" ? [1, 1, 1] : hangTint(u),
                   fit,
                   0.72 + prop() * 0.3,
                   1,
                   (prop() - 0.5) * 0.06,
-                  (prop() - 0.5) * 0.08
+                  (prop() - 0.5) * 0.06
                 );
               }
             }
@@ -20501,15 +20512,16 @@ function dressCages() {
               const sc = 0.78 + prop() * 0.4;
               const spin = (prop() - 0.5) * 0.65;
               const along = flowerCage
-                ? a0 + spanW * (0.22 + 0.56 * prop())
+                ? a0 + spanW * (0.24 + 0.52 * prop())
                 : a0 + spanW * (0.1 + 0.8 * prop());
-              const out = shell + 0.08 + deep * (flowerCage ? 0.4 : 0.52) * (0.2 + 0.8 * prop());
-              const rad = (ku < 0.3 ? 0.22 : ku < 0.5 ? 0.2 : ku < 0.82 ? 0.13 : ku < 0.92 ? 0.08 : 0.16) * sc;
+              const localD = bowDepthAt(along);
+              const out = shell + 0.06 + Math.max(0.08, localD - 0.12) * (0.2 + 0.75 * prop());
+              const rad = (ku < 0.3 ? 0.20 : ku < 0.5 ? 0.18 : ku < 0.82 ? 0.12 : ku < 0.92 ? 0.08 : 0.15) * sc;
               const spot = claimDeck(along, out, rad, false);
               if (!spot) continue;
               const p = point(spot.along, spot.out);
               const seat = {
-                x: p.x, y: deckY, z: p.z,
+                x: p.x, y: deckTop, z: p.z,
                 ry: yaw + spin
               };
               if (ku < 0.3) {
@@ -20521,7 +20533,7 @@ function dressCages() {
                 if (prop() < 0.3) {
                   const sc2 = sc * 0.86;
                   buckets.crate.push({
-                    x: p.x, y: deckY + 0.2 * sy1 + 0.01, z: p.z,
+                    x: p.x, y: deckTop + 0.18 * sy1, z: p.z,
                     sx: sc2, sy: sc2 * 0.9, sz: sc2 * 0.92,
                     ry: yaw + spin + 0.3,
                     tint: [0.62, 0.48, 0.32]
@@ -20567,6 +20579,7 @@ function dressCages() {
           b += len;
         }
         for (let bay = 0; bay < grid.bays; bay++) {
+          if (slotBlocked[bay]) continue;
           const size = openingSize(hi, faceCode, bay, f);
           const slot = grid.slots[bay];
           const along = along0 + slot.mid;
@@ -20595,42 +20608,18 @@ function dressCages() {
       }
     });
   });
-  // A rail or a sheet is sized to the windows on its own wall. The next
-  // building often steps into that line, and the end then sits inside the
-  // neighbour. Shorten the piece until the ends are back in the open.
+  // 3D height-aware neighbour clipping across ALL cage buckets (bars, decks, boards, wire panels,
+  // tarps, pots, hanging laundry and deck props), preserving high floors overlooking low halls.
   (function clipCageToSolids() {
-    const cell = 4;
-    const grid = new Map();
-    for (let i = 0; i < walkSolids.length; i++) {
-      const b = walkSolids[i];
-      if (b.x == null || b.x2 == null || b.z == null || b.z2 == null) continue;
-      const x0 = Math.floor(b.x / cell), x1 = Math.floor(b.x2 / cell);
-      const z0 = Math.floor(b.z / cell), z1 = Math.floor(b.z2 / cell);
-      for (let x = x0; x <= x1; x++) {
-        for (let z = z0; z <= z1; z++) {
-          const k = x + "," + z;
-          let list = grid.get(k);
-          if (!list) grid.set(k, list = []);
-          list.push(b);
-        }
-      }
-    }
-    function inSolid(x, z) {
-      const list = grid.get((Math.floor(x / cell)) + "," + (Math.floor(z / cell)));
-      if (!list) return false;
-      for (let i = 0; i < list.length; i++) {
-        const b = list[i];
-        if (x > b.x + 0.05 && x < b.x2 - 0.05 && z > b.z + 0.05 && z < b.z2 - 0.05) return true;
-      }
-      return false;
-    }
-    function trim(it, hx, hz) {
+    function trim3D(it, hx, hz) {
       const yaw = it.ry || it.yaw || 0;
       const c = Math.cos(yaw), s = Math.sin(yaw);
+      const y = it.y == null ? 4 : it.y;
+      const skip = it.hi == null ? -1 : it.hi;
       function inside(lx, lz) {
         const wx = it.x + lx * c - lz * s;
         const wz = it.z + lx * s + lz * c;
-        return inSolid(wx, wz);
+        return solidHitAt(wx, wz, y, skip);
       }
       let x0 = -hx, x1 = hx, z0 = -hz, z1 = hz;
       const spanX = x1 - x0, spanZ = z1 - z0;
@@ -20658,8 +20647,8 @@ function dressCages() {
       const mx = (x0 + x1) * 0.5, mz = (z0 + z1) * 0.5;
       it.x += mx * c - mz * s;
       it.z += mx * s + mz * c;
-      it.sx *= (x1 - x0) / (hx * 2);
-      it.sz *= (z1 - z0) / (hz * 2);
+      if (it.sx != null && hx > 1e-4) it.sx *= (x1 - x0) / (hx * 2);
+      if (it.sz != null && hz > 1e-4) it.sz *= (z1 - z0) / (hz * 2);
       return true;
     }
     const boxKeys = [
@@ -20675,16 +20664,63 @@ function dressCages() {
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
         if (!it || it.sx == null || it.sz == null) { kept.push(it); continue; }
-        let hx, hz;
-        if (key === "line") {
-          hx = Math.abs(it.sx) * 0.5;
-          hz = 0.006 * Math.abs(it.sz || 1);
-        } else {
-          hx = Math.abs(it.sx) * 0.5;
-          hz = Math.abs(it.sz) * 0.5;
-        }
+        const hx = Math.abs(it.sx) * 0.5;
+        const hz = key === "line" ? 0.006 * Math.abs(it.sz || 1) : Math.abs(it.sz) * 0.5;
         if (hx < 0.001 || hz < 0.001) { kept.push(it); continue; }
-        if (trim(it, hx, hz)) kept.push(it);
+        if (trim3D(it, hx, hz)) kept.push(it);
+      }
+      buckets[key] = kept;
+    });
+    const frontKeys = ["frontSteel", "frontMint", "frontRust", "frontChalk", "flap"];
+    frontKeys.forEach(key => {
+      const list = buckets[key];
+      if (!list) return;
+      const kept = [];
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const hx = Math.abs(it.sx || 1) * 1.45 * 0.5;
+        if (trim3D(it, hx, 0.01)) kept.push(it);
+      }
+      buckets[key] = kept;
+    });
+    const sideKeys = ["sideSteel", "sideMint", "sideRust", "sideChalk"];
+    sideKeys.forEach(key => {
+      const list = buckets[key];
+      if (!list) return;
+      const kept = [];
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const hx = Math.abs(it.sx || 1) * 0.82 * 0.5;
+        if (trim3D(it, hx, 0.01)) kept.push(it);
+      }
+      buckets[key] = kept;
+    });
+    const roofKeys = ["roofSteel", "roofMint", "roofRust", "roofChalk", "tarp"];
+    roofKeys.forEach(key => {
+      const list = buckets[key];
+      if (!list) return;
+      const kept = [];
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const hx = Math.abs(it.sx || 1) * 1.45 * 0.5;
+        const hz = Math.abs(it.sz || 1) * 0.82 * 0.5;
+        if (trim3D(it, hx, hz)) kept.push(it);
+      }
+      buckets[key] = kept;
+    });
+    const propKeys = [
+      "pot", "leaf", "bladeShirt", "bladeTowel", "bladeSheet", "bladeStripe",
+      "crate", "basin", "bucket", "galv", "bag", "bottle", "fold"
+    ];
+    propKeys.forEach(key => {
+      const list = buckets[key];
+      if (!list) return;
+      const kept = [];
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const y = it.y == null ? 4 : it.y;
+        const skip = it.hi == null ? -1 : it.hi;
+        if (!solidHitAt(it.x, it.z, y, skip)) kept.push(it);
       }
       buckets[key] = kept;
     });
@@ -20702,15 +20738,7 @@ function dressCages() {
     o.position.set(it.x, it.y, it.z);
     o.scale.set(it.sx || 1, it.sy || 1, it.sz || 1);
   }
-  fillInst(flower.mesh, steelWire, buckets.flowerMesh, placeCage);
-  fillInst.detail = true;
-  fillInst.cageProp = true;
-  fillInst(flower.frame, steelBar, buckets.flowerFrame, placeCage);
-  fillInst(flower.tray, steelTray, buckets.flowerTray, placeCage);
-  fillInst(flower.pot, potMat, buckets.flowerPot, placeCage);
-  fillInst(flower.leaf, leafSolid, buckets.flowerLeaf, placeCage);
-  fillInst.cageProp = false;
-  fillInst.detail = false;
+
   fillInst(frontGeo, steelWire, buckets.frontSteel, placeCage);
   fillInst(sideGeo, steelWire, buckets.sideSteel, placeCage);
   fillInst.detail = true;
@@ -20795,10 +20823,7 @@ function dressCages() {
   fillInst(new THREE.BoxGeometry(1, 1, 1), boardRust, buckets.boardRust, placeBox);
   fillInst(flatGeo, tarpMat, buckets.tarp, placeFlat);
   fillInst(frontGeo, tarpMat, buckets.flap, placeCage);
-  fillInst(shirtG, clothHang, buckets.clothShirt, placeBox);
-  fillInst(towelG, clothHang, buckets.clothTowel, placeBox);
-  fillInst(sheetG, clothHang, buckets.clothSheet, placeBox);
-  fillInst(sheetG, clothStripe, buckets.clothStripe, placeBox);
+
   fillInst(clothBlade, bladeShirtMat, buckets.bladeShirt, placeBox);
   fillInst(clothBlade, bladeTowelMat, buckets.bladeTowel, placeBox);
   fillInst(clothBlade, bladeSheetMat, buckets.bladeSheet, placeBox);
@@ -20827,6 +20852,66 @@ function dressCages() {
   dressCages.northDeep = northN ? northSum / northN : 0;
 }
 dressCages();
+// Perimeter bamboo laundry poles placed after cages & scaffolds: anchored inside uncaged outer
+// windows or lashed cleanly onto outer balcony rails, with top-pivoted cloths aligned along the pole.
+(function dressPerimeterPoles() {
+  if (!sharedBambooMat || !sharedClothColors) return;
+  const ops = dressCages.openings || [];
+  const poleGeo = new THREE.CylinderGeometry(0.024, 0.024, 1.24, 5);
+  const clothGeo = new THREE.PlaneGeometry(0.42, 0.78);
+  clothGeo.translate(0, -0.39, 0);
+  const done = new Set();
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    if (!op.outer) continue;
+    if (op.f !== 3 && op.f !== 7 && op.f !== 11) continue;
+    const key = op.hi + ":" + op.face + ":" + op.f;
+    if (done.has(key)) continue;
+    const rng = roofRand(op.wall + op.along * 0.25, op.y, 0x901e + op.hi * 7 + op.f);
+    if (rng() < 0.72) continue;
+    // Skip any window covered by a bamboo scaffold.
+    let inScaf = false;
+    for (let s = 0; s < scaffoldFaces.length; s++) {
+      const sc = scaffoldFaces[s];
+      if (sc.hi === op.hi && sc.face === op.face && op.along >= sc.a0 - 0.3 && op.along <= sc.a1 + 0.3 && op.y >= sc.y0 && op.y <= sc.y1) {
+        inScaf = true; break;
+      }
+    }
+    if (inScaf) continue;
+    // Anchor inside uncaged window frame, or project outward from the front rail of a deep/laundry cage.
+    if (op.cage && op.kind !== "laundry" && op.kind !== "deep") continue;
+    done.add(key);
+    const ns = op.ns;
+    const dir = op.dir;
+    const seat = -(op.plaster == null ? 0.28 : op.plaster);
+    const startOut = op.cage ? (op.shell + op.deep - 0.18) : (seat - 0.12);
+    const len = 1.24;
+    const midOut = startOut + len * 0.5;
+    const py = op.y + 0.12;
+    const px = ns ? op.along : op.wall + dir[0] * midOut;
+    const pz = ns ? op.wall + dir[1] * midOut : op.along;
+    const pole = new THREE.Mesh(poleGeo, sharedBambooMat);
+    if (ns) pole.rotation.x = Math.PI / 2;
+    else pole.rotation.z = Math.PI / 2;
+    pole.position.set(px, py, pz);
+    pole.userData = { squareZ: op.az };
+    pole.castShadow = false;
+    city.add(pole);
+    for (let c = 0; c < 2; c++) {
+      const cOut = startOut + 0.38 + c * 0.48;
+      const cx = ns ? op.along : op.wall + dir[0] * cOut;
+      const cz = ns ? op.wall + dir[1] * cOut : op.along;
+      const cloth = new THREE.Mesh(clothGeo, sharedClothColors[(op.hi + op.f + c) % sharedClothColors.length]);
+      cloth.position.set(cx, py, cz);
+      // Width runs along the pole axis so both garments hang side-by-side along the bamboo pole.
+      cloth.rotation.y = ns ? Math.PI / 2 : 0;
+      cloth.userData = { x: cx, y: py, z: cz, phase: op.hi * 0.3 + op.f + c, live: 1, hinged: 1, squareZ: op.az };
+      cloth.castShadow = false;
+      vfx.add(cloth);
+      laundry.push(cloth);
+    }
+  }
+})();
 // Any blade that meets a cage is hung on the outside of that cage.
 // Flower baskets bow past their depth; iron balconies are a flat front.
 // The board clears the outer wire. The bracket still starts on the plaster.
@@ -21054,21 +21139,26 @@ dressCages.openings.forEach(op => {
       gain: 0.5 + winRoomHash(phase + 3.4) * 0.7
     });
   }
-  if (outer && sharedAcMat && u01(b + 11, hi + faceCode) < (north ? 0.48 : 0.28) && u01(b * 5 + f, hi + 70) < 0.55) {
+  const panes = w > 1.15 ? Math.max(2, Math.round(w / 0.7)) : 1;
+  const paneW = w / panes;
+  let acPane = -1;
+  let acTopY = 0;
+  if (outer && sharedAcMat && (!op.cage || op.deep >= 0.38) && u01(b + 11, hi + faceCode) < (north ? 0.48 : 0.28) && u01(b * 5 + f, hi + 70) < 0.55) {
     const side = u01(b + f, hi + 21) < 0.5 ? -1 : 1;
-    const acOut = seat + 0.1;
+    acPane = panes === 1 ? 0 : (side < 0 ? 0 : panes - 1);
+    const acShift = panes === 1 ? (side * Math.min(0.06, Math.max(0, w * 0.5 - 0.24))) : ((acPane + 0.5) / panes * w - w * 0.5);
+    const acOut = seat + 0.16;
+    const acY = y - h * 0.5 + 0.16;
+    acTopY = acY + 0.16;
     acQ.push({
-      x: ns ? along + side * w * 0.16 : wall + dir[0] * acOut,
-      y: y - h * 0.5 + 0.16,
-      z: ns ? wall + dir[1] * acOut : along + side * w * 0.16,
-      yaw: ns ? 0 : Math.PI / 2, az: op.az
+      x: ns ? along + acShift : wall + dir[0] * acOut,
+      y: acY,
+      z: ns ? wall + dir[1] * acOut : along + acShift,
+      yaw: yaw, az: op.az
     });
   }
-  // A bar guard on the window, just in front of the glass. The cage, when
-  // there is one, stands further out. A block is one ironworker and one tin
-  // of paint: plain bars, a roundel, a scroll, a fan, a wave, or a diamond
-  // skirt. Street floors of a plain block often gained the skirt later.
-  // A replaced window can rust, or keep the other hand of the same pattern.
+  // A bar guard on the window, just in front of the glass. When an AC unit sits in the lower
+  // corner of a pane, trim that pane's grille cleanly above the AC box so bars never slice it.
   const guardP = outer ? 1 : 0.9;
   if (sharedGrilleMats && u01(b * 9 + f, hi + faceCode + 27) < guardP) {
     const fr = u01(hi, 41);
@@ -21090,15 +21180,22 @@ dressCages.openings.forEach(op => {
     const j = 0.84 + u01(b + f * 2, hi + faceCode + 61) * 0.28;
     const tone = paints[pi];
     const gOut = seat + 0.065;
-    const panes = w > 1.15 ? Math.max(2, Math.round(w / 0.7)) : 1;
-    const paneW = w / panes;
     for (let m = 0; m < panes; m++) {
       const shift = panes === 1 ? 0 : (m + 0.5) / panes * w - w * 0.5;
+      let gy = y;
+      let gh = h + 0.1;
+      if (m === acPane) {
+        const gTop = y + h * 0.5 + 0.05;
+        const gBot = acTopY;
+        if (gTop - gBot < 0.22) continue;
+        gh = gTop - gBot;
+        gy = (gBot + gTop) * 0.5;
+      }
       grilleQ[fam * 2 + variant].push({
         x: ns ? along + shift : wall + dir[0] * gOut,
-        y, z: ns ? wall + dir[1] * gOut : along + shift,
+        y: gy, z: ns ? wall + dir[1] * gOut : along + shift,
         sx: panes === 1 ? w + 0.1 : paneW + 0.04,
-        sy: h + 0.1, yaw, az: op.az,
+        sy: gh, yaw, az: op.az,
         tint: [tone[0] * j, tone[1] * j, tone[2] * j]
       });
     }
@@ -21280,7 +21377,8 @@ attachFrameRim(frameMat);
 attachWetFilm(frameMat);
 fillInst(dayPlane, frameMat, frameQ, placeOpening);
 if (sharedAcMat) {
-  const acGeo = new THREE.BoxGeometry(0.42, 0.28, 0.16);
+  // Realistic 1980s HK window AC casing (0.46 x 0.30 x 0.34 m) + paired underside steel angle brackets.
+  const acGeo = new THREE.BoxGeometry(0.46, 0.30, 0.34);
   const acPos = acGeo.attributes.position;
   const acNrm = acGeo.attributes.normal;
   const acUv = acGeo.attributes.uv;
@@ -21303,10 +21401,22 @@ if (sharedAcMat) {
   }
   acUv.needsUpdate = true;
   sharedAcMat.map.wrapS = sharedAcMat.map.wrapT = THREE.ClampToEdgeWrapping;
-  fillInst(acGeo, sharedAcMat, acQ, (o, it) => {
-  o.position.set(it.x, it.y, it.z);
-  o.rotation.y = it.yaw;
-});
+  const acBrGeos = [];
+  [-0.17, 0.17].forEach(bx => {
+    const arm = new THREE.BoxGeometry(0.026, 0.024, 0.30);
+    arm.translate(bx, -0.162, -0.02);
+    acBrGeos.push(arm);
+    const cleat = new THREE.BoxGeometry(0.026, 0.16, 0.026);
+    cleat.translate(bx, -0.23, -0.157);
+    acBrGeos.push(cleat);
+  });
+  const acBrGeo = mergeGeos(acBrGeos);
+  const placeAc = (o, it) => {
+    o.position.set(it.x, it.y, it.z);
+    o.rotation.y = it.yaw;
+  };
+  fillInst(acGeo, sharedAcMat, acQ, placeAc);
+  fillInst(acBrGeo, shopFinish.metal, acQ, placeAc);
 }
 if (sharedGrilleMats) {
   for (let gi = 0; gi < sharedGrilleMats.length; gi++) {
@@ -37727,8 +37837,13 @@ function flushFigure(fig) {
   laundry.forEach(cloth => {
     const dx = cloth.userData.x - camX, dz = cloth.position.z - camZ;
     if (dx * dx + dz * dz > 400) return;
-    cloth.rotation.z = Math.sin(now * flap + cloth.userData.phase) * gust;
-    cloth.position.x = cloth.userData.x + Math.sin(now * (1 + wxNow.rain * 1.1) + cloth.userData.phase) * (0.07 + wxNow.rain * 0.13);
+    if (cloth.userData.hinged) {
+      // Top-pivoted pole garments flap cleanly around the bamboo pole without sliding off.
+      cloth.rotation.x = Math.sin(now * flap + cloth.userData.phase) * gust;
+    } else {
+      cloth.rotation.z = Math.sin(now * flap + cloth.userData.phase) * gust;
+      cloth.position.x = cloth.userData.x + Math.sin(now * (1 + wxNow.rain * 1.1) + cloth.userData.phase) * (0.07 + wxNow.rain * 0.13);
+    }
   });
   dripOpacity.value = wxNow.rain * 0.85;
   // A dry phone was still rewriting twenty-five hidden drip meshes a frame.
