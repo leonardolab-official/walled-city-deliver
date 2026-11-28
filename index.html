@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>九龍城寨 — Deliverer in Walled City</title>
+<title>九龍城寨 — 城寨速遞</title>
 <style>
   :root {
     --ink: #100e0c; --paper: #ffe7df; --teal: #ffc56a;
@@ -1771,7 +1771,7 @@
 <div id="boot" role="status" aria-live="polite" aria-busy="true">
   <div class="boot-card">
     <h1 id="boot-title">九龍城寨</h1>
-    <p class="boot-sub">Deliverer in Walled City</p>
+    <p class="boot-sub" id="boot-sub">城寨速遞</p>
   </div>
   <div class="boot-status">
     <p class="boot-line" id="boot-line">載入緊畫面...</p>
@@ -1782,18 +1782,21 @@
 var BOOT = {
   zh: {
     title: "九龍城寨",
+    sub: "城寨速遞",
     load: "載入緊畫面...",
     raise: "起緊模型...",
     fail: "載入唔到畫面，試多次啦"
   },
   en: {
     title: "Kowloon Walled City",
+    sub: "Walled City Express",
     load: "Loading the picture",
     raise: "Raising the model",
     fail: "The picture did not load. Try again."
   },
   ja: {
     title: "九龍城砦",
+    sub: "城砦急便",
     load: "画面を読み込んでいます",
     raise: "模型を組み立てています",
     fail: "画面を読み込めませんでした。もう一度試してください。"
@@ -1814,11 +1817,14 @@ function bootText(key) {
 }
 function applyBoot() {
   var title = document.getElementById("boot-title");
+  var sub = document.getElementById("boot-sub");
   var line = document.getElementById("boot-line");
   var titleLang = bootLang === "ja" ? "ja" : "zh";
   var placeTitle = (BOOT[titleLang] && BOOT[titleLang].title) || BOOT.zh.title;
+  var subText = bootText("sub") || BOOT.zh.sub;
   if (title) title.textContent = placeTitle;
-  document.title = placeTitle + " — Deliverer in Walled City";
+  if (sub) sub.textContent = subText;
+  document.title = placeTitle + " — " + subText;
   if (line) line.textContent = bootText("load");
   document.documentElement.lang = bootLang === "zh" ? "zh-HK" : bootLang;
 }
@@ -19162,9 +19168,12 @@ function applyLang(next) {
     if (I18N[lang][key] != null) el.textContent = I18N[lang][key];
   });
   const bootTitle = document.getElementById("boot-title");
+  const bootSub = document.getElementById("boot-sub");
   const placeTitle = (typeof BOOT !== "undefined" && BOOT[next === "ja" ? "ja" : "zh"]) ? BOOT[next === "ja" ? "ja" : "zh"].title : "九龍城寨";
+  const subTitle = (typeof BOOT !== "undefined" && BOOT[next] && BOOT[next].sub) ? BOOT[next].sub : "城寨速遞";
   if (bootTitle) bootTitle.textContent = placeTitle;
-  document.title = placeTitle + " — Deliverer in Walled City";
+  if (bootSub) bootSub.textContent = subTitle;
+  document.title = placeTitle + " — " + subTitle;
   const settingsBtn = document.getElementById("toggle-settings");
   const keyBtn = document.getElementById("toggle-legend");
   const startBtn = document.getElementById("start");
@@ -32177,9 +32186,94 @@ function buildRoofLinks() {
     }
     return false;
   }
-  const bridgeBoxes = [];
-  const bridgeW = 0.95;
+  const bridgePlanks = [];
+  const bridgeFrames = [];
+  const bridgeRails = [];
+  const bridgeMarkers = [];
+  const bridgeW = 0.96;
   const halfTrigger = 0.55;
+  function addBridgeGeometry(axis, edgeA, edgeB, crossMid, dir, deckA, deckB, bridgeY, spanLen) {
+    const spanMid = (edgeA + edgeB) * 0.5;
+    const isX = axis === "x";
+    function pushBox(list, along, y, across, sAlong, sy, sAcross, tint) {
+      if (isX) list.push({ x: along, y: y, z: across, sx: sAlong, sy: sy, sz: sAcross, tint: tint });
+      else list.push({ x: across, y: y, z: along, sx: sAcross, sy: sy, sz: sAlong, tint: tint });
+    }
+    const halfW = bridgeW * 0.5;
+    // 1. Slatted timber walkway planks across the span (clear gaps + high-contrast pale wood).
+    const slatD = 0.135;
+    const slatGap = 0.032;
+    const pitch = slatD + slatGap;
+    const nSlats = Math.max(4, Math.floor((spanLen + slatGap) / pitch));
+    const usedLen = nSlats * slatD + (nSlats - 1) * slatGap;
+    const startAlong = spanMid - usedLen * 0.5 + slatD * 0.5;
+    for (let s = 0; s < nSlats; s++) {
+      const pos = startAlong + s * pitch;
+      const t = soilTint(isX ? pos : crossMid, isX ? crossMid : pos, s & 1 ? 2 : 1);
+      pushBox(bridgePlanks, pos, bridgeY, crossMid, slatD, 0.048, bridgeW, t);
+    }
+    // 2. Longitudinal timber under-bearers + raised side kerbs so the bridge reads as a framed walkway.
+    const kerbY = bridgeY + 0.042;
+    const bearerY = bridgeY - 0.055;
+    [-1, 1].forEach(side => {
+      pushBox(bridgeFrames, spanMid, bearerY, crossMid + side * (halfW - 0.12), spanLen + 0.04, 0.068, 0.07, 0x999999);
+      pushBox(bridgeFrames, spanMid, kerbY, crossMid + side * (halfW - 0.03), spanLen, 0.065, 0.055, 0xaaaaaa);
+    });
+    // 3. Galvanized pipe handrails + upright stanchions + painted hazard-yellow entry caps.
+    const railH = 0.86;
+    const railSide = halfW - 0.025;
+    const endOff = spanLen * 0.5 - 0.05;
+    const postPositions = [-endOff, endOff];
+    if (spanLen > 1.75) postPositions.push(0);
+    [-1, 1].forEach(side => {
+      const c = crossMid + side * railSide;
+      // Top and mid horizontal rails
+      pushBox(bridgeRails, spanMid, bridgeY + railH, c, spanLen, 0.038, 0.038);
+      pushBox(bridgeRails, spanMid, bridgeY + railH * 0.52, c, spanLen, 0.028, 0.028);
+      for (let p = 0; p < postPositions.length; p++) {
+        const pa = spanMid + postPositions[p];
+        pushBox(bridgeRails, pa, bridgeY + railH * 0.5, c, 0.042, railH + 0.04, 0.042);
+        if (p < 2) {
+          // High-contrast yellow cap at bridge entry posts for day/night readability
+          pushBox(bridgeMarkers, pa, bridgeY + railH + 0.03, c, 0.064, 0.075, 0.064);
+        }
+      }
+    });
+    // 4. Stepped stairs descending onto both decks (replaces sheer solid support blocks).
+    function addStair(edge, inwardDir, deckY, deckSpan) {
+      const rise = bridgeY - 0.024 - deckY;
+      if (rise <= 0.10) return;
+      const nSteps = Math.max(2, Math.min(6, Math.round(rise / 0.21)));
+      const stepH = rise / nSteps;
+      const treadD = Math.min(0.22, Math.max(0.14, (deckSpan * 0.36) / nSteps));
+      const stairW = bridgeW * 0.94;
+      const startEdge = edge + inwardDir * 0.18;
+      for (let s = 0; s < nSteps; s++) {
+        const stepTop = bridgeY - 0.024 - stepH * (s + 1);
+        if (stepTop <= deckY + 0.02) break;
+        const pos = startEdge + inwardDir * (s * treadD + treadD * 0.5);
+        const t = soilTint(isX ? pos : crossMid, isX ? crossMid : pos, s & 1 ? 1 : 2);
+        // Pale contrasting wooden tread
+        pushBox(bridgePlanks, pos, stepTop - 0.022, crossMid, treadD + 0.02, 0.044, stairW, t);
+        // Grounded side stringer legs under each step so treads never float
+        const legH = Math.max(0.04, stepTop - 0.044 - deckY);
+        [-1, 1].forEach(side => {
+          pushBox(bridgeFrames, pos, deckY + legH * 0.5, crossMid + side * (stairW * 0.5 - 0.04), treadD * 0.72, legH, 0.06, 0x999999);
+        });
+      }
+      // Low entry stanchion + yellow cap at the foot of the stairs
+      const footPos = startEdge + inwardDir * (nSteps * treadD + 0.04);
+      [-1, 1].forEach(side => {
+        const c = crossMid + side * railSide;
+        pushBox(bridgeRails, footPos, deckY + 0.36, c, 0.038, 0.72, 0.038);
+        pushBox(bridgeMarkers, footPos, deckY + 0.74, c, 0.056, 0.065, 0.056);
+      });
+    }
+    const spanA = isX ? deckA.w : deckA.d;
+    const spanB = isX ? deckB.w : deckB.d;
+    addStair(edgeA, -dir, deckA.y, spanA);
+    addStair(edgeB, dir, deckB.y, spanB);
+  }
   for (let i = 0; i < roofDecks.length; i++) {
     const a = roofDecks[i];
     for (let j = i + 1; j < roofDecks.length; j++) {
@@ -32216,15 +32310,10 @@ function buildRoofLinks() {
         }
         if (midZ != null) {
           const dirX = aLeft ? 1 : -1;
-          linkA = { to: b, axis: "x", edge: xA, dirX: dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, takeX: landAX, takeZ: midZ, landX: landBX, landZ: midZ };
-          linkB = { to: a, axis: "x", edge: xB, dirX: -dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, takeX: landBX, takeZ: midZ, landX: landAX, landZ: midZ };
-          // Always build a visible parapet-clearing timber bridge/stile + step blocks on both decks (even when gx <= 0.25).
+          linkA = { to: b, axis: "x", edge: xA, dirX: dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, takeX: landAX, takeZ: midZ, landX: landBX, landZ: midZ, bridgeY: bridgeY };
+          linkB = { to: a, axis: "x", edge: xB, dirX: -dirX, dirZ: 0, span0: midZ - halfTrigger, span1: midZ + halfTrigger, takeX: landBX, takeZ: midZ, landX: landAX, landZ: midZ, bridgeY: bridgeY };
           const spanLen = Math.max(0.76, gx + 0.68);
-          bridgeBoxes.push({ x: (xA + xB) * 0.5, y: bridgeY, z: midZ, sx: spanLen, sy: 0.075, sz: bridgeW, tint: soilTint((xA + xB) * 0.5, midZ, 2) });
-          const riseA = Math.max(0.14, bridgeY - 0.035 - a.y);
-          const riseB = Math.max(0.14, bridgeY - 0.035 - b.y);
-          bridgeBoxes.push({ x: xA - dirX * 0.28, y: a.y + riseA * 0.5, z: midZ, sx: 0.32, sy: riseA, sz: bridgeW * 0.92, tint: soilTint(xA, midZ, 1) });
-          bridgeBoxes.push({ x: xB + dirX * 0.28, y: b.y + riseB * 0.5, z: midZ, sx: 0.32, sy: riseB, sz: bridgeW * 0.92, tint: soilTint(xB, midZ, 1) });
+          addBridgeGeometry("x", xA, xB, midZ, dirX, a, b, bridgeY, spanLen);
         }
       } else if (gz <= 2.2 && gx === 0 && ovX1 - ovX0 >= 1.1) {
         const aNorth = (a.z + a.d * 0.5) < (b.z + b.d * 0.5);
@@ -32249,27 +32338,38 @@ function buildRoofLinks() {
         }
         if (midX != null) {
           const dirZ = aNorth ? 1 : -1;
-          linkA = { to: b, axis: "z", edge: zA, dirX: 0, dirZ: dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, takeX: midX, takeZ: landAZ, landX: midX, landZ: landBZ };
-          linkB = { to: a, axis: "z", edge: zB, dirX: 0, dirZ: -dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, takeX: midX, takeZ: landBZ, landX: midX, landZ: landAZ };
+          linkA = { to: b, axis: "z", edge: zA, dirX: 0, dirZ: dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, takeX: midX, takeZ: landAZ, landX: midX, landZ: landBZ, bridgeY: bridgeY };
+          linkB = { to: a, axis: "z", edge: zB, dirX: 0, dirZ: -dirZ, span0: midX - halfTrigger, span1: midX + halfTrigger, takeX: midX, takeZ: landBZ, landX: midX, landZ: landAZ, bridgeY: bridgeY };
           const spanLen = Math.max(0.76, gz + 0.68);
-          bridgeBoxes.push({ x: midX, y: bridgeY, z: (zA + zB) * 0.5, sx: bridgeW, sy: 0.075, sz: spanLen, tint: soilTint(midX, (zA + zB) * 0.5, 2) });
-          const riseA = Math.max(0.14, bridgeY - 0.035 - a.y);
-          const riseB = Math.max(0.14, bridgeY - 0.035 - b.y);
-          bridgeBoxes.push({ x: midX, y: a.y + riseA * 0.5, z: zA - dirZ * 0.28, sx: bridgeW * 0.92, sy: riseA, sz: 0.32, tint: soilTint(midX, zA, 1) });
-          bridgeBoxes.push({ x: midX, y: b.y + riseB * 0.5, z: zB + dirZ * 0.28, sx: bridgeW * 0.92, sy: riseB, sz: 0.32, tint: soilTint(midX, zB, 1) });
+          addBridgeGeometry("z", zA, zB, midX, dirZ, a, b, bridgeY, spanLen);
         }
       }
       if (linkA && linkB) { a.links.push(linkA); b.links.push(linkB); }
     }
   }
-  if (bridgeBoxes.length) {
-    const bridgeMat = new THREE.MeshStandardMaterial({
-      map: woodGrainMap(), color: 0x86684c, roughness: 0.92, metalness: 0.04, clippingPlanes: clips
+  if (bridgePlanks.length) {
+    const unitBridgeBox = new THREE.BoxGeometry(1, 1, 1);
+    const plankMat = new THREE.MeshStandardMaterial({
+      map: woodGrainMap(), color: 0xc2a882, roughness: 0.88, metalness: 0.02, clippingPlanes: clips
     });
-    attachBoxTile(bridgeMat, 0.48, 0.01, 0);
-    attachWetRoof(bridgeMat);
+    attachBoxTile(plankMat, 0.42, 0.01, 0);
+    attachWetRoof(plankMat);
+    const frameMat = new THREE.MeshStandardMaterial({
+      map: woodGrainMap(), color: 0x5c4734, roughness: 0.94, metalness: 0.04, clippingPlanes: clips
+    });
+    attachBoxTile(frameMat, 0.48, 0.01, 0);
+    attachWetRoof(frameMat);
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x9aa2a8, roughness: 0.55, metalness: 0.45, clippingPlanes: clips
+    });
+    const markerMat = new THREE.MeshStandardMaterial({
+      color: 0xf2c14e, emissive: 0x5c420c, emissiveIntensity: 0.45, roughness: 0.5, metalness: 0.1, clippingPlanes: clips
+    });
     const before = city.children.length;
-    tagKit(fillInst(new THREE.BoxGeometry(1, 1, 1), bridgeMat, bridgeBoxes, placeBox), "bridge");
+    tagKit(fillInst(unitBridgeBox, plankMat, bridgePlanks, placeBox), "bridge");
+    tagKit(fillInst(unitBridgeBox, frameMat, bridgeFrames, placeBox), "bridge");
+    tagKit(fillInst(unitBridgeBox, railMat, bridgeRails, placeBox), "bridge");
+    tagKit(fillInst(unitBridgeBox, markerMat, bridgeMarkers, placeBox), "bridge");
     for (let i = before; i < city.children.length; i++) {
       const obj = city.children[i];
       if (!obj) continue;
@@ -32295,8 +32395,9 @@ function buildRoofLinks() {
     cid++;
   }
 }
+let roofBridgeWalk = null;
 function tryRoofCross(nx, nz, ux, uz) {
-  if (!roofStay || !roofStay.deck || !roofStay.deck.links) return false;
+  if (roofBridgeWalk || !roofStay || !roofStay.deck || !roofStay.deck.links) return false;
   const links = roofStay.deck.links;
   for (let i = 0; i < links.length; i++) {
     const lk = links[i];
@@ -32329,17 +32430,21 @@ function tryRoofCross(nx, nz, ux, uz) {
     const prevCluster = roofStay.deck ? roofStay.deck.cluster : -1;
     const prevKidsOut = roofStay.kidsOut;
     const exitDoor = (next.doors && next.doors.length) ? next.doors[0] : (roofClusterExitDoor(next) || roofStay.door);
-    roofStay = {
-      deck: next, door: exitDoor, y: next.y, blocks: next.blocks,
-      x0: next.x + 0.42, z0: next.z + 0.42,
-      x1: next.x + next.w - 0.42, z1: next.z + next.d - 0.42,
-      kidsOut: prevKidsOut
+    const bridgeTop = (lk.bridgeY != null ? lk.bridgeY : Math.max(roofStay.y, next.y) + 0.5) + 0.03;
+    const dist = Math.hypot(lx - walkX, lz - walkZ);
+    const dur = Math.max(0.45, Math.min(1.25, dist / 2.6));
+    const targetYaw = Math.atan2(-lk.dirX, -lk.dirZ);
+    roofBridgeWalk = {
+      fromX: walkX, fromZ: walkZ, fromY: roofStay.y,
+      toX: lx, toZ: lz, toY: next.y,
+      bridgeY: bridgeTop,
+      targetYaw: targetYaw,
+      nextDeck: next, exitDoor: exitDoor,
+      prevCluster: prevCluster, prevKidsOut: prevKidsOut,
+      u: 0, dur: dur
     };
-    walkX = lx;
-    walkZ = lz;
-    const need = next.y + 4.5;
+    const need = Math.max(next.y, bridgeTop) + 4.5;
     if (floorPlane.constant < need) floorPlane.constant = need;
-    if (prevCluster < 0 || prevCluster !== next.cluster || (roofKidsOut() && !roofVisit.length)) spawnRoofVisit();
     return true;
   }
   return false;
@@ -32834,6 +32939,7 @@ function enterRoof(door) {
   spawnRoofVisit();
 }
 function leaveRoof(keepEye, exitDoor) {
+  roofBridgeWalk = null;
   if (!roofStay) return;
   clearRoofVisit();
   const door = exitDoor || roofStay.door;
@@ -36474,6 +36580,49 @@ function stepWalk(dt) {
       camera.updateProjectionMatrix();
       runPlaceRider(dt, false, 0);
     } else runPlaceRider(dt, false, 0);
+    return;
+  }
+  if (roofBridgeWalk && roofStay) {
+    const bw = roofBridgeWalk;
+    const prevX = walkX, prevZ = walkZ;
+    const u = bw.u = Math.min(1, bw.u + dt / bw.dur);
+    const smooth = u * u * (3 - 2 * u);
+    walkX = bw.fromX + (bw.toX - bw.fromX) * smooth;
+    walkZ = bw.fromZ + (bw.toZ - bw.fromZ) * smooth;
+    // 3-phase vertical arc: climb stairs -> walk level across planks -> descend stairs.
+    let footY = bw.bridgeY;
+    if (u < 0.25) {
+      const t = u / 0.25;
+      footY = bw.fromY + (bw.bridgeY - bw.fromY) * (t * t * (3 - 2 * t));
+    } else if (u > 0.75) {
+      const t = (u - 0.75) / 0.25;
+      footY = bw.bridgeY + (bw.toY - bw.bridgeY) * (t * t * (3 - 2 * t));
+    }
+    roofStay.y = footY;
+    if (bw.targetYaw != null) {
+      const yawDiff = Math.atan2(Math.sin(bw.targetYaw - walkYaw), Math.cos(bw.targetYaw - walkYaw));
+      walkYaw += yawDiff * Math.min(1, dt * 4.5);
+    }
+    const dx = walkX - prevX, dz = walkZ - prevZ;
+    const travel = Math.hypot(dx, dz);
+    const ux = travel > 1e-5 ? dx / travel : 0;
+    const uz = travel > 1e-5 ? dz / travel : 0;
+    if (u >= 1) {
+      const next = bw.nextDeck;
+      roofStay = {
+        deck: next, door: bw.exitDoor, y: next.y, blocks: next.blocks,
+        x0: next.x + 0.42, z0: next.z + 0.42,
+        x1: next.x + next.w - 0.42, z1: next.z + next.d - 0.42,
+        kidsOut: bw.prevKidsOut
+      };
+      walkX = bw.toX;
+      walkZ = bw.toZ;
+      roofBridgeWalk = null;
+      if (bw.prevCluster < 0 || bw.prevCluster !== next.cluster || (roofKidsOut() && !roofVisit.length)) spawnRoofVisit();
+    }
+    runNoteMove(travel, dt);
+    placeWalkEye();
+    runPlaceRider(dt, travel > 1e-5, travel, ux, uz);
     return;
   }
   const sin = Math.sin(walkYaw), cos = Math.cos(walkYaw);
