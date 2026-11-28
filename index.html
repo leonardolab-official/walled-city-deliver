@@ -355,7 +355,7 @@
     width: max-content;
     pointer-events: none;
     margin: 0;
-    padding: 6px 18px 9px;
+    padding: 18px 18px 8px;
     background: #120806;
     border: 1px solid #3dff88;
     box-shadow:
@@ -373,6 +373,20 @@
       0 0 12px #14e06a,
       0 0 22px rgba(61, 255, 136, 0.95);
     transition: color 0.35s ease, text-shadow 0.35s ease;
+  }
+  #run-clock-lbl {
+    position: absolute;
+    top: 4px;
+    left: 7px;
+    font-size: clamp(9px, 1.3vmin, 11px);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+    color: #c6a15a;
+    text-shadow: none;
+    white-space: nowrap;
+    pointer-events: none;
   }
   /* Invisible "00:00" ghost locks #run-clock dimensions; live text fits inside #run-clock-slot. */
   #run-clock-ref {
@@ -549,7 +563,7 @@
   #run-clock[hidden] { display: none !important; }
   body:has(#boot) #run-clock { display: none; }
   @media (max-width: 720px), (max-height: 540px) {
-    #run-clock { font-size: clamp(26px, min(8.2vw, 7.8dvh), 48px); padding: 4px 15px 7px; letter-spacing: 0.05em; }
+    #run-clock { font-size: clamp(26px, min(8.2vw, 7.8dvh), 48px); padding: 15px 15px 6px; letter-spacing: 0.05em; }
     #wx-purse { font-size: clamp(13.2px, 3.74vw, 16.5px); padding: 3.5px 9px 4.5px; }
     #run-board, #run-order { padding: 6px 8px 8px; }
   }
@@ -1825,7 +1839,7 @@ applyBoot();
 <canvas id="c"></canvas>
 <div id="ui">
   <div id="run-left">
-    <div id="run-clock" hidden><span id="run-clock-ref" aria-hidden="true">00:00</span><span id="run-clock-slot"><span id="run-clock-val">00:00</span></span></div>
+    <div id="run-clock" hidden><span id="run-clock-lbl" data-i18n="runClockLabel">距離收工</span><span id="run-clock-ref" aria-hidden="true">00:00</span><span id="run-clock-slot"><span id="run-clock-val">00:00</span></span></div>
     <div id="run-center">
       <div id="run-board" class="panel" hidden>
         <div id="run-slips"></div>
@@ -18971,6 +18985,7 @@ const I18N = {
     sfxBtn: "音效", capBtn: "啟德航道", widthBtn: "二百一十米邊界",
     cutLabel: "剖面位置", hint: "拉畫面轉角度 · 滾輪縮放 · 撳樓宇睇資料 · 1 睇全景",
     startBtn: "撳一下入城",
+    runClockLabel: "距離收工",
     mapLabel: "地圖",
     enterBtn: "上天台",
     exitBtn: "落樓",
@@ -19021,6 +19036,7 @@ const I18N = {
     sfxBtn: "Sound effects", capBtn: "Kai Tak flight path", widthBtn: "210 m edges",
     cutLabel: "Cut position", hint: "drag orbit · scroll zoom · click a mass · 1 aerial",
     startBtn: "Tap to enter",
+    runClockLabel: "SHIFT ENDS IN",
     mapLabel: "Map",
     enterBtn: "Roof",
     exitBtn: "Exit",
@@ -19071,6 +19087,7 @@ const I18N = {
     sfxBtn: "効果音", capBtn: "啓徳の航路", widthBtn: "二一〇メートル",
     cutLabel: "断面の位置", hint: "ドラッグで周回 · スクロール · 棟をクリック · 1 俯瞰",
     startBtn: "タップして入る",
+    runClockLabel: "退勤まで",
     mapLabel: "地図",
     enterBtn: "屋上へ",
     exitBtn: "降りる",
