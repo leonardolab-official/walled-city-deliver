@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-HK">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1673,7 +1673,7 @@
     <p class="boot-sub">Deliverer in Walled City</p>
   </div>
   <div class="boot-status">
-    <p class="boot-line" id="boot-line">正在載入畫面</p>
+    <p class="boot-line" id="boot-line">載入緊畫面...</p>
     <div class="boot-track" aria-hidden="true"><i></i></div>
   </div>
 </div>
@@ -1681,9 +1681,9 @@
 var BOOT = {
   zh: {
     title: "九龍城寨",
-    load: "正在載入畫面",
-    raise: "正在建立模型",
-    fail: "畫面載入不到"
+    load: "載入緊畫面...",
+    raise: "起緊模型...",
+    fail: "載入唔到畫面，試多次啦"
   },
   en: {
     title: "Kowloon Walled City",
@@ -1719,7 +1719,7 @@ function applyBoot() {
   if (title) title.textContent = placeTitle;
   document.title = placeTitle + " — Deliverer in Walled City";
   if (line) line.textContent = bootText("load");
-  document.documentElement.lang = bootLang === "zh" ? "zh-Hant" : bootLang;
+  document.documentElement.lang = bootLang === "zh" ? "zh-HK" : bootLang;
 }
 function bootStage(key) {
   var line = document.getElementById("boot-line");
@@ -1757,7 +1757,7 @@ applyBoot();
   <div id="run-cash" aria-live="polite"></div>
   <div id="col-left">
   <header class="panel" hidden>
-    <h1><span class="when"><span id="wx-read"><span id="wx-ref" aria-hidden="true"><span id="wx-ref-hour">清晨</span><span id="wx-ref-sky">多雲</span></span><span id="wx-slot"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span></span></span></span></h1>
+    <h1><span class="when"><span id="wx-read"><span id="wx-ref" aria-hidden="true"><span id="wx-ref-hour">朝早</span><span id="wx-ref-sky">落雨</span></span><span id="wx-slot"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span></span></span></span></h1>
   </header>
   </div>
   <div id="col-right">
@@ -1852,7 +1852,7 @@ applyBoot();
 </button>
 <div id="run-arrows" hidden></div>
 
-<button type="button" id="start" data-i18n="startBtn">點擊進入</button>
+<button type="button" id="start" data-i18n="startBtn">撳一下入城</button>
 <div id="map-dock">
   <div id="wx-loc" class="panel" hidden><span id="wx-loc-inner"><em id="wx-roof-tag" hidden></em><span id="wx-street"></span></span></div>
   <canvas id="minimap" width="336" height="336" hidden aria-label="地圖"></canvas>
@@ -1880,7 +1880,7 @@ applyBoot();
     <div class="row">
       <label data-i18n="langLabel"></label>
       <div class="seg">
-        <button type="button" id="lang-zh" class="on">繁</button>
+        <button type="button" id="lang-zh" class="on" aria-label="廣東話">粵</button>
         <button type="button" id="lang-en">EN</button>
         <button type="button" id="lang-ja">日</button>
       </div>
@@ -4536,127 +4536,127 @@ const SHOP_MIX = {
 };
 const SHOP_COPY = {
   dentist: {
-    zh: "地下牙科。無牌診所沿有光的地方把招牌疊上幾層。照片裡最密的是東頭村道北面外牆；城內則以西城路最多，龍城路亦有。模型不把店名安到沒有測繪的舖位上。一九七〇年《香港年鑑》記黃景志牙醫在東頭村道二十五號，那是外街門牌。",
+    zh: "地下牙醫舖。無牌診所沿住有光嘅地方，將啲招牌疊高幾層。相入面最密係東頭村道北面外牆；城寨入面就以西城路最多，龍城路都有。模型唔會將舖名亂安落冇測繪嘅舖位度。一九七〇年《香港年鑑》記黃景志牙醫喺東頭村道二十五號，嗰度係外街門牌。",
     en: "Ground-floor dentist. Unlicensed clinics stacked signs where there was light. The densest run in the photographs is the north front on Tung Tau Tsuen Road; inside, West City Road has the most, and Lung Shing Road has them too. The model does not pin a recorded name to an unsurveyed bay. The 1970 Hong Kong yearbook places the dentist Wong King-chi at 25 Tung Tau Tsuen Road, an address on the outer street.",
     ja: "地下は歯科。無免許の診療所が、光のある場所に招牌を重ねた。写真で最も密なのは東頭村道に面した北の外壁。城内では西城路が最も多く、龍城路にもある。測っていない位置に店名は置かない。一九七〇年の『香港年鑑』は、黄景志の歯科を東頭村道二十五号に置く。外の通りの番地である。"
   },
   doctor: {
-    zh: "地下醫務所。牌照多在內地，或沒有牌，舖面掛在有光的街上。",
+    zh: "地下醫務所。牌照多數係內地嘅，或者根本冇牌，舖頭多數開喺有光嘅街度。",
     en: "Ground-floor doctor. A licence, when there was one, was from the mainland, and many had none. These rooms took the lit streets.",
     ja: "地下は医院。免許は大陸のものか無免許で、光の入る街に面した。"
   },
   pharmacy: {
-    zh: "地下藥房。一壁小抽屜，櫃上放瓶子。龍津道有街坊從一九五〇年代開到清拆之前。",
+    zh: "地下藥房。成幅牆都係細櫃桶，櫃面擺滿藥樽。龍津道有街坊由一九五〇年代一直開到清拆前。",
     en: "Ground-floor dispensary. A wall of small drawers, bottles on the counter. On Lung Tsun Road a recorded shop of this kind ran from the 1950s until clearance.",
     ja: "地下は薬房。小さな引き出しの壁と、カウンターの瓶。龍津道では一九五〇年代から清拆まで続いた店が記録にある。"
   },
   bonesetter: {
-    zh: "地下跌打。工傷和出力的人來這裡。架上是藥瓶和白布卷。",
+    zh: "地下跌打館。整親或者做開粗重工夫嘅人都會嚟呢度。架上面係跌打酒同白布卷。",
     en: "Ground-floor bonesetter. People came with work injuries, and with the strain of heavy labour. Bottles and rolls of cloth sit on the shelves.",
     ja: "地下は跌打。仕事の怪我と、力仕事で痛めた体を見てもらう店。棚には瓶と布の巻。"
   },
   herbal: {
-    zh: "地下涼茶舖。大金屬壺放在暗處。舖名不寫到沒有測繪的位置上。",
+    zh: "地下涼茶舖。個大金屬茶壺擺喺暗角位。模型唔會將舖名寫落冇測繪嘅位置度。",
     en: "Ground-floor herbal-tea shop. Large metal urns sit in the dark. No shop name is pinned to an unsurveyed bay.",
     ja: "地下は涼茶の店。大きな金属の壺を暗い店内に置く。測っていない位置に店名は置かない。"
   },
   grocery: {
-    zh: "地下士多。雜貨舖，收工後常常兼作廳堂。照片裡有貓留在櫃上。",
+    zh: "地下士多。雜貨舖嚟，收工之後好多時就係屋企客廳。相入面仲見到有隻貓瞓喺櫃面。",
     en: "Ground-floor grocer. Often the living room after work. One photographed counter had a cat on it.",
     ja: "地下は雑貨。仕事のあと居間を兼ねた。写真にはカウンターの猫も残る。"
   },
   rice: {
-    zh: "地下米舖。麻包米袋疊在舖內，街邊再放幾袋。",
+    zh: "地下米舖。麻包米疊高晒喺舖入面，街邊再放多幾包。",
     en: "Ground-floor rice shop. Sacks are stacked inside, and a few more sit at the street.",
     ja: "地下は米屋。麻袋を店内に積み、通りにも数袋出す。"
   },
   cafe: {
-    zh: "地下冰室。窗裡的牌子寫飲料，不是某一家的店名。街夠寬的時候，摺檯和膠凳才伸出門口一點。",
+    zh: "地下冰室。窗入面啲牌寫住飲品名，唔係邊間舖名。條街夠闊嗰陣，摺檯同膠凳先會擺出門口少少。",
     en: "Ground-floor cafe. The board lists drinks, not a shop name. A folding table and plastic stools come outside only where the street is wide enough.",
     ja: "地下は氷室。窓の板は飲み物の名で、店の名ではない。通りが広いときだけ、折り卓とプラスチックの椅子が入口の外に出る。"
   },
   barber: {
-    zh: "地下理髮。大街是士多和理髮，深巷才是工場。門邊有紅白藍的燈柱。",
+    zh: "地下飛髮舖。大街多數係士多同飛髮舖，行入深巷先係工場。門邊有支紅白藍旋轉燈柱。",
     en: "Ground-floor barber. The thoroughfares held grocers and barbers. The deeper paths held workshops. A red, white and blue pole stands at the jamb.",
     ja: "地下は理髪。大通りは雑貨と理髪、奥の路は工場。入口の脇に赤白青のサインポール。"
   },
   electrical: {
-    zh: "地下電器舖。風扇、收音機和燈管盒擺在有光的一面。",
+    zh: "地下電器舖。風扇、收音機同光管盒都擺喺夠光嗰邊。",
     en: "Ground-floor electrical shop. Fans, a radio and boxes of tubes sit in the light.",
     ja: "地下は電器店。扇風機、ラジオ、蛍光灯の箱を光の側に置く。"
   },
   hardware: {
-    zh: "地下五金。開口掛著工具、繩圈和桶。一九八三年街坊福利會的調查裡，龍城路有這一行。",
+    zh: "地下五金舖。門口掛晒架生、繩卷同水桶。一九八三年街坊福利會嘅調查入面，龍城路就有呢行。",
     en: "Ground-floor hardware shop. Tools, a coil of rope and a bucket hang in the opening. The 1983 welfare-association survey records this trade on Lung Shing Road.",
     ja: "地下は金物。開口に道具、縄の輪、桶を掛ける。一九八三年の街坊福利会の調査に、龍城路のこの業種がある。"
   },
   mahjong: {
-    zh: "地下麻雀館。一九八〇年代末仍聽得見牌聲，門口常常不全開。",
+    zh: "地下麻雀館。去到一九八〇年代尾仲聽得到洗牌聲，門口多數遮住唔全開。",
     en: "Ground-floor mahjong parlour. Tiles were still part of the sound in the late 1980s, and the door was often covered.",
     ja: "地下は麻雀荘。一九八〇年代末も牌の音はあり、入口は隠すことが多かった。"
   },
   paikau: {
-    zh: "地下牌九。魯金記這類賭檔早年集中在龍津道，門口掛布簾。到一九八〇年代末已經少了。",
+    zh: "地下牌九檔。魯金記過呢類賭檔早年集中喺龍津道，門口掛塊布簾。去到一九八〇年代尾已經少咗好多。",
     en: "Ground-floor pai kau. Lu Jin places these stalls on Lung Tsun Road in the earlier years, with a cloth at the door. By the late 1980s few were left.",
     ja: "地下は牌九。魯金は初期の龍津道にこの賭檔を置き、入口に布を掛けたと記す。一九八〇年代末には少ない。"
   },
   dogmeat: {
-    zh: "地下狗肉檔。魯金記龍津道的孖記和釗記。模型沒有舖位測繪，不寫這兩家的店名，也不畫檔內的操作。",
+    zh: "地下狗肉檔。魯金提過龍津道嘅孖記同釗記。模型冇舖位測繪，唔會寫呢兩間嘅名，亦唔會畫檔入面嘅做法。",
     en: "Ground-floor dog-meat stall. Lu Jin names 孖記 and 釗記 on Lung Tsun Road. This bay is not a surveyed address, so the model does not letter those shop names, and it does not show the work inside.",
     ja: "地下は狗肉の店。魯金は龍津道の孖記と釗記を記す。測量した位置ではないので、その店名は書かず、中の作業は描かない。"
   },
   fishball: {
-    zh: "地下魚蛋或魚漿工場。開口就是通風，製品送到寨外。光明街和龍津路都有這一行。",
+    zh: "地下魚蛋或者魚漿工場。個門口就係通風位，整好就送出城寨外賣。光明街同龍津路都有呢行。",
     en: "Ground-floor fish-ball or fish-paste works. The doorway was the ventilation, and the product left the city. Both Kwong Ming Street and Lung Chun Avenue had this trade.",
     ja: "地下は魚団子か魚漿の工場。戸口が換気口で、製品は城の外へ出た。光明街と龍津路の両方にある。"
   },
   noodle: {
-    zh: "地下麵廠。沒有窗，粉鋪在工作面上，晚上同一間用來住。記錄裡許東才的麵廠開向光明街。",
+    zh: "地下麵廠。冇窗㗎，成張檯都係麵粉，夜晚就喺返同一間房度瞓。記錄入面許東才嘅麵廠就係開向光明街。",
     en: "Ground-floor noodle works. No window, flour on the work surface, and the same room used for sleep at night. The recorded shop of Hui Tung Choy opened onto Kwong Ming Street.",
     ja: "地下は製麺所。窓はなく、粉が作業面を覆い、夜は同じ部屋に寝る。記録にある許東才の工場は光明街に開いていた。"
   },
   bbq: {
-    zh: "地下燒味工場。金屬爐和掛起的燒味。深巷裡這層的光是暖的。",
+    zh: "地下燒味工場。有金屬爐同吊起晒嘅燒味。深巷入面呢層嘅燈光係暖色嘅。",
     en: "Ground-floor roast-meat works. A metal furnace and meat on hooks. On the deep alleys this floor is lit warm.",
     ja: "地下は焼味の工場。金属の炉と、吊るした焼味。奥の路地のこの階は暖かい光。"
   },
   tofu: {
-    zh: "地下豆腐檔。和魚蛋、糖果同在沒有日照的一層。",
+    zh: "地下豆腐檔。同魚蛋、糖果工場一樣，都係喺唔見天日嗰層。",
     en: "Ground-floor tofu shop, on the sunless floor with the fish balls and the sweets.",
     ja: "地下は豆腐。日の差さない階で、魚団子や飴と並ぶ。"
   },
   candy: {
-    zh: "地下糖果作坊。玻璃瓶和糖盤，和魚蛋、豆腐同在沒有日照的一層。",
+    zh: "地下糖果工場。擺滿玻璃樽同糖盤，同魚蛋、豆腐一樣都喺唔見天日嗰層。",
     en: "Ground-floor sweet workshop. Jars and trays, on the sunless floor with the fish balls and the tofu.",
     ja: "地下は飴の作業場。瓶と盆。日の差さない階で、魚団子や豆腐と並ぶ。"
   },
   plastic: {
-    zh: "地下塑膠工場。膠盆疊在工作檯旁。龍津後街一類的家庭工場，深巷多過店面。",
+    zh: "地下塑膠工場。膠盆疊晒喺工作檯隔籬。龍津後街呢類山寨家庭工場，多數藏喺深巷多過做街舖。",
     en: "Ground-floor plastics workshop. Basins are stacked beside the bench. A family workshop of the kind recorded on 龍津後街, more alley than shopfront.",
     ja: "地下はプラスチック工場。たらいを作業台の脇に積む。龍津後街に記録されたような家庭工場で、店先というより路地の作業場。"
   },
   textile: {
-    zh: "地下織布。布匹疊在暗處。龍津路後期還剩這類一個人的布廠。",
+    zh: "地下織布工場。啲布匹疊晒喺暗位。龍津路後期仲剩低呢類一個人開嘅細布廠。",
     en: "Ground-floor weaving. Bolts of cloth are stacked in the dark. Lung Chun Avenue still had one-person cloth workshops late on.",
     ja: "地下は織布。反物を暗い店内に積む。龍津路には、遅い時期まで一人の織元が残っていた。"
   },
   joss: {
-    zh: "地下香燭紙貨。香、紅燭和金紙，天后廟街一帶。不是第二座廟。",
+    zh: "地下香燭衣紙舖。賣香、紅燭同金銀衣紙，喺天后廟街一帶，唔係第二間廟嚟。",
     en: "Ground-floor joss and paper offerings: incense, red candles and gold paper, along 天后廟街. Not a second temple.",
     ja: "地下は線香と紙製品。線香、赤い蝋燭、金紙。天后廟街のあたり。別の廟ではない。"
   },
   water: {
-    zh: "地下水房。大井封了之後，水仍要在樓下接和儲，再挑上去。舖裡是水龍頭、水槽和桶，不是八條水管的位置。",
+    zh: "地下水房。封咗大井之後，啲水都要喺樓下裝好儲起，再擔上去。入面係水龍頭、水糟同水桶，唔係八條喉嘅實際位置。",
     en: "Ground-floor water room. After the well was sealed, water was still drawn and stored downstairs, then carried up. The room shows a tap, a trough and buckets, not the positions of the eight pipes.",
     ja: "地下は水場。大井が封じられたあと、水は階下で受け、ため、楼上へ運んだ。部屋にあるのは蛇口と水槽と桶で、水管八本の位置ではない。"
   },
   door: {
-    zh: "地下是門，不是舖。鐵閘和一盞燈。老人街和一米左右的橫巷，地面多是住戶入口。不寫門牌。",
+    zh: "地下係屋企門口，唔係舖頭。一道鐵閘加一盞燈膽。老人街同埋一米左右嘅橫巷，地下多數係住戶入口，唔寫門牌。",
     en: "A door, not a shop. A collapsible gate and a bulb. On Lo Yan Street and in the metre-wide lanes the ground floor is mostly where a household goes in. No house number.",
     ja: "地下は店ではなく扉。伸縮門と電球。老人街や幅一メートルほどの横巷では、地面は住居の入口であることが多い。番地は書かない。"
   },
   stair: {
-    zh: "舖旁的窄梯。混凝土級從門口升起，鐵閘摺在一邊，上面一盞燈泡。門框的紅紙寫出入和平安。不寫門牌。",
+    zh: "舖頭隔籬條窄樓梯。石屎級由門口直接上樓，鐵閘摺埋一邊，頭頂吊住一盞燈膽。門框貼住紅紙寫「出入」同「平安」，唔寫門牌。",
     en: "The narrow stair beside the shop. Concrete steps rise in the opening, the collapsible gate is folded to one jamb, and a bulb hangs above. Red paper on the frame reads 出入 and 平安. No house number.",
     ja: "店の脇の狭い階段。コンクリートの段が入口から上がり、伸縮門は片側に畳んであり、上に電球が一つ。枠の赤い紙は出入と平安。番地は書かない。"
   }
@@ -18848,51 +18848,51 @@ const I18N = {
   zh: {
     title: "九龍城寨",
     keyBtn: "圖例",
-    legendKicker: "剖面用色", legendTitle: "切開的一面",
-    useHome: "住戶，常常一房數人", useFactory: "工場 — 塑膠、製衣、五金", useFood: "食品工場 — 麵、魚蛋、燒味",
-    useClinic: "無牌診所或牙醫", useSchool: "學堂、幼稚園、教會房間", useTemple: "廟宇、神廳、坊眾會",
-    useShop: "店舖、麻雀館、食肆", useService: "樓梯、走廊、水房、倉",
-    legendNote: "分區跟書的章節。色物語：下層無日照，靠色溫不同的光管。鳥籠物語：有光的窗多半收在連續的懸挑鐵網露台裡，一座花籠橫過同一層的幾扇窗，玻璃在網內。露台分淺、深、生鏽、蓋帆布和晾滿衣。多數頂上是一塊舊鐵皮，玻璃前另有鐵窗花。北面較長較深。約一米的窄巷只伸出一截，兩面不相碰。暗核沒有。すきま物語：約一米的隙，滴水和垃圾網。生活物語：大井留到一九五〇年代才封，其後八條市政水管；用水要人挑上樓。地下店面按約一九八七年的照片，不是逐舖測繪。舖面一側按一九八七年的照片留一條窄梯：混凝土級、摺起的鐵閘、一盞燈泡，紅紙寫出入和平安，不寫門牌。照片裡西城路把牙科招牌疊上街面，光明街是魚蛋、麵廠和燒味，龍津路這時期多是士多和家庭工場，龍津道留下麻雀、藥舖和食肆，一米左右的橫巷多半只是一扇鐵閘。城內的招牌寫在舖面牆上。城外的東頭村道、東正道和賈炳達道，舖頭把刀牌伸出路面，板的大小不一，沿街疏密也不齊。只寫行業，不寫沒有測繪的店名。涼茶舖放大金屬壺，藥房是一壁抽屜，麵廠沒有窗、粉鋪在檯上，燒味掛在爐前，麻雀和牌九用布簾。天台按一九八〇年代末的照片：鍍鋅圓水箱和魚骨天線落在屋面上，另有鐵皮屋和晾衣。竹棚搭在部分巷牆外，窄巷不擋行路。巷道路面是磨損開裂的濕混凝土，有補丁和水漬，靠牆一條水渠。巷牆貼滿照片裡的街招：牙科、吉屋出租、跌打、涼茶、通渠、魚蛋、錄影帶，一層壓一層，邊是撕開的。只寫行當，不寫沒有測過的店名。窄巷一樓底用混凝土、木板或鐵皮分段封上，白日光從路口落下；頭頂是喉管、電纜、滴水和色溫不同的光管，垃圾網掛在未封的隙上。寬街只在高處拉線，一樓底另有幾支光管，牆邊偶有膠盆、木箱和膠凳，不佔行路的中線。街上的人按同一時期的巷照：汗衫、短袖、膠拖鞋、膠袋、菜籃、扁擔和水桶，傘只在雨裡打開，人數不是統計。另有數人走在東頭村道、東正道和賈炳達道靠城寨的一側。書中全景有進入航道的廣體客機，外圍馬路有奶油紅雙層巴士和市區車輛。這幅模型有一架起落架放下的廣體客機，低飛過南面屋頂，朝東進入航道，只塗時代的顏色，不寫航空公司的名字。外圍馬路的巴士和市區車輛同樣只留塗裝。東頭村道北面和其餘外牆按同一時期的照片加上窗式冷氣機、竹升、直落喉和鐵窗花；照片裡招牌最密的是北面。暗巷不長冷氣機。",
-    cardKicker: "地點", cardTitle: "城寨", cardBody: "拖曳旋轉，滾輪縮放。剖面是書的做法：一座沒有立面的城，只能切開來看。點一棟樓，讀它的層數和地下的一行。",
-    statFoot: "矩形城廓", statArea: "面積", statCensus: "一九八七年調查", statPeak: "報導高峰（常含西頭村）",
-    statCap: "航道與屋脊", statCapVal: "航道約 45 米，屋脊約 35 米", statLifts: "全城電梯", statLiftsVal: "約三部", statMass: "模型樓塊",
-    sectionLabel: "東西剖面", floorLabel: "樓層裁切", zonesLabel: "分區", viewsLabel: "視角",
+    legendKicker: "剖面用色", legendTitle: "切開嗰一面",
+    useHome: "住戶，成日一間房住幾個人", useFactory: "山寨廠 — 塑膠、製衣、五金", useFood: "食品工場 — 麵、魚蛋、燒味",
+    useClinic: "無牌診所或者牙醫", useSchool: "學堂、幼稚園、教會課室", useTemple: "廟宇、神廳、街坊會",
+    useShop: "舖頭、麻雀館、食肆", useService: "樓梯、走廊、水房、貨倉",
+    legendNote: "分區跟返本書啲章節。色物語：底層唔見天日，全靠唔同色溫嘅光管。鳥籠物語：有光嘅窗多數包喺連續伸出嚟嘅鐵網花籠入面，一個花籠橫跨同一層幾隻窗，玻璃喺鐵網入面。露台有淺有深、生鏽、蓋帆布同晾滿衫。多數頂頭蓋住塊舊鐵皮，玻璃前面仲有鐵窗花。北面最長最深；大約一米闊嘅窄巷只係伸出一截，兩邊唔會掂到；暗核就完全冇。すきま物語：大約一米嘅樓隙，有滴水同垃圾網。生活物語：大井用到一九五〇年代先封，之後靠八條市政水喉，食水要人擔上樓。地下舖頭跟約一九八七年嘅相整出嚟，唔係逐間測繪。舖頭隔籬跟返一九八七年嘅相留返條窄樓梯：石屎級、摺埋一邊嘅鐵閘、一盞燈膽，紅紙寫「出入」同「平安」，唔寫門牌。相入面西城路將牙科招牌疊滿成條街，光明街係魚蛋、麵廠同燒味，龍津路呢個時期多數係士多同家庭工場，龍津道留低麻雀館、藥舖同食肆，一米左右嘅橫巷多數得一道鐵閘。城寨入面嘅招牌寫喺舖面牆上；外面東頭村道、東正道同賈炳達道，啲舖頭就將刀牌伸出馬路，大細唔同，疏密亦唔齊，只寫行當，唔寫冇測繪嘅舖名。涼茶舖擺大金屬茶壺，藥房成幅牆都係抽屜，麵廠冇窗、檯面鋪滿麵粉，燒味吊喺爐前，麻雀同牌九掛布簾。天台跟一九八〇年代尾嘅相：鍍鋅圓水箱同魚骨天線擺滿天台，仲有鐵皮屋同晾衫架。部分巷牆外搭咗竹棚，窄巷唔會頂住行路。橫巷路面係磨蝕爆裂嘅濕石屎，有補丁同水漬，貼牆有條水渠。巷牆貼滿街招：牙科、吉屋出租、跌打、涼茶、通渠、魚蛋、錄影帶，一層疊一層，邊位撕爛晒，同樣只寫行當。窄巷一樓底用石屎、木板或者鐵皮分段封起，日光只係喺路口落嚟；頭頂係水喉、電線、滴水同唔同色溫嘅光管，未封嘅罅位拉住垃圾網。闊街只係高處拉線，一樓底掛幾支光管，牆邊間唔中擺膠盆、木箱同膠凳，唔會阻住中間條路。街上啲人跟返同期巷照：背心、短袖、膠拖鞋、膠袋、菜籃、擔挑同水桶，落雨先會開遮，人數唔代表統計。外面東頭村道、東正道同賈炳達道靠城寨嗰邊亦都有人行。書入面全景有入緊航道嘅廣體客機，外圍馬路有奶油紅雙層巴士同市區車；呢個模型都有架放咗起落架嘅廣體客機低飛過南面天台，向東入航道，淨係跟當年塗裝，唔寫航空公司名。東頭村道北面同其餘外牆加上窗式冷氣機、竹升、直落水喉同鐵窗花，北面招牌最密；暗巷就唔會有冷氣機。",
+    cardKicker: "地點", cardTitle: "城寨", cardBody: "拉畫面轉角度，滾輪縮放。剖面係本書嘅做法：一座冇正立面嘅城，唯有切開嚟睇。撳一棟樓，睇吓佢有幾多層同埋地下做邊行。",
+    statFoot: "矩形城廓", statArea: "面積", statCensus: "一九八七年調查", statPeak: "報導高峰（通常計埋西頭村）",
+    statCap: "航道同屋脊", statCapVal: "航道約 45 米，屋脊約 35 米", statLifts: "全城𨋢", statLiftsVal: "大約三部", statMass: "模型樓宇",
+    sectionLabel: "東西剖面", floorLabel: "樓層切面", zonesLabel: "分區", viewsLabel: "視角",
     tabCut: "剖面", tabPlaces: "視角", tabSettings: "設定", tabView: "視角", tabAir: "天氣",
     langLabel: "語言",
-    todLabel: "時段", todAuto: "自行", todDay: "白晝", todSunset: "黃昏", wxAuto: "自行",
-    airLabel: "自行輪轉", airNote: "日夜不停輪轉，天氣自行轉換。天色一暗，巷裡的燈、窗和舖面會自己亮起來。",
-    wxHaze: "多雲", wxRain: "雨", wxClear: "晴",
-    todNight: "夜", todDawn: "黎明", todMorning: "上午", todNoon: "正午", todAfternoon: "下午", todDusk: "黃昏",
-    viewAir: "俯瞰", viewStreet: "龍津路", viewBook: "書中剖面", viewYamen: "衙署", viewLion: "獅子山",
+    todLabel: "時段", todAuto: "自動", todDay: "日頭", todSunset: "黃昏", wxAuto: "自動",
+    airLabel: "自動輪轉", airNote: "日夜會自動輪轉，天氣亦會自己變。天一黑，橫巷啲燈、窗同舖頭就會自己著燈。",
+    wxHaze: "多雲", wxRain: "落雨", wxClear: "好天",
+    todNight: "夜晚", todDawn: "天光", todMorning: "朝早", todNoon: "中午", todAfternoon: "下晝", todDusk: "黃昏",
+    viewAir: "睇全景", viewStreet: "龍津路", viewBook: "書中剖面", viewYamen: "衙門", viewLion: "獅子山",
     sfxBtn: "音效", capBtn: "啟德航道", widthBtn: "二百一十米邊界",
-    cutLabel: "剖面位置", hint: "拖曳旋轉 · 滾輪縮放 · 點選樓塊 · 1 俯瞰",
-    startBtn: "點擊進入",
+    cutLabel: "剖面位置", hint: "拉畫面轉角度 · 滾輪縮放 · 撳樓宇睇資料 · 1 睇全景",
+    startBtn: "撳一下入城",
     mapLabel: "地圖",
     enterBtn: "上天台",
     exitBtn: "落樓",
     backBtn: "返回",
-    hintWalk: "拖曳張望 · W A S D 行走 · Shift 加快",
-    cutOff: "未切開", cutOn: "保留北面，切面朝南",
-    yamenMeta: "北面是兩層青年中心，東面老人中心留兩個天井，西面是八層義學大樓，南端是衙門閘樓。",
-    templeMeta: "一九五一年的廟廳，門向南，天井上有鐵網",
-    places: { west: "西城路", well: "大井街", loyan: "老人街", kwong: "光明街", shing: "龍城路", szkung: "社公街", chun: "龍津路", lane: "龍津橫巷", tsun: "龍津道", yamen: "九龍巡檢司衙署", temple: "天后廟", core: "內裏" },
+    hintWalk: "拉畫面周圍望 · W A S D 行路 · Shift 跑快啲",
+    cutOff: "未切開", cutOn: "留返北面，切口向南",
+    yamenMeta: "北面係兩層青年中心，東面老人中心留咗兩個天井，西面係八層義學大樓，南端係衙門閘樓。",
+    templeMeta: "一九五一年起嘅廟廳，門口向南，天井上面拉咗鐵網",
+    places: { west: "西城路", well: "大井街", loyan: "老人街", kwong: "光明街", shing: "龍城路", szkung: "社公街", chun: "龍津路", lane: "龍津橫巷", tsun: "龍津道", yamen: "九龍巡檢司衙署", temple: "天后廟", core: "寨入面" },
     labels: {
       labCap: "啟德航道 · 約 45 米", labWestEdge: "西界  0米", labWidth: "東西  210米", labEastEdge: "東界  210米"
     },
     chapters: { life: "生活故事", colour: "色彩故事", cage: "鳥籠故事", enter: "入城", panorama: "生活復原", gap: "縫隙故事", altar: "社壇" },
     notes: {
-      west: "西城路基線，北口開向東頭村道，是最易找的入口。城內無牌牙醫逾百家，招牌沿這條街疊起。照片裡更密的一排在城外：一九八七年格雷格・吉拉德和薩德比都從東頭村道拍到北面外牆的牙醫舖。香港不承認牌照。西城路是城內唯一有意譯英文名的街，檔案作 West City Road。其餘是測量圖和展板上的音譯。",
-      well: "大井街比寨城更老，因一口大井得名。這口井是城內主要水源。一九二〇至三〇年代的霍亂封井沒有封到它，井留到一九五〇年代才封，之後由八條市政水管取代。一九八七年的模型裡，井口仍是原來的麻石井欄，欄內是一九五〇年代封上的混凝土，街面可以踏過去，不是還在打水的井。八條是數目，位置沒有測繪，模型只在北面行人路上放八個街頭水龍頭來標數量。英文作 Tai Chang Street。生活物語講的是供水不是全日：水桶、浴缸儲水，以及收費挑水上樓。",
-      loyan: "老人街，英文 Lo Yan Street。南口在龍津道一一二號與一一四號之間，一九五〇年代初才有。這條街在城南，不是衙署天井東側。安老院和後來的老人中心、青少年中心是衙署那一組，一九九三年留下的是衙署，不是四周的唐樓。",
-      kwong: "城內最暗的巷。魯金記：檔口點蠟燭給人認路，故稱光明街；英文展板作 Kwong Ming Street。後來食品工場集中，魚蛋、麵廠和燒味在此。色物語：下層不見日，光管色溫不同，切開才見五色。",
-      shing: "舊東門一線，與東正道平行。北口開向東頭村道。居民稱為龍城路，龍城即寨城簡稱。英文檔案作 Lung Shing Road。南口夾在龍津路與龍津道之間、益華樓與東南樓之中，城外看不見。鳥籠物語是鐵窗花、晾衣，和伸出巷上的露台。",
-      szkung: "社公街因社壇得名。測量圖英文作 SZ KUNG ST，故用 Sz Kung Street；維基百科的 Si Kung 是另一種拼法。畫上的線是示意，不是測繪中線。",
-      chun: "城內最老的街，東西向，對準城東、後來埋在啟德地下的龍津石橋，不是南門。街冊英文作 Lung Chun Avenue，以別於一九五一年才開的龍津道。龍津義學是衙署以外的另一座清建築，沿這條街。到一九八七年，原址已是唐樓義學大樓。街坊福利會的圖把這座樓畫在衙署西緣，模型按那張圖放在那裡。",
-      tsun: "南面城基拆後，一九五一年樓房夾出的路，用「道」字和龍津路分開，取「聚龍通津」。魯金記麻雀館、牌九、番攤、狗肉檔、煙館集中於此。英文作 Lung Tsun Road。",
-      lane: "龍津路支巷，街冊作龍津橫巷。すきま物語：約一米的隙、滴水喉管、樓與樓之間的垃圾網，以及不落地的路徑。",
-      yamen: "九龍巡檢司衙署，城內唯一留到清拆的清代建築。單層三進兩院：前進兩側是耳房，中進是公堂，後進是官邸。青磚、麻石柱礎，柱和山牆承檩，屋面是素燒筒瓦和布瓦。街坊福利會的圖上這塊地是實心的：北面整塊是青年中心，東面是老人中心，西面是義學大樓。模型按那張圖填滿，不再留一個空天井。南端按圖留衙門閘樓，門向南街。一八九九年以後做過安老院、學校和診所。這裡的學校是廣蔭院的學額，不是龍津義學。約一九〇六年石門額刻上 ALMSHOUSE；廣蔭院一九六九年遷去鑽石山，這幾個字在一九八七年還在。公園一九九五年才寫的門聯，這幅圖不放。晚期照片裡，天井上方有一張網，接著唐樓扔下的垃圾。一八〇二年的兩門炮見於二十世紀初的照片，一九九六年修復後又放回入口兩側；這幅一九八七年的圖不把炮放回去。老人中心仍是一九七九年的兩層水泥房子。圖上的輪廓比四千八百平方呎的實用樓面大，裡面留兩個天井。青年中心是北面整塊的兩層房子。義學大樓是西面八層的唐樓。一九九三年留下的是衙署，不是這幾座。",
-      temple: "城寨這座天后廟是一九五一年所建。海邊的舊廟被清拆後，坊眾把神像遷入，廟廳放在城東北，在光明街以西，青磚、素燒瓦頂，門向南。通向廟門的是一條濕窄巷。門與街之間是一小天井，上張鐵網，承接樓上扔下的垃圾，網眼裡偶有天光。香爐一個，在門前。神像在廳內，不放在街上。天后廟後街是朝光明街的橫巷。城邊另有一座福德祠，位置沒有測到這張圖上，模型不另起一座。廟與城寨一同清拆，天后像後移打鼓嶺道九龍城天后會。生活復元パノラマ把神廳和廚房畫在同一帶。",
-      core: "這座樓不臨有名字的街。書裡的暗核是住戶和工場，地面多是一扇門。街名只留給真正開向那條街的舖。"
+      west: "西城路主軸，北口對正東頭村道，係最易搵嘅入口。城寨入面無牌牙醫過百間，招牌沿住呢條街疊到高一高。相入面更密嗰排喺城外：一九八七年格雷格・吉拉德同薩德比都喺東頭村道影到北面外牆啲牙醫舖。香港唔承認呢啲牌照。西城路係城內唯一有意譯英文名嘅街，檔案叫 West City Road，其餘都係測量圖同展板嘅音譯。",
+      well: "大井街仲老過城寨，因為有一口大井而改名，係城內主要食水來源。一九二〇至三〇年代霍亂封井冇封到佢，一直用到一九五〇年代先封，之後靠八條市政水喉頂上。一九八七年模型入面仲留低原來嘅麻石井欄，入面係五十年代封死嘅石屎，街面可以行過，唔係仲打到水嘅井。八條係數目，實際位置冇測繪，模型只係喺北面行人路擺八個街喉做記號。英文叫 Tai Chang Street。生活物語講嘅係唔係全日有水：靠水桶、浴缸儲水，仲要畀錢請人擔水上樓。",
+      loyan: "老人街，英文 Lo Yan Street。南口喺龍津道一一二號同一一四號之間，一九五〇年代初先有。呢條街喺城南，唔係衙署天井東邊。安老院同後來嘅老人中心、青少年中心係衙署嗰一組，一九九三年留低嘅係衙署，唔係周圍啲唐樓。",
+      kwong: "城寨入面最暗嘅巷。魯金記過：檔口要點蠟燭畀人認路，所以叫光明街；英文展板叫 Kwong Ming Street。後來食品工場集中喺度，魚蛋、麵廠同燒味都喺呢條街。色物語：下層唔見天日，光管色溫各有唔同，切開先睇到五光十色。",
+      shing: "舊東門一線，同東正道平行，北口開向東頭村道。街坊叫佢龍城路，龍城即係寨城簡稱，英文檔案叫 Lung Shing Road。南口夾喺龍津路同龍津道之間、益華樓同東南樓入面，城外睇唔到。鳥籠物語就係鐵窗花、晾衫同伸出橫巷嘅花籠露台。",
+      szkung: "社公街因為社壇而改名。測量圖英文寫 SZ KUNG ST，所以用 Sz Kung Street；維基百科嘅 Si Kung 係另一種拼法。圖上面條線係示意，唔係測繪中線。",
+      chun: "城寨最老嘅街，東西走向，對準城東、後來埋喺啟德地底嘅龍津石橋，唔係南門。街冊英文寫 Lung Chun Avenue，用嚟同埋一九五一年先開嘅龍津道分開。龍津義學係衙署以外另一座清代建築，就喺呢條街。去到一九八七年，原址已經變咗唐樓義學大樓。街坊福利會張圖將呢棟樓畫喺衙署西邊，模型亦跟返嗰張圖擺。",
+      tsun: "拆咗南面城基之後，一九五一年樓宇之間夾出嚟嘅路，特登用「道」字同龍津路分開，取「聚龍通津」意思。魯金記過麻雀館、牌九、番攤、狗肉檔、煙館都集中喺呢度。英文叫 Lung Tsun Road。",
+      lane: "龍津路嘅支巷，街冊叫龍津橫巷。すきま物語：大約一米闊嘅罅位、滴水喉管、樓與樓之間嘅垃圾網，同埋唔落地嘅通道。",
+      yamen: "九龍巡檢司衙署，城寨唯一留到清拆嘅清代建築。單層三進兩院：前進兩邊係耳房，中進係公堂，後進係官邸。青磚、麻石柱礎，柱同山牆承檩，屋頂係素燒筒瓦同布瓦。街坊福利會張圖上面呢塊地係實心嘅：北面成塊係青年中心，東面係老人中心，西面係義學大樓，模型跟返張圖填滿，唔再留空天井；南端就跟圖留返衙門閘樓，門口向南街。一八九九年之後做過安老院、學校同診所。呢度間學校係廣蔭院學額，唔係龍津義學。約一九〇六年石門額刻咗 ALMSHOUSE；廣蔭院一九六九年搬去鑽石山，呢幾個字去到一九八七年仲喺度。公園一九九五年先寫嘅門聯呢幅圖唔放。後期相入面，天井上面拉咗張網，接住唐樓掟落嚟嘅垃圾。一八〇二年嗰兩門炮見於二十世紀初嘅相，一九九六年修復後放返入口兩邊；呢幅一九八七年嘅圖唔會放返落去。老人中心仲係一九七九年嗰棟兩層石屎屋，輪廓大過四千八百平方呎實用樓面，入面留兩個天井；青年中心係北面兩層樓；義學大樓係西面八層唐樓。一九九三年留低嘅係衙署，唔係呢幾座。",
+      temple: "城寨呢間天后廟係一九五一年起嘅。海邊間舊廟清拆咗之後，街坊將神像搬入嚟，廟廳放喺城東北、光明街以西，青磚素燒瓦頂，門口向南。行入廟門要經過一條又濕又窄嘅巷；門同街之間有個細天井，上面張鐵網接住樓上掟落嚟嘅垃圾，網眼間唔中透少少天光。門前擺一個香爐，神像放喺廳入面唔出街。天后廟後街係通去光明街嘅橫巷。城邊原本仲有座福德祠，位置冇測落張圖度，模型唔另外起。間廟同城寨一齊清拆，天后像之後搬咗去打鼓嶺道九龍城天后會。生活復元パノラマ將神廳同廚房畫埋同一帶。",
+      core: "呢棟樓唔貼有街名嘅街。書入面嘅暗核都係住戶同工場，地下多數淨係一道門。街名只會留畀真正開向嗰條街嘅舖頭。"
     }
   },
   en: {
@@ -19035,7 +19035,7 @@ function showPick(u) {
 }
 function applyLang(next) {
   lang = next;
-  document.documentElement.lang = next === "zh" ? "zh-Hant" : next;
+  document.documentElement.lang = next === "zh" ? "zh-HK" : next;
   document.querySelectorAll("[data-i18n]").forEach(el => {
     const key = el.getAttribute("data-i18n");
     if (I18N[lang][key] != null) el.textContent = I18N[lang][key];
@@ -30105,14 +30105,14 @@ const TOD_BANDS = [
 ];
 const WHEN_LABELS = {
   zh: {
-    earlyMorning: "清晨",
-    morning: "早上",
+    earlyMorning: "天光",
+    morning: "朝早",
     noon: "中午",
-    afternoon: "下午",
+    afternoon: "下晝",
     dusk: "黃昏",
-    evening: "傍晚",
-    night: "晚上",
-    deepNight: "深夜"
+    evening: "挨晚",
+    night: "夜晚",
+    deepNight: "半夜"
   },
   en: {
     earlyMorning: "Early Morning",
@@ -32727,9 +32727,9 @@ function syncRoofButton() {
 // cost off the purse at once.
 const RUN_ITEM = {
   grocery: { slots: 1, cost: 7, drop: "keep", rain: false, zh: "雜貨", en: "groceries", ja: "雑貨" },
-  rice: { slots: 2, cost: 14, drop: "keep", rain: true, zh: "米袋", en: "a sack of rice", ja: "米袋" },
+  rice: { slots: 2, cost: 14, drop: "keep", rain: true, zh: "一包米", en: "a sack of rice", ja: "米袋" },
   bottle: { slots: 1, cost: 8, drop: "keep", rain: false, zh: "奶茶", en: "milk tea", ja: "ミルクティー" },
-  hot: { slots: 1, cost: 8, drop: "keep", rain: true, zh: "熱餐", en: "a hot bag", ja: "温かい包み" },
+  hot: { slots: 1, cost: 8, drop: "keep", rain: true, zh: "熱飯盒", en: "a hot bag", ja: "温かい包み" },
   herbal: { slots: 1, cost: 6, drop: "spill", rain: false, zh: "涼茶", en: "herbal tea", ja: "涼茶" },
   candy: { slots: 1, cost: 5, drop: "keep", rain: false, zh: "糖果", en: "sweets", ja: "飴" },
   bbq: { slots: 1, cost: 14, drop: "keep", rain: true, zh: "燒味", en: "roast meat", ja: "焼味" },
@@ -32738,15 +32738,15 @@ const RUN_ITEM = {
   noodle: { slots: 2, cost: 16, drop: "keep", rain: true, zh: "麵", en: "noodle sheets", ja: "麺" },
   tofu: { slots: 2, cost: 16, drop: "spill", rain: false, zh: "豆腐", en: "tofu", ja: "豆腐" },
   pharmacy: { slots: 1, cost: 10, drop: "keep", rain: true, zh: "藥包", en: "a paper packet", ja: "薬包" },
-  bonesetter: { slots: 1, cost: 8, drop: "keep", rain: false, zh: "藥瓶", en: "a wrapped bottle", ja: "薬瓶" },
+  bonesetter: { slots: 1, cost: 8, drop: "keep", rain: false, zh: "跌打酒", en: "a wrapped bottle", ja: "薬瓶" },
   dentist: { slots: 1, cost: 12, drop: "keep", rain: true, zh: "紙包", en: "a wrapped packet", ja: "紙包" },
   doctor: { slots: 1, cost: 12, drop: "keep", rain: true, zh: "紙包", en: "a wrapped packet", ja: "紙包" },
-  barber: { slots: 1, cost: 6, drop: "keep", rain: false, zh: "瓶子", en: "a bottle", ja: "瓶" },
-  electrical: { slots: 2, cost: 20, drop: "break", rain: false, zh: "燈管", en: "a box of tubes", ja: "蛍光灯" },
-  hardware: { slots: 1, cost: 9, drop: "keep", rain: false, zh: "繩圈", en: "a coil of rope", ja: "縄" },
+  barber: { slots: 1, cost: 6, drop: "keep", rain: false, zh: "樽仔", en: "a bottle", ja: "瓶" },
+  electrical: { slots: 2, cost: 20, drop: "break", rain: false, zh: "光管", en: "a box of tubes", ja: "蛍光灯" },
+  hardware: { slots: 1, cost: 9, drop: "keep", rain: false, zh: "一卷繩", en: "a coil of rope", ja: "縄" },
   plastic: { slots: 2, cost: 14, drop: "keep", rain: false, zh: "膠盆", en: "a basin", ja: "たらい" },
-  textile: { slots: 2, cost: 16, drop: "keep", rain: true, zh: "布匹", en: "a bolt of cloth", ja: "反物" },
-  joss: { slots: 1, cost: 6, drop: "keep", rain: true, zh: "香紙", en: "incense and paper", ja: "線香" },
+  textile: { slots: 2, cost: 16, drop: "keep", rain: true, zh: "一匹布", en: "a bolt of cloth", ja: "反物" },
+  joss: { slots: 1, cost: 6, drop: "keep", rain: true, zh: "衣紙", en: "incense and paper", ja: "線香" },
   water: { slots: 2, cost: 8, drop: "spill", rain: false, zh: "兩桶水", en: "two buckets", ja: "桶二つ" }
 };
 const RUN_KIND_ITEM = {
@@ -32760,17 +32760,17 @@ const RUN_KIND_ITEM = {
 };
 const RUN_COPY = {
   zh: {
-    hint: "標記顏色是路程 · 一單一個鐘 · 交到人手上即收錢 · 班次時間不停",
-    purse: "袋中", take: "取貨", give: "交人", lift: "拾起",
-    shut: "舖未開", ended: "這一班完了", full: "手上有貨",
-    sheet: "這一班", over: "這一班完了", survived: "撐了", earn: "收入",
-    done: "已交到", none: "沒有單", day: "日", days: "日", hour: "小時", hours: "小時",
-    on: "收到", late: "遲到", fail: "未交到",
-    plusTime: "追加時間", plusCash: "追加金額", minusCash: "金額減少",
-    bonus: "一併送達", net: "本班", close: "重新開始",
-    green: "短程", yellow: "過舖", red: "上天台",
-    first: "第一單", ground: "在地上", roof: "天台", door: "門",
-    stair: "旁的梯", beside: "旁的門", from: "取", keeper: "舖主", dest: "訂單目的地"
+    hint: "標記顏色睇路程 · 一單一個鐘 · 交到人手即刻收錢 · 開工時間唔會停",
+    purse: "荷包", take: "攞貨", give: "交貨", lift: "執返起",
+    shut: "仲未開舖", ended: "收工喇", full: "手上仲有貨",
+    sheet: "呢班工", over: "夠鐘收工", survived: "開工時間", earn: "呢班賺咗",
+    done: "交咗貨", none: "一張單都冇", day: "日", days: "日", hour: "個鐘", hours: "個鐘",
+    on: "收到錢", late: "遲咗", fail: "送唔切",
+    plusTime: "加鐘", plusCash: "有錢收", minusCash: "要扣錢",
+    bonus: "一齊送到", net: "呢班", close: "再嚟過",
+    green: "近單", yellow: "過舖", red: "上天台",
+    first: "頭一單", ground: "喺地下", roof: "天台", door: "門口",
+    stair: "隔籬樓梯", beside: "隔籬門口", from: "攞", keeper: "老細", dest: "訂單目的地"
   },
   en: {
     hint: "The marker color is the length of the fare · one parcel, one clock · the money lands when you hand it over · the shift clock keeps running",
@@ -32824,7 +32824,7 @@ function runItemName(key) {
   return item[lang] || item.zh;
 }
 function runStreet(name) {
-  if (!name) return lang === "en" ? "Interior" : lang === "ja" ? "内部" : "內裏";
+  if (!name) return lang === "en" ? "Interior" : lang === "ja" ? "内部" : "寨入面";
   const key = typeof streetNote !== "undefined" ? streetNote[name] : null;
   if (key && typeof placeName === "function") return placeName(key);
   return name;
@@ -32874,7 +32874,7 @@ function runSurvivedText(now) {
   const hours = Math.min(23, Math.floor((span - days) * 24 + 1e-6));
   const dayUnit = days === 1 ? runText("day") : runText("days");
   const hourUnit = hours === 1 ? runText("hour") : runText("hours");
-  return days + " " + dayUnit + " · " + hours + " " + hourUnit;
+  return lang === "en" ? (days + " " + dayUnit + " · " + hours + " " + hourUnit) : (days + dayUnit + " · " + hours + hourUnit);
 }
 function runClockText(sec) {
   const s = Math.max(0, Math.ceil(sec));
@@ -35094,7 +35094,7 @@ function runPaint() {
       const tTxt = runText(slip.class || "green") + " · " + runWord(orderShop.kind);
       const iTxt = runItemName(slip.item);
       const wTxt = runDestLine(slip.dest);
-      const nTxt = "$" + (slip.base || FARE_BASE.green) + " + " + (lang === "zh" ? "餘下秒數" : lang === "ja" ? "残り秒" : "seconds left");
+      const nTxt = "$" + (slip.base || FARE_BASE.green) + " + " + (lang === "zh" ? "剩低秒數" : lang === "ja" ? "残り秒" : "seconds left");
       if (title && title.textContent !== tTxt) title.textContent = tTxt;
       if (thing && thing.textContent !== iTxt) thing.textContent = iTxt;
       if (where && where.textContent !== wTxt) where.textContent = wTxt;
