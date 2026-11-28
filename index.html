@@ -20,6 +20,7 @@
     --stick-clear: 0px;
     --run-left-w: min(276px, calc(100vw - var(--inset-x) - var(--inset-r)));
     --run-center-max-h: min(46dvh, 320px);
+    --map-size: clamp(86px, 19vmin, 168px);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); }
@@ -75,25 +76,37 @@
   }
   #tools { position: static; width: min(100%, max-content); max-width: 100%; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: auto; transform: translateZ(0); }
   #tools[hidden] { display: none !important; }
-  #minimap {
+  #map-dock {
     position: fixed;
     top: auto;
     bottom: var(--inset-b);
     right: var(--inset-r);
     z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    width: var(--map-size);
+    pointer-events: none;
+    transform: translateZ(0);
+  }
+  #map-dock:not(:has(> :not([hidden]))) { display: none; }
+  body:has(#boot) #map-dock { display: none; }
+  #minimap {
+    position: static;
     display: block;
-    width: clamp(86px, 19vmin, 168px);
-    height: clamp(86px, 19vmin, 168px);
+    width: 100%;
+    height: var(--map-size);
     aspect-ratio: 1;
     pointer-events: none;
     background: #090807; border: 1px solid rgba(61, 255, 136, 0.72);
     box-shadow: 0 0 10px rgba(61, 255, 136, 0.28);
   }
   @media (aspect-ratio <= 1), (max-width: 720px), (max-height: 540px) {
-    #minimap { width: clamp(82px, 22vmin, 118px); height: clamp(82px, 22vmin, 118px); }
+    :root { --map-size: clamp(82px, 22vmin, 118px); }
   }
   @media (max-width: 430px) {
-    #minimap { width: clamp(76px, 23vw, 102px); height: clamp(76px, 23vw, 102px); }
+    :root { --map-size: clamp(76px, 23vw, 102px); }
   }
   #minimap[hidden] { display: none !important; }
   #tool-row { display: flex; flex-direction: row; align-items: center; gap: 6px; }
@@ -200,39 +213,62 @@
   }
   #wx-purse:empty, #wx-purse[hidden] { display: none !important; }
   body:has(#boot) #wx-purse { display: none; }
+  /* Current location panel directly above #minimap, matching its exact width. */
   #wx-loc {
-    display: inline-flex;
+    position: static;
+    display: flex;
     align-items: center;
-    gap: 5px;
-    max-width: 100%;
-    margin-top: 2px;
-    font-size: 0.84em;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 4px 6px;
+    overflow: hidden;
+    pointer-events: none;
+    background: #120806;
+    border: 1px solid rgba(61, 255, 136, 0.72);
+    box-shadow:
+      0 0 10px rgba(61, 255, 136, 0.28),
+      inset 0 0 8px rgba(61, 255, 136, 0.14);
+    font-size: clamp(11px, 1.45vw, 13px);
+    font-weight: 600;
     letter-spacing: 0.06em;
-    line-height: 1.3;
+    line-height: 1.25;
     white-space: nowrap;
+    transform: translateZ(0);
   }
   #wx-loc[hidden] { display: none !important; }
-  header.panel #wx-read #wx-street {
+  body:has(#boot) #wx-loc { display: none; }
+  #wx-loc-inner {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: max-content;
+    white-space: nowrap;
+    transform-origin: center center;
+  }
+  #wx-street {
     color: #3dff88;
     text-shadow:
       0 0 1px #eafff2,
       0 0 6px rgba(61, 255, 136, 0.78);
   }
-  header.panel #wx-read #wx-roof-tag {
+  #wx-roof-tag {
     display: inline-flex;
     align-items: center;
-    padding: 0 5px;
+    padding: 0 4px;
     font-style: normal;
-    font-size: 0.88em;
+    font-size: 0.86em;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     color: #120806;
     background: #ffc56a;
     text-shadow: none;
     box-shadow: 0 0 8px rgba(255, 197, 106, 0.55);
   }
   #wx-roof-tag[hidden] { display: none !important; }
-  header.panel.wrap #wx-loc { white-space: normal; flex-wrap: wrap; }
   #wx-purse.up { animation: purse-up 0.85s ease-out; }
   #wx-purse.down { animation: purse-down 0.85s ease-out; }
   @keyframes purse-up {
@@ -670,7 +706,6 @@
     text-align: right;
   }
   #ui.walk-bare #wx-read { align-items: flex-end; }
-  #ui.walk-bare #wx-loc { justify-content: flex-end; }
   #ui.walk-bare header.panel:not(.wrap) h1,
   #ui.walk-bare header.panel:not(.wrap) .when,
   #ui.walk-bare header.panel:not(.wrap) #wx-read,
@@ -1561,7 +1596,7 @@ applyBoot();
   <div id="run-cash" aria-live="polite"></div>
   <div id="col-left">
   <header class="panel">
-    <h1><span class="when"><span id="wx-read"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span><span id="wx-loc" hidden><em id="wx-roof-tag" hidden></em><span id="wx-street"></span></span></span></span></h1>
+    <h1><span class="when"><span id="wx-read"><span id="wx-line"><span id="wx-tod" class="wx-fade"><span id="wx-tod-a"></span><span id="wx-tod-b"></span></span><span id="wx-hour" class="wx-fade"><span id="wx-hour-a"></span><span id="wx-hour-b"></span></span><span id="wx-sky"><span class="wx-fade"><span id="wx-sky-a"></span><span id="wx-sky-b"></span></span></span></span></span></span></h1>
   </header>
   </div>
   <div id="col-right">
@@ -1657,7 +1692,10 @@ applyBoot();
 <div id="run-arrows" hidden></div>
 
 <button type="button" id="start" data-i18n="startBtn">開始</button>
-<canvas id="minimap" width="336" height="336" hidden aria-label="地圖"></canvas>
+<div id="map-dock">
+  <div id="wx-loc" class="panel" hidden><span id="wx-loc-inner"><em id="wx-roof-tag" hidden></em><span id="wx-street"></span></span></div>
+  <canvas id="minimap" width="336" height="336" hidden aria-label="地圖"></canvas>
+</div>
 </div>
 <div id="run-sheet-layer" hidden>
   <div id="run-sheet-scrim"></div>
@@ -18200,9 +18238,7 @@ function fitPurseRoom() {
       line.style.flexWrap = "nowrap";
       line.style.width = "max-content";
       const baseSize = parseFloat(getComputedStyle(h1).fontSize);
-      const loc = document.getElementById("wx-loc");
-      const locW = loc && !loc.hidden && getComputedStyle(loc).display !== "none" ? loc.scrollWidth : 0;
-      const need = Math.max(line.scrollWidth, locW);
+      const need = line.scrollWidth;
       line.style.whiteSpace = prevWs;
       line.style.flexWrap = prevFw;
       line.style.width = prevLw;
@@ -18232,6 +18268,51 @@ function fitPurseRoom() {
     if (purse.style.top !== wantTop) purse.style.top = wantTop;
   }
 }
+function fitMapLoc() {
+  const loc = document.getElementById("wx-loc");
+  const inner = document.getElementById("wx-loc-inner");
+  if (!loc || !inner || loc.hidden || getComputedStyle(loc).display === "none") return;
+  const mapEl = document.getElementById("minimap");
+  const refW = (mapEl && !mapEl.hidden && getComputedStyle(mapEl).display !== "none")
+    ? mapEl.getBoundingClientRect().width
+    : loc.getBoundingClientRect().width;
+  if (!(refW > 16)) return;
+  const cs = getComputedStyle(loc);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const borderX = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+  const avail = Math.floor(refW - padX - borderX);
+  if (!(avail > 12)) return;
+  inner.style.fontSize = "";
+  inner.style.letterSpacing = "";
+  inner.style.transform = "";
+  const baseFs = parseFloat(getComputedStyle(inner).fontSize) || 12;
+  const naturalW = Math.max(inner.scrollWidth, inner.getBoundingClientRect().width);
+  let wantFs = "";
+  let wantLs = "";
+  let wantTf = "";
+  if (naturalW > avail + 0.5) {
+    const ratio = (avail - 1) / naturalW;
+    const minFs = 9;
+    const scaledFs = baseFs * ratio;
+    if (scaledFs >= minFs) {
+      wantFs = scaledFs.toFixed(2) + "px";
+      if (ratio < 0.85) wantLs = "0.02em";
+    } else {
+      wantFs = minFs + "px";
+      wantLs = "0.02em";
+    }
+    inner.style.fontSize = wantFs;
+    inner.style.letterSpacing = wantLs;
+    const afterW = Math.max(inner.scrollWidth, inner.getBoundingClientRect().width);
+    if (afterW > avail + 0.5) {
+      const k = Math.max(0.42, Math.min(1, (avail - 2) / afterW));
+      wantTf = "scale(" + k.toFixed(3) + ")";
+    }
+  }
+  inner.style.fontSize = wantFs;
+  inner.style.letterSpacing = wantLs;
+  inner.style.transform = wantTf;
+}
 function fitRunHub() {
   if (fitRunHub.busy) return;
   fitRunHub.busy = true;
@@ -18258,6 +18339,7 @@ function fitRunHub() {
       }
     }
     fitPurseRoom();
+    fitMapLoc();
     const hdrR = header && getComputedStyle(header).display !== "none" ? header.getBoundingClientRect() : null;
     const purseR = purseEl && !purseEl.hidden && purseEl.textContent && getComputedStyle(purseEl).display !== "none"
       ? purseEl.getBoundingClientRect() : null;
@@ -32304,9 +32386,11 @@ function placeRoofExit() {
   if (!(b.width > 1)) return;
   const stick = document.getElementById("walk-stick");
   const pad = document.getElementById("walk-pad");
+  const mapDock = document.getElementById("map-dock");
   const mapEl = document.getElementById("minimap");
   const sr = (pad && getComputedStyle(pad).display !== "none" && stick) ? stick.getBoundingClientRect() : null;
-  const mr = (mapEl && !mapEl.hidden && getComputedStyle(mapEl).display !== "none") ? mapEl.getBoundingClientRect() : null;
+  const mr = (mapDock && getComputedStyle(mapDock).display !== "none" && mapEl && !mapEl.hidden)
+    ? mapDock.getBoundingClientRect() : null;
   const hitStick = !!(sr && sr.width > 1 && sr.right + 6 > b.left && sr.left - 6 < b.right);
   const hitMap = !!(mr && mr.width > 1 && mr.left - 6 < b.right && mr.right + 6 > b.left);
   if (hitStick || hitMap) {
@@ -32350,9 +32434,10 @@ function syncRoofButton() {
       btn.classList.remove("enter");
       btn.classList.add("on", "exit");
       btn.hidden = false;
+      const mapDock = document.getElementById("map-dock");
       const mapEl = document.getElementById("minimap");
-      const mr = (mapEl && !mapEl.hidden) ? mapEl.getBoundingClientRect() : null;
-      const stackSig = mr ? (Math.round(mr.left) + ":" + Math.round(mr.top) + ":" + Math.round(mr.width)) : "";
+      const mr = (mapDock && mapEl && !mapEl.hidden) ? mapDock.getBoundingClientRect() : null;
+      const stackSig = mr ? (Math.round(mr.left) + ":" + Math.round(mr.top) + ":" + Math.round(mr.width) + ":" + Math.round(mr.height)) : "";
       if (enteringExit || stackSig !== syncRoofButton.stackSig) {
         syncRoofButton.stackSig = stackSig;
         placeRoofExit();
@@ -34401,7 +34486,7 @@ function placeFloatingPrompt(btn, x, y, z, span) {
     const list = [];
     const head = document.querySelector("header.panel");
     if (head) list.push(head);
-    const ids = ["walk-stick", "run-clock", "run-arrows", "run-fx", "wx-purse", "run-cash", "tools", "run-order", "run-board", "minimap", "run-prompt", "roof-go"];
+    const ids = ["walk-stick", "run-clock", "run-arrows", "run-fx", "wx-purse", "run-cash", "tools", "run-order", "run-board", "wx-loc", "minimap", "run-prompt", "roof-go"];
     for (let i = 0; i < ids.length; i++) {
       const el = document.getElementById(ids[i]);
       if (el && el !== btn) list.push(el);
@@ -34604,7 +34689,12 @@ function runPaint() {
         locTxt = roofTxt + "|" + curStreet;
       }
     }
-    const purseSig = (on ? "1" : "0") + ":" + (on ? clock.textContent.length : 0) + ":" + (purse ? purse.textContent : "") + ":" + locTxt;
+    const locSig = (show ? "1" : "0") + ":" + locTxt;
+    if (locSig !== runPaint.locSig) {
+      runPaint.locSig = locSig;
+      fitMapLoc();
+    }
+    const purseSig = (on ? "1" : "0") + ":" + (on ? clock.textContent.length : 0) + ":" + (purse ? purse.textContent : "");
     if (purseSig !== runPaint.purseSig) {
       runPaint.purseSig = purseSig;
       fitPurseRoom();
@@ -40234,11 +40324,11 @@ function flushGlass(mutations) {
     for (var i = 0; i < mutations.length; i++) {
       var n = mutations[i].target;
       if (n && n.nodeType === 3) n = n.parentElement;
-      if (n && n.closest) add(n.closest("header.panel, #wx-purse, #tools, #controls, #card, #legend-layer, #settings-layer, #run-sheet-layer"));
+      if (n && n.closest) add(n.closest("header.panel, #wx-purse, #wx-loc, #tools, #controls, #card, #legend-layer, #settings-layer, #run-sheet-layer"));
     }
   }
   if (!nodes.length) {
-    var fallback = document.querySelectorAll("header.panel, #wx-purse, #tools, #controls, #card, #legend-layer, #settings-layer, #run-sheet-layer");
+    var fallback = document.querySelectorAll("header.panel, #wx-purse, #wx-loc, #tools, #controls, #card, #legend-layer, #settings-layer, #run-sheet-layer");
     for (var f = 0; f < fallback.length; f++) add(fallback[f]);
   }
   if (wipe) wipe.hidden = false;
@@ -40264,7 +40354,7 @@ function flushGlass(mutations) {
   var obs = new MutationObserver(flushGlass);
   var ui = document.getElementById("ui");
   if (ui) obs.observe(ui, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
-  ["wx-read", "wx-purse", "controls", "card", "settings-panel", "legend"].forEach(function (id) {
+  ["wx-read", "wx-purse", "wx-loc", "controls", "card", "settings-panel", "legend"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) obs.observe(el, { subtree: true, characterData: true, childList: true });
   });
