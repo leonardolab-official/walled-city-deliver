@@ -272,14 +272,14 @@
     width: max-content;
     pointer-events: none;
     margin: 0;
-    padding: 4px 12px 6px;
+    padding: 6px 18px 9px;
     background: #120806;
     border: 1px solid #3dff88;
     box-shadow:
       0 0 12px rgba(61, 255, 136, 0.7),
       inset 0 0 10px rgba(61, 255, 136, 0.2);
     font-weight: 700;
-    font-size: clamp(22px, min(5.4vw, 4.8dvh), 44px);
+    font-size: clamp(33px, min(8.1vw, 7.2dvh), 66px);
     letter-spacing: 0.06em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
@@ -439,7 +439,7 @@
   #run-clock[hidden] { display: none !important; }
   body:has(#boot) #run-clock { display: none; }
   @media (max-width: 720px), (max-height: 540px) {
-    #run-clock { font-size: clamp(19px, min(6.2vw, 5.2dvh), 32px); padding: 3px 10px 5px; letter-spacing: 0.05em; }
+    #run-clock { font-size: clamp(28.5px, min(9.3vw, 7.8dvh), 48px); padding: 4px 15px 7px; letter-spacing: 0.05em; }
     #wx-purse { font-size: clamp(12px, 3.4vw, 15px); padding: 3px 8px 4px; }
   }
   .kicker { font-family: "PingFang HK", "Heiti TC", sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b56a; margin-bottom: 2px; overflow-wrap: anywhere; }
@@ -29754,14 +29754,48 @@ function rollWeather(dark) {
   return bag[(Math.random() * bag.length) | 0];
 }
 const TOD_BANDS = [
-  { h: 0, key: "todNight" },
-  { h: 5, key: "todDawn" },
-  { h: 7, key: "todMorning" },
-  { h: 11, key: "todNoon" },
-  { h: 13, key: "todAfternoon" },
-  { h: 17, key: "todDusk" },
-  { h: 20, key: "todNight" }
+  { h: 0, key: "deepNight" },
+  { h: 4.5, key: "earlyMorning" },
+  { h: 7, key: "morning" },
+  { h: 11, key: "noon" },
+  { h: 13.5, key: "afternoon" },
+  { h: 17, key: "dusk" },
+  { h: 18.5, key: "evening" },
+  { h: 20, key: "night" },
+  { h: 23.5, key: "deepNight" }
 ];
+const WHEN_LABELS = {
+  zh: {
+    earlyMorning: "清晨",
+    morning: "早上",
+    noon: "中午",
+    afternoon: "下午",
+    dusk: "黃昏",
+    evening: "傍晚",
+    night: "晚上",
+    deepNight: "深夜"
+  },
+  en: {
+    earlyMorning: "Early Morning",
+    morning: "Morning",
+    noon: "Noon",
+    afternoon: "Afternoon",
+    dusk: "Dusk",
+    evening: "Evening",
+    night: "Night",
+    deepNight: "Late Night"
+  },
+  ja: {
+    earlyMorning: "早朝",
+    morning: "朝",
+    noon: "昼",
+    afternoon: "午後",
+    dusk: "黄昏",
+    evening: "夕方",
+    night: "夜",
+    deepNight: "深夜"
+  }
+};
 function todMix(clock) {
   const hour = ((clock % 1) + 1) % 1 * 24;
   for (let i = 0; i < TOD_BANDS.length; i++) {
@@ -29771,40 +29805,22 @@ function todMix(clock) {
     const hh = hour < band.h ? hour + 24 : hour;
     if (hh < band.h || hh >= end) continue;
     const dist = end - hh;
-    if (dist < 0.9 && band.key !== next.key) {
-      const k = 1 - dist / 0.9;
+    if (dist < 0.35 && band.key !== next.key) {
+      const k = 1 - dist / 0.35;
       return { a: band.key, b: next.key, t: k * k * (3 - 2 * k), hour: hour };
     }
     return { a: band.key, b: band.key, t: 0, hour: hour };
   }
-  return { a: "todNight", b: "todNight", t: 0, hour: hour };
+  return { a: "deepNight", b: "deepNight", t: 0, hour: hour };
 }
-function hanNum(n) {
-  const d = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
-  if (n < 10) return d[n];
-  if (n === 10) return "十";
-  if (n < 20) return "十" + d[n - 10];
-  const tens = Math.floor(n / 10), ones = n % 10;
-  return d[tens] + "十" + (ones ? d[ones] : "");
+function whenBandLabel(bandKey, language) {
+  const pack = WHEN_LABELS[language] || WHEN_LABELS.zh;
+  return pack[bandKey] || WHEN_LABELS.zh[bandKey] || "";
 }
 function whenLabel(hour, language) {
-  const h = ((hour % 24) + 24) % 24 | 0;
-  const h12 = h % 12 || 12;
-  if (language === "en") {
-    if (h === 0) return "12:00 midnight";
-    if (h === 12) return "12:00 noon";
-    return h12 + ":00 " + (h < 12 ? "am" : "pm");
-  }
-  if (language === "ja") {
-    if (h === 0) return "夜中";
-    if (h === 12) return "正午";
-    const part = h < 5 ? "午前" : h < 7 ? "朝" : h < 12 ? "午前" : h < 17 ? "午後" : h < 20 ? "夕方" : "夜";
-    return part + h12 + "時";
-  }
-  if (h === 0) return "午夜";
-  if (h === 12) return "中午";
-  const part = h < 5 ? "凌晨" : h < 7 ? "清晨" : h < 12 ? "上午" : h < 17 ? "下午" : h < 20 ? "傍晚" : "晚上";
-  return part + hanNum(h12) + "時";
+  const h = ((hour % 24) + 24) % 24;
+  const mix = todMix(h / 24);
+  return whenBandLabel(mix.a, language);
 }
 function wxKey(name) {
   return { haze: "wxHaze", rain: "wxRain", clear: "wxClear" }[name] || "wxHaze";
@@ -29820,27 +29836,19 @@ function paintClock(force) {
   const todA = els.todA, hourA = els.hourA, hourB = els.hourB, skyA = els.skyA, skyB = els.skyB;
   if (!todA || !hourA || !paintClock.ready) return;
   const mix = todMix(stepSky.clock);
-  const hour = mix.hour;
-  const h0 = hour | 0;
-  const frac = hour - h0;
-  const edge = 0.22;
-  let h1 = h0;
-  let kf = 0;
-  if (frac > 1 - edge) {
-    kf = (frac - (1 - edge)) / edge;
-    h1 = (h0 + 1) % 24;
-  }
-  const hs = kf * kf * (3 - 2 * kf);
+  const b0 = mix.a;
+  const b1 = mix.b;
+  const hs = mix.t;
   const fading = wxLeft !== weather;
-  const key = paintClock.key || (paintClock.key = { lang: "", h0: -1, h1: -1, left: "", weather: "" });
-  if (force || key.lang !== lang || key.h0 !== h0 || key.h1 !== h1 || key.left !== wxLeft || key.weather !== weather) {
+  const key = paintClock.key || (paintClock.key = { lang: "", b0: "", b1: "", left: "", weather: "" });
+  if (force || key.lang !== lang || key.b0 !== b0 || key.b1 !== b1 || key.left !== wxLeft || key.weather !== weather) {
     key.lang = lang;
-    key.h0 = h0;
-    key.h1 = h1;
+    key.b0 = b0;
+    key.b1 = b1;
     key.left = wxLeft;
     key.weather = weather;
-    hourA.textContent = whenLabel(h0, lang);
-    hourB.textContent = whenLabel(h1, lang);
+    hourA.textContent = whenBandLabel(b0, lang);
+    hourB.textContent = whenBandLabel(b1, lang);
     skyA.textContent = t(wxKey(wxLeft));
     skyB.textContent = t(wxKey(fading ? weather : wxLeft));
     if (typeof fitPurseRoom === "function") fitPurseRoom();
