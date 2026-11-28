@@ -1083,9 +1083,9 @@
   #run-arrows {
     position: fixed;
     left: 50%;
-    /* Center guidance arrow, shifted downward by 20% while horizontally centered. */
-    top: calc(var(--inset-t) + 20vh);
-    top: calc(var(--inset-t) + 20dvh);
+    /* Center guidance arrow, shifted upward by 5% (15% from top inset) while horizontally centered. */
+    top: calc(var(--inset-t) + 15vh);
+    top: calc(var(--inset-t) + 15dvh);
     transform: translateX(-50%);
     z-index: 6;
     display: flex;
@@ -18575,7 +18575,7 @@ function fitRunCards() {
   if (board && !board.hidden && getComputedStyle(board).display !== "none") {
     const avail = fitBoxInnerWidth(board);
     if (avail > 8) {
-      const slips = board.querySelectorAll(".run-slip .run-fit-line > b");
+      const slips = board.querySelectorAll(".run-slip .run-fit-line > b, .run-slip .run-fit-line > span");
       for (let i = 0; i < slips.length; i++) fitLockedLine(slips[i], avail);
       const near = document.getElementById("run-near");
       const nearTxt = document.getElementById("run-near-txt");
@@ -18659,7 +18659,7 @@ function fitRunHub() {
     // Re-measure #run-center after applying timer-locked width, max-height, and text auto-fit.
     const centerR = centerEl && getComputedStyle(centerEl).display !== "none" ? centerEl.getBoundingClientRect() : null;
     const hasCenter = !!(centerR && centerR.width > 1 && centerR.height > 1);
-    // Keep #run-arrows horizontally centered on screen and shifted downward by 20%.
+    // Keep #run-arrows horizontally centered on screen and positioned 15% downward.
     arrows.style.left = "";
     arrows.style.right = "";
     arrows.style.top = "";
@@ -32770,7 +32770,7 @@ const RUN_COPY = {
     bonus: "一併送達", net: "本班", close: "重新開始",
     green: "短程", yellow: "過舖", red: "上天台",
     first: "第一單", ground: "在地上", roof: "天台", door: "門",
-    stair: "旁的梯", beside: "旁的門", from: "取", keeper: "舖主", dest: "目的地"
+    stair: "旁的梯", beside: "旁的門", from: "取", keeper: "舖主", dest: "訂單目的地"
   },
   en: {
     hint: "The marker color is the length of the fare · one parcel, one clock · the money lands when you hand it over · the shift clock keeps running",
@@ -32783,7 +32783,7 @@ const RUN_COPY = {
     bonus: "Together", net: "Shift", close: "Restart",
     green: "Short", yellow: "Counter", red: "Roof",
     first: "First job", ground: "On the ground", roof: "Roof", door: "door",
-    stair: " stair", beside: " door", from: " from", keeper: " shopkeeper", dest: "Dest"
+    stair: " stair", beside: " door", from: " from", keeper: " shopkeeper", dest: "Order destination"
   },
   ja: {
     hint: "印の色が距離 · 荷物は一つ、時計は一つ · 渡した瞬間に入る · シフトの時計は止まらない",
@@ -32796,7 +32796,7 @@ const RUN_COPY = {
     bonus: "まとめて", net: "この回", close: "やり直す",
     green: "近い", yellow: "店", red: "屋上",
     first: "最初の一件", ground: "地面", roof: "屋上", door: "扉",
-    stair: "脇の階段", beside: "脇の扉", from: "で受け取る", keeper: "の店主", dest: "目的地"
+    stair: "脇の階段", beside: "脇の扉", from: "で受け取る", keeper: "の店主", dest: "注文目的地"
   }
 };
 const SHIFT_SECS = 180;
@@ -35009,13 +35009,13 @@ function runPaint() {
   if (list) {
     const active = [];
     let listSig = lang;
+    const destLabel = runText("dest") + ":";
     for (let i = 0; i < run.jobs.length; i++) {
       const j = run.jobs[i];
       if (j.state !== "carried" && j.state !== "dropped") continue;
       const where = j.state === "dropped" ? runText("ground") : runSub(j);
-      const dest = runText("dest") + ": " + where;
-      active.push({ j: j, dest: dest });
-      listSig += "|" + j.id + ":" + j.state + ":" + dest;
+      active.push({ j: j, label: destLabel, where: where });
+      listSig += "|" + j.id + ":" + j.state + ":" + destLabel + ":" + where;
     }
     activeSlipCount = active.length;
     if (listSig !== runPaint.listSig) {
@@ -35025,7 +35025,9 @@ function runPaint() {
         const item = active[i];
         const hue = runFareHue(item.j, now);
         const u = Math.max(0, Math.min(1, runFareLeft(item.j, now) / item.j.window));
-        html += "<div class='run-slip' data-job='" + item.j.id + "'><div class='run-fit-line'><b>" + runEsc(item.dest) + "</b></div>" +
+        html += "<div class='run-slip' data-job='" + item.j.id + "'>" +
+          "<div class='run-fit-line'><span>" + runEsc(item.label) + "</span></div>" +
+          "<div class='run-fit-line'><b>" + runEsc(item.where) + "</b></div>" +
           "<i class='" + hue + "'><em style='width:" + (u * 100).toFixed(1) + "%'></em></i></div>";
       }
       list.innerHTML = html;
