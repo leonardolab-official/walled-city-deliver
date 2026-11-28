@@ -66,7 +66,7 @@
   body:has(#boot) header.panel { display: none; }
   header.panel {
     position: static; align-self: flex-start; width: max-content; max-width: 100%; padding: 8px 12px 9px;
-    background: #120806; color: #ff4a38;
+    background: #120806; color: #ffffff;
     border: 1px solid #3dff88;
     border-image: none;
     transform: translateZ(0);
@@ -146,12 +146,12 @@
   header.panel #wx-read,
   header.panel #wx-read span,
   header.panel #wx-sky::before {
-    color: #ff4a38;
+    color: #ffffff;
     text-shadow:
-      0 0 1px #ffd4cc,
-      0 0 5px #ff4a38,
-      0 0 12px #ff2418,
-      0 0 22px rgba(255, 32, 24, 0.95);
+      0 0 1px #ffffff,
+      0 0 5px rgba(255, 255, 255, 0.95),
+      0 0 12px rgba(255, 252, 245, 0.85),
+      0 0 22px rgba(255, 248, 235, 0.55);
   }
   header.panel #wx-sky::before { opacity: 0.95; }
   h1 > .when {
@@ -234,6 +234,7 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     line-height: 1.25;
+    color: #ffffff;
     white-space: nowrap;
     transform: translateZ(0);
   }
@@ -250,10 +251,12 @@
     transform-origin: center center;
   }
   #wx-street {
-    color: #3dff88;
+    color: #ffffff;
     text-shadow:
-      0 0 1px #eafff2,
-      0 0 6px rgba(61, 255, 136, 0.78);
+      0 0 1px #ffffff,
+      0 0 5px rgba(255, 255, 255, 0.95),
+      0 0 12px rgba(255, 252, 245, 0.85),
+      0 0 22px rgba(255, 248, 235, 0.55);
   }
   #wx-roof-tag {
     display: inline-flex;
@@ -303,8 +306,11 @@
   }
   body:has(#boot) #run-left { display: none; }
   #run-clock {
-    position: static;
+    position: relative;
     align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: max-content;
     pointer-events: none;
     margin: 0;
@@ -319,21 +325,45 @@
     letter-spacing: 0.06em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
-    color: #fffaf2;
+    color: #3dff88;
     text-shadow:
-      0 0 1px #fff,
-      0 0 5px #fffaf2,
-      0 0 12px rgba(255, 250, 242, 0.85),
-      0 0 22px rgba(255, 244, 220, 0.55);
+      0 0 1px #eaffea,
+      0 0 5px #3dff88,
+      0 0 12px #14e06a,
+      0 0 22px rgba(61, 255, 136, 0.95);
     transition: color 0.35s ease, text-shadow 0.35s ease;
   }
+  /* Invisible "00:00" ghost locks #run-clock dimensions; live text fits inside #run-clock-slot. */
+  #run-clock-ref {
+    display: block;
+    visibility: hidden;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    text-shadow: none;
+  }
+  #run-clock-slot {
+    position: absolute;
+    inset: 0;
+    padding: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  #run-clock-val {
+    display: inline-block;
+    white-space: nowrap;
+    line-height: 1;
+    transform-origin: center center;
+  }
   #run-clock.mid {
-    color: #ffc56a;
+    color: #ffe055;
     text-shadow:
-      0 0 1px #fff4d2,
-      0 0 5px #ffc56a,
-      0 0 12px #ffb020,
-      0 0 22px rgba(255, 176, 32, 0.95);
+      0 0 1px #fffbe0,
+      0 0 5px #ffe055,
+      0 0 12px #ffc414,
+      0 0 22px rgba(255, 196, 20, 0.95);
   }
   #run-clock.low {
     color: #ff4a38;
@@ -342,9 +372,10 @@
       0 0 5px #ff4a38,
       0 0 12px #ff2418,
       0 0 22px rgba(255, 32, 24, 0.95);
-    animation: run-clock-low 0.7s ease-in-out infinite;
   }
-  #run-clock.low.late { animation-duration: 0.34s; }
+  #run-clock.low.late #run-clock-val {
+    animation: run-clock-flash 0.48s ease-in-out infinite;
+  }
   #run-clock.bonus {
     color: #3dff88;
     text-shadow:
@@ -352,8 +383,8 @@
       0 0 5px #3dff88,
       0 0 12px #14e06a,
       0 0 22px rgba(61, 255, 136, 0.95);
-    animation: none;
   }
+  #run-clock.bonus #run-clock-val { animation: none; }
   #run-clock.gain {
     animation: run-clock-gain 0.85s ease-out;
   }
@@ -456,20 +487,22 @@
     72% { opacity: 1; transform: translateY(4px) scale(1); }
     100% { opacity: 0; transform: translateY(16px) scale(0.98); }
   }
-  @keyframes run-clock-low {
+  @keyframes run-clock-flash {
     0%, 100% {
+      opacity: 1;
+      color: #ff5a4a;
       text-shadow:
-        0 0 1px #ffd4cc,
-        0 0 5px #ff4a38,
-        0 0 12px #ff2418,
-        0 0 22px rgba(255, 32, 24, 0.95);
-    }
-    50% {
-      text-shadow:
-        0 0 1px #fff,
-        0 0 8px #ff3a2a,
+        0 0 2px #ffffff,
+        0 0 8px #ff4a38,
         0 0 18px #ff2418,
         0 0 32px rgba(255, 32, 24, 1);
+    }
+    50% {
+      opacity: 0.24;
+      color: #a81c14;
+      text-shadow:
+        0 0 1px #ff786c,
+        0 0 4px rgba(255, 36, 24, 0.45);
     }
   }
   #run-clock[hidden] { display: none !important; }
@@ -1577,7 +1610,7 @@ applyBoot();
 <canvas id="c"></canvas>
 <div id="ui">
   <div id="run-left">
-    <div id="run-clock" hidden></div>
+    <div id="run-clock" hidden><span id="run-clock-ref" aria-hidden="true">00:00</span><span id="run-clock-slot"><span id="run-clock-val">00:00</span></span></div>
     <div id="run-center">
       <div id="run-board" class="panel" hidden>
         <div id="run-slips"></div>
@@ -18313,6 +18346,30 @@ function fitMapLoc() {
   inner.style.letterSpacing = wantLs;
   inner.style.transform = wantTf;
 }
+function fitRunClock() {
+  const clock = document.getElementById("run-clock");
+  const ref = document.getElementById("run-clock-ref");
+  const val = document.getElementById("run-clock-val");
+  if (!clock || !ref || !val || clock.hidden || getComputedStyle(clock).display === "none") return;
+  const avail = ref.getBoundingClientRect().width;
+  if (!(avail > 8)) return;
+  val.style.fontSize = "";
+  val.style.letterSpacing = "";
+  val.style.transform = "";
+  const need = Math.max(val.scrollWidth, val.getBoundingClientRect().width);
+  if (need > avail + 0.5) {
+    const baseFs = parseFloat(getComputedStyle(clock).fontSize) || 33;
+    const ratio = (avail - 1) / need;
+    const scaledFs = Math.max(11, baseFs * ratio);
+    val.style.fontSize = scaledFs.toFixed(2) + "px";
+    if (ratio < 0.9) val.style.letterSpacing = "0.02em";
+    const after = Math.max(val.scrollWidth, val.getBoundingClientRect().width);
+    if (after > avail + 0.5) {
+      const k = Math.max(0.25, Math.min(1, (avail - 1) / after));
+      val.style.transform = "scale(" + k.toFixed(3) + ")";
+    }
+  }
+}
 function fitRunHub() {
   if (fitRunHub.busy) return;
   fitRunHub.busy = true;
@@ -18340,6 +18397,7 @@ function fitRunHub() {
     }
     fitPurseRoom();
     fitMapLoc();
+    fitRunClock();
     const hdrR = header && getComputedStyle(header).display !== "none" ? header.getBoundingClientRect() : null;
     const purseR = purseEl && !purseEl.hidden && purseEl.textContent && getComputedStyle(purseEl).display !== "none"
       ? purseEl.getBoundingClientRect() : null;
@@ -32616,7 +32674,7 @@ function runClockText(sec) {
   const s = Math.max(0, Math.ceil(sec));
   const m = Math.floor(s / 60);
   const r = s % 60;
-  return m + ":" + (r < 10 ? "0" : "") + r;
+  return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
 }
 function runSpeed(quicker, push) {
   if (run.sheet) return 0;
@@ -34655,16 +34713,23 @@ function runPaint() {
     }
   }
   if (clock) {
+    const clockVal = document.getElementById("run-clock-val") || clock;
     const on = show && (run.day || run.sheet);
     clock.hidden = !on;
+    let clockTxt = "";
     if (on) {
-      clock.textContent = runClockText(run.shift);
+      clockTxt = runClockText(run.shift);
+      if (clockVal.textContent !== clockTxt) clockVal.textContent = clockTxt;
       const timeOn = run.timeFlash > now;
       const left = run.shift;
+      const pct = SHIFT_SECS > 0 ? (left / SHIFT_SECS) : 0;
+      const isLate = !timeOn && left < 10;
+      const isLow = !timeOn && (pct < 0.2 || left < 10);
+      const isMid = !timeOn && !isLow && pct <= 0.5;
       clock.classList.toggle("bonus", timeOn);
-      clock.classList.toggle("mid", !timeOn && left <= 60 && left > 20);
-      clock.classList.toggle("low", !timeOn && left <= 20);
-      clock.classList.toggle("late", !timeOn && left <= 10);
+      clock.classList.toggle("mid", isMid);
+      clock.classList.toggle("low", isLow);
+      clock.classList.toggle("late", isLate);
       const timeMark = timeOn ? "gain" : "";
       if (clock.dataset.flash !== timeMark + run.timeFlash) {
         clock.dataset.flash = timeMark + run.timeFlash;
@@ -34675,6 +34740,11 @@ function runPaint() {
         }
       }
     } else clock.classList.remove("bonus", "gain", "mid", "low", "late", "warn");
+    const clockFitSig = (on ? "1" : "0") + ":" + clockTxt.length;
+    if (clockFitSig !== runPaint.clockFitSig) {
+      runPaint.clockFitSig = clockFitSig;
+      if (on) fitRunClock();
+    }
     let locTxt = "";
     if (locEl) {
       locEl.hidden = !show;
@@ -34694,7 +34764,7 @@ function runPaint() {
       runPaint.locSig = locSig;
       fitMapLoc();
     }
-    const purseSig = (on ? "1" : "0") + ":" + (on ? clock.textContent.length : 0) + ":" + (purse ? purse.textContent : "");
+    const purseSig = (on ? "1" : "0") + ":" + (purse ? purse.textContent : "");
     if (purseSig !== runPaint.purseSig) {
       runPaint.purseSig = purseSig;
       fitPurseRoom();
