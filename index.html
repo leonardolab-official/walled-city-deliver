@@ -1154,43 +1154,127 @@
   #run-sheet {
     position: relative; z-index: 1;
     pointer-events: auto;
-    width: min(420px, 100%);
+    width: min(432px, 100%);
     max-height: min(84vh, 640px);
     max-height: min(84dvh, 100%, 640px);
     overflow: hidden;
     display: flex; flex-direction: column; gap: 10px;
     padding: 16px 16px 14px;
-    background: #120806; border: 1px solid #ff4a38;
-    box-shadow: 0 0 18px rgba(255, 74, 56, 0.34);
+    background: #0e0c0a; color: #f4e7cf;
+    border: 1px solid transparent; border-radius: 0;
+    border-image: linear-gradient(90deg, #ff4a38 0%, #ffc56a 46%, #ffe7a4 54%, #3dff88 100%) 1;
+    box-shadow:
+      -8px 0 14px rgba(255, 42, 30, 0.4),
+      0 0 12px rgba(255, 190, 70, 0.24),
+      8px 0 14px rgba(61, 224, 136, 0.4);
   }
   #run-sheet[hidden] { display: none !important; }
-  #run-sheet h2 { flex-shrink: 0; margin: 0; font-size: 18px; letter-spacing: 0.16em; color: #ff4a38; font-weight: 700; }
-  .run-sum { flex-shrink: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: #e4d3b8; font-size: 13px; }
-  .run-sum b { color: #fffaf2; font-size: 16px; font-weight: 650; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; text-align: right; }
-  .run-sum.net b { color: #ffc56a; }
+  #run-sheet h2 {
+    flex-shrink: 0; margin: 0;
+    font-size: 18px; letter-spacing: 0.16em; color: #ff4a38; font-weight: 700;
+    text-shadow:
+      0 0 1px #ffd4cc,
+      0 0 5px #ff4a38,
+      0 0 12px rgba(255, 36, 24, 0.85);
+  }
+  .run-kpis {
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .run-kpi {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 7px 8px;
+    background: #170f0c;
+    border: 1px solid #3a261f;
+    min-width: 0;
+  }
+  .run-kpi span {
+    font-size: 11px; letter-spacing: 0.06em; color: #c9b59a;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .run-kpi b {
+    color: #fffaf2; font-size: 16px; font-weight: 700;
+    letter-spacing: 0.02em; font-variant-numeric: tabular-nums; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .run-kpi.done b { color: #3dff88; }
+  .run-kpi.net b { color: #ffc56a; }
+  .run-kpi.net b.neg { color: #ff4a38; }
   #run-sheet-log {
-    flex: 1 1 auto; overflow: auto; min-height: 52px; max-height: none;
+    flex: 1 1 auto; overflow: auto; min-height: 56px; max-height: none;
     border-top: 1px solid #4a342c; border-bottom: 1px solid #4a342c;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 181, 106, 0.55) transparent;
   }
-  .run-empty { margin: 14px 0; color: #b7a090; font-size: 13px; }
+  #run-sheet-log::-webkit-scrollbar { width: 6px; }
+  #run-sheet-log::-webkit-scrollbar-track { background: transparent; }
+  #run-sheet-log::-webkit-scrollbar-thumb { background: rgba(212, 181, 106, 0.45); }
+  .run-empty { margin: 14px 0; color: #b7a090; font-size: 13px; text-align: center; }
   .run-order {
     display: grid; grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "what pay" "state pay";
-    gap: 2px 12px; padding: 8px 2px;
+    gap: 2px 12px; padding: 8px 4px;
     border-top: 1px solid #2a1814; color: #ffe7df; font-size: 13px;
   }
   .run-order:first-child { border-top: 0; }
   .run-order-what { grid-area: what; overflow-wrap: anywhere; }
-  .run-order-pay { grid-area: pay; align-self: center; color: #ffc56a; font-variant-numeric: tabular-nums; }
+  .run-order-pay { grid-area: pay; align-self: center; font-weight: 600; color: #ffc56a; font-variant-numeric: tabular-nums; }
+  .run-order.failed .run-order-pay { color: #8a766c; }
+  .run-order.failed .run-order-pay.loss { color: #ff4a38; }
   .run-order-state { grid-area: state; font-size: 11px; letter-spacing: 0.08em; }
   .run-order.done .run-order-state { color: #3dff88; }
   .run-order.failed .run-order-state { color: #ff4a38; }
-  #run-sheet-close {
+  .run-sheet-actions {
     flex-shrink: 0;
-    margin: 2px 0 0; width: 100%; min-height: 46px;
-    font-size: 16px; font-weight: 700; letter-spacing: 0.14em;
-    color: #120806; background: #3dff88; border: 1px solid #3dff88;
+    display: flex; gap: 8px;
+    margin: 2px 0 0;
+  }
+  #run-sheet-close {
+    flex: 1 1 auto; min-height: 46px;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.14em;
+    color: #120806; background: #3dff88;
+    border: 1px solid #3dff88; border-image: none;
+    box-shadow: 0 0 12px rgba(61, 255, 136, 0.35);
+    text-shadow: none;
+  }
+  #run-sheet-close:hover {
+    color: #120806; background: #64ffa1;
+    border-color: #64ffa1; border-image: none;
+    box-shadow: 0 0 16px rgba(61, 255, 136, 0.65);
+    text-shadow: none;
+  }
+  #run-sheet-close:active {
+    color: #120806; background: #26d870;
+    border-color: #26d870; border-image: none;
+    box-shadow: 0 0 8px rgba(61, 255, 136, 0.5);
+    text-shadow: none;
+  }
+  #run-sheet-close:focus-visible,
+  #run-sheet-menu:focus-visible {
+    outline: 2px solid #ffe7a4; outline-offset: 2px;
+  }
+  #run-sheet-menu {
+    flex: 0 0 auto; min-height: 46px; padding: 0 14px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.1em;
+    color: #f4e7cf; background: #1a1411;
+    border: 1px solid #8d6d38; border-image: none;
+    box-shadow: none; text-shadow: none;
+    white-space: nowrap;
+  }
+  #run-sheet-menu:hover {
+    color: #fffaf2; background: #241914;
+    border-color: #ffc56a; border-image: none;
+    box-shadow: 0 0 10px rgba(255, 197, 106, 0.35);
+    text-shadow: none;
+  }
+  #run-sheet-menu:active {
+    color: #fffaf2; background: #2a1d16;
+    border-color: #ffc56a; border-image: none;
+    box-shadow: 0 0 6px rgba(255, 197, 106, 0.45);
+    text-shadow: none;
   }
 
   #ui:not(.walk-bare) header.panel,
@@ -1414,7 +1498,10 @@
     #walk-stick i { width: 30px; height: 30px; }
     #run-sheet { padding: 10px 12px; gap: 6px; }
     #run-sheet h2 { font-size: 15px; }
-    #run-sheet-close { min-height: 40px; font-size: 14px; }
+    .run-kpi { padding: 4px 6px; }
+    .run-kpi span { font-size: 10px; }
+    .run-kpi b { font-size: 14px; }
+    #run-sheet-close, #run-sheet-menu { min-height: 40px; font-size: 13px; }
     #roof-go, #run-prompt {
       height: 36px; min-height: 36px;
       padding: 0 9px 0 7px; gap: 5px;
@@ -1862,10 +1949,16 @@ applyBoot();
   <div id="run-sheet-scrim"></div>
   <div id="run-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="run-sheet-title">
     <h2 id="run-sheet-title"></h2>
-    <div class="run-sum"><span id="run-sheet-time-label"></span><b id="run-sheet-time"></b></div>
-    <div id="run-sheet-log"></div>
-    <div class="run-sum net"><span id="run-sheet-earn-label"></span><b id="run-sheet-earn"></b></div>
-    <button type="button" id="run-sheet-close"></button>
+    <div class="run-kpis">
+      <div class="run-kpi"><span id="run-sheet-time-label"></span><b id="run-sheet-time"></b></div>
+      <div class="run-kpi done"><span id="run-sheet-done-label"></span><b id="run-sheet-done"></b></div>
+      <div class="run-kpi net"><span id="run-sheet-earn-label"></span><b id="run-sheet-earn"></b></div>
+    </div>
+    <div id="run-sheet-log" tabindex="0"></div>
+    <div class="run-sheet-actions">
+      <button type="button" id="run-sheet-menu"></button>
+      <button type="button" id="run-sheet-close"></button>
+    </div>
   </div>
 </div>
 <div id="settings-layer" hidden>
@@ -18299,7 +18392,7 @@ function walkKey(code) {
     || code === "ShiftLeft" || code === "ShiftRight";
 }
 addEventListener("keydown", e => {
-  if (walkMode && walkKey(e.code)) {
+  if (walkMode && !run.sheet && walkKey(e.code)) {
     walkHeld.add(e.code);
     e.preventDefault();
   }
@@ -18307,7 +18400,7 @@ addEventListener("keydown", e => {
   if (e.key === "Escape") { setSettings(false); setLegend(false); return; }
   if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
   if (e.key === "1" && !deliveryOn) go("air");
-  if (e.code === "KeyF") { runUse(); e.preventDefault(); }
+  if (e.code === "KeyF" && !run.sheet) { runUse(); e.preventDefault(); }
   if (e.code === "KeyE" && walkMode && !walkGlide && !run.sheet && !runPaused()) {
     if (roofStay) {
       const exDoor = roofExitNear();
@@ -32763,11 +32856,11 @@ const RUN_COPY = {
     hint: "標記顏色睇路程 · 一單一個鐘 · 交到人手即刻收錢 · 開工時間唔會停",
     purse: "荷包", take: "攞貨", give: "交貨", lift: "執返起",
     shut: "仲未開舖", ended: "收工喇", full: "手上仲有貨",
-    sheet: "呢班工", over: "夠鐘收工", survived: "開工時間", earn: "呢班賺咗",
+    sheet: "呢班工", over: "夠鐘收工", survived: "開工時間", orders: "完成訂單", earn: "呢班實賺",
     done: "交咗貨", none: "一張單都冇", day: "日", days: "日", hour: "個鐘", hours: "個鐘",
     on: "收到錢", late: "遲咗", fail: "送唔切",
     plusTime: "加鐘", plusCash: "有錢收", minusCash: "要扣錢",
-    bonus: "一齊送到", net: "呢班", close: "再嚟過",
+    bonus: "一齊送到", net: "呢班", close: "再嚟過", menu: "主畫面",
     green: "近單", yellow: "過舖", red: "上天台",
     first: "頭一單", ground: "喺地下", roof: "天台", door: "門口",
     stair: "隔籬樓梯", beside: "隔籬門口", from: "攞", keeper: "老細", dest: "訂單目的地"
@@ -32776,11 +32869,11 @@ const RUN_COPY = {
     hint: "The marker color is the length of the fare · one parcel, one clock · the money lands when you hand it over · the shift clock keeps running",
     purse: "Purse", take: "Take", give: "Hand over", lift: "Pick up",
     shut: "Counters are shut", ended: "This shift is over", full: "Hands are full",
-    sheet: "This shift", over: "Game over", survived: "Time survived", earn: "Earnings",
+    sheet: "This shift", over: "Shift Over", survived: "Shift time", orders: "Completed", earn: "Net earnings",
     done: "Completed", none: "No orders", day: "day", days: "days", hour: "hour", hours: "hours",
     on: "Paid", late: "Late", fail: "Failed",
     plusTime: "Additional time", plusCash: "Additional amount", minusCash: "Amount down",
-    bonus: "Together", net: "Shift", close: "Restart",
+    bonus: "Together", net: "Shift", close: "Restart", menu: "Title",
     green: "Short", yellow: "Counter", red: "Roof",
     first: "First job", ground: "On the ground", roof: "Roof", door: "door",
     stair: " stair", beside: " door", from: " from", keeper: " shopkeeper", dest: "Order destination"
@@ -32789,11 +32882,11 @@ const RUN_COPY = {
     hint: "印の色が距離 · 荷物は一つ、時計は一つ · 渡した瞬間に入る · シフトの時計は止まらない",
     purse: "財布", take: "受け取る", give: "渡す", lift: "拾う",
     shut: "店は閉まっている", ended: "この回は終わり", full: "手がふさがっている",
-    sheet: "この回", over: "この回は終わり", survived: "生き残った", earn: "収入",
-    done: "届けた", none: "荷物はない", day: "日", days: "日", hour: "時間", hours: "時間",
-    on: "入金", late: "遅れ", fail: "届かず",
+    sheet: "この回", over: "シフト終了", survived: "稼働時間", orders: "完了件数", earn: "純収入",
+    done: "配達完了", none: "配達なし", day: "日", days: "日", hour: "時間", hours: "時間",
+    on: "入金", late: "遅れ", fail: "未配達",
     plusTime: "追加時間", plusCash: "追加金額", minusCash: "金額減少",
-    bonus: "まとめて", net: "この回", close: "やり直す",
+    bonus: "まとめて", net: "この回", close: "やり直す", menu: "タイトル",
     green: "近い", yellow: "店", red: "屋上",
     first: "最初の一件", ground: "地面", roof: "屋上", door: "扉",
     stair: "脇の階段", beside: "脇の扉", from: "で受け取る", keeper: "の店主", dest: "注文目的地"
@@ -32814,9 +32907,39 @@ function runText(key) {
   const pack = RUN_COPY[lang] || RUN_COPY.zh;
   return pack[key] || RUN_COPY.zh[key] || key;
 }
+const RUN_SHOP_NAMES = {
+  dentist: { en: "Dentist", ja: "歯科" },
+  doctor: { en: "Clinic", ja: "医院" },
+  pharmacy: { en: "Dispensary", ja: "薬房" },
+  bonesetter: { en: "Bonesetter", ja: "跌打" },
+  herbal: { en: "Herbal Tea", ja: "涼茶店" },
+  grocery: { en: "Grocer", ja: "雑貨店" },
+  rice: { en: "Rice Shop", ja: "米屋" },
+  cafe: { en: "Cafe", ja: "氷室" },
+  barber: { en: "Barber", ja: "理髪店" },
+  electrical: { en: "Electrical", ja: "電器店" },
+  hardware: { en: "Hardware", ja: "金物店" },
+  mahjong: { en: "Mahjong", ja: "麻雀荘" },
+  paikau: { en: "Pai Kau", ja: "牌九" },
+  dogmeat: { en: "Stall", ja: "屋台" },
+  fishball: { en: "Fish Ball Works", ja: "魚団子工場" },
+  noodle: { en: "Noodle Works", ja: "製麺所" },
+  bbq: { en: "Roast Meat", ja: "焼味店" },
+  tofu: { en: "Tofu Shop", ja: "豆腐屋" },
+  candy: { en: "Sweets", ja: "菓子屋" },
+  plastic: { en: "Plastics", ja: "プラスチック工場" },
+  textile: { en: "Weaving", ja: "織物工場" },
+  joss: { en: "Joss Shop", ja: "線香店" },
+  water: { en: "Water Room", ja: "水場" }
+};
 function runWord(kind) {
   const spec = SHOP_KIND[kind];
   return spec && spec.words && spec.words[0] ? spec.words[0] : kind;
+}
+function runShopName(kind) {
+  const loc = RUN_SHOP_NAMES[kind];
+  if (loc && loc[lang]) return loc[lang];
+  return runWord(kind);
 }
 function runItemName(key) {
   const item = RUN_ITEM[key];
@@ -32867,14 +32990,13 @@ function runEsc(s) {
   });
 }
 function runSurvivedText(now) {
-  const day = stepSky.day > 0 ? stepSky.day : 120;
-  const elapsed = Math.max(0, (now || 0) - (run.t0 || now || 0));
-  const span = elapsed / day;
-  const days = Math.floor(span + 1e-8);
-  const hours = Math.min(23, Math.floor((span - days) * 24 + 1e-6));
-  const dayUnit = days === 1 ? runText("day") : runText("days");
-  const hourUnit = hours === 1 ? runText("hour") : runText("hours");
-  return lang === "en" ? (days + " " + dayUnit + " · " + hours + " " + hourUnit) : (days + dayUnit + " · " + hours + hourUnit);
+  const elapsed = Math.max(0, Math.round((now || 0) - (run.t0 || now || 0)));
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  const mm = (m < 10 ? "0" : "") + m;
+  const ss = (s < 10 ? "0" : "") + s;
+  return h > 0 ? (h + ":" + mm + ":" + ss) : (mm + ":" + ss);
 }
 function runClockText(sec) {
   const s = Math.max(0, Math.ceil(sec));
@@ -33992,9 +34114,9 @@ function runClearFx() {
 function runFail(job) {
   if (!job || job.state === "failed" || job.state === "done") return;
   job.state = "failed";
-  const row = runLogOf(job.id);
-  if (row) { row.status = "failed"; row.fee = 0; }
   const loss = job.cost || 0;
+  const row = runLogOf(job.id);
+  if (row) { row.status = "failed"; row.fee = loss ? -loss : 0; }
   if (loss) runPayoff(performance.now() * 0.001, 0, -loss, job);
   runRemoveBody(job);
   if (run.intro === 1 && job.first) run.intro = 2;
@@ -34104,6 +34226,8 @@ function runTake(slip, now) {
   runBegin(now);
   run.log.push({
     id: job.id,
+    kind: job.kind,
+    itemKey: job.item,
     shop: runWord(job.kind),
     item: runItemName(job.item),
     fee: 0,
@@ -34573,6 +34697,10 @@ function runSettle(now) {
   run.survivedAt = now;
   run.sheet = true;
   runPaint();
+  requestAnimationFrame(function () {
+    const closeBtn = document.getElementById("run-sheet-close");
+    if (closeBtn && !closeBtn.hidden) closeBtn.focus();
+  });
 }
 // The mouth faces the alley. A point behind the bay, through the back wall,
 // is the opposite way. The counter radius used to reach that side.
@@ -35109,29 +35237,45 @@ function runPaint() {
     if (run.sheet) {
       const h = document.getElementById("run-sheet-title");
       const timeL = document.getElementById("run-sheet-time-label");
+      const doneL = document.getElementById("run-sheet-done-label");
       const earnL = document.getElementById("run-sheet-earn-label");
       const time = document.getElementById("run-sheet-time");
+      const doneEl = document.getElementById("run-sheet-done");
       const earn = document.getElementById("run-sheet-earn");
       const logEl = document.getElementById("run-sheet-log");
       const c = document.getElementById("run-sheet-close");
+      const m = document.getElementById("run-sheet-menu");
+      const log = run.log || [];
+      let doneCnt = 0;
+      for (let i = 0; i < log.length; i++) if (log[i].status === "done") doneCnt++;
+      const netCash = run.purse || 0;
       if (h) h.textContent = runText("over");
       if (timeL) timeL.textContent = runText("survived");
+      if (doneL) doneL.textContent = runText("orders");
       if (earnL) earnL.textContent = runText("earn");
       if (time) time.textContent = runSurvivedText(run.survivedAt || now);
-      if (earn) earn.textContent = "$" + (run.earned || 0);
+      if (doneEl) doneEl.textContent = doneCnt + " / " + log.length;
+      if (earn) {
+        earn.textContent = (netCash < 0 ? "-$" + Math.abs(netCash) : "$" + netCash);
+        earn.classList.toggle("neg", netCash < 0);
+      }
       if (c) c.textContent = runText("close");
+      if (m) m.textContent = runText("menu");
       if (logEl) {
-        const log = run.log || [];
         let rows = "";
-        let sig = String(run.earned || 0);
+        let sig = lang + "|" + String(netCash);
         if (!log.length) rows = "<p class='run-empty'>" + runEsc(runText("none")) + "</p>";
         for (let i = 0; i < log.length; i++) {
           const row = log[i];
           const done = row.status === "done";
-          sig += "|" + row.id + row.status + row.fee;
+          const fee = row.fee || 0;
+          const shopTxt = row.kind ? runShopName(row.kind) : row.shop;
+          const itemTxt = row.itemKey ? runItemName(row.itemKey) : row.item;
+          const payTxt = fee > 0 ? ("+$" + fee) : fee < 0 ? ("-$" + Math.abs(fee)) : "$0";
+          sig += "|" + row.id + row.status + fee;
           rows += "<div class='run-order " + (done ? "done" : "failed") + "'>" +
-            "<span class='run-order-what'>" + runEsc(row.shop) + " · " + runEsc(row.item) + "</span>" +
-            "<span class='run-order-pay'>$" + (row.fee || 0) + "</span>" +
+            "<span class='run-order-what'>" + runEsc(shopTxt) + " · " + runEsc(itemTxt) + "</span>" +
+            "<span class='run-order-pay" + (fee < 0 ? " loss" : "") + "'>" + payTxt + "</span>" +
             "<span class='run-order-state'>" + runEsc(done ? runText("done") : runText("fail")) + "</span></div>";
         }
         if (logEl.dataset.sig !== sig) {
@@ -35678,6 +35822,35 @@ document.getElementById("run-prompt").addEventListener("click", function (e) {
   runUse();
   e.currentTarget.blur();
 });
+function runReturnToTitle() {
+  run.sheet = false;
+  run.day = false;
+  run.ended = false;
+  run.purse = START_PURSE;
+  run.earned = 0;
+  run.log = [];
+  run.slips = [];
+  run.runs = [];
+  run.openRun = null;
+  runForgetJobs();
+  runClearFx();
+  const shops = run.shops || [];
+  for (let i = 0; i < shops.length; i++) {
+    shops[i].slip = null;
+    shops[i].next = 0;
+    runParkHolo(shops[i]);
+  }
+  const tod = document.getElementById("tod-seg");
+  if (tod) tod.querySelectorAll("button").forEach(b => { b.disabled = false; });
+  deliveryOn = false;
+  setWalk(false);
+  go("air");
+  const startBtn = document.getElementById("start");
+  if (startBtn) startBtn.hidden = false;
+  const toolsEl = document.getElementById("tools");
+  if (toolsEl) toolsEl.hidden = false;
+  runPaint();
+}
 document.getElementById("run-sheet-close").addEventListener("click", function (e) {
   e.preventDefault();
   run.sheet = false;
@@ -35688,6 +35861,10 @@ document.getElementById("run-sheet-close").addEventListener("click", function (e
     run.openRun = null;
   }
   runPaint();
+});
+document.getElementById("run-sheet-menu").addEventListener("click", function (e) {
+  e.preventDefault();
+  runReturnToTitle();
 });
 // The map sits at the top right, under the settings gear. The mark points
 // straight up, and the streets turn with the way the runner is facing.
