@@ -510,9 +510,9 @@
   .run-pop.cash.up span {
     text-shadow: 0 0 1px #fff4d2, 0 0 8px #ffc56a, 0 0 18px #ffb020;
   }
-  .run-pop.cash.down { color: #ff4a38; }
-  .run-pop.cash.down span {
-    text-shadow: 0 0 1px #ffd4cc, 0 0 8px #ff4a38, 0 0 18px #ff2418;
+  .run-pop.cash.down, .run-pop.bump { color: #ff4a38; }
+  .run-pop.cash.down span, .run-pop.bump span {
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.92), 0 0 1px #ffd4cc, 0 0 8px #ff4a38, 0 0 18px #ff2418;
   }
   @keyframes run-pop {
     0% { opacity: 1; transform: translateY(8px) scale(0.82); }
@@ -19233,7 +19233,8 @@ renderer.domElement.addEventListener("pointerup", (ev) => {
   pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
   ray.setFromCamera(pointer, camera);
-  const massHit = ray.intersectObjects(pickables, false)[0];
+  const livePick = pickables.filter(m => m && m.visible && m.geometry);
+  const massHit = ray.intersectObjects(livePick, false)[0];
   if (!massHit) return;
   const u = recordFromHit(massHit);
   if (!u) return;
@@ -27126,12 +27127,13 @@ function advanceWalker(ud, now, fig) {
       const ou = walkers[i].userData;
       if (ou && !ou.inside) checkOther(ou);
     }
-    // Avoid colliding with the player avatar on street level: slow, sidestep if room exists, or yield cleanly.
+    // Avoid colliding with the player avatar on street level: slow, sidestep on front/flank, or yield cleanly.
     if (walkMode && !roofStay && !ud.heat && ud.x != null && ud.z != null) {
       const fwdX = Math.sin(ud.yaw || 0);
       const fwdZ = Math.cos(ud.yaw || 0);
       const pdx = walkX - ud.x;
       const pdz = walkZ - ud.z;
+      const pdist = Math.hypot(pdx, pdz);
       const fwd = pdx * fwdX + pdz * fwdZ;
       const lat = Math.abs(pdx * fwdZ - pdz * fwdX);
       if (fwd > -0.10 && fwd < 1.25 && lat < 0.50) {
@@ -27147,6 +27149,15 @@ function advanceWalker(ud, now, fig) {
           }
         } else {
           speed *= Math.max(0.22, (fwd - 0.55) / 0.70);
+        }
+      } else if (pdist < 0.56) {
+        // Player brushing flank or approaching closely from behind: sidestep if room exists, without deadlocking.
+        const otherRail = -myRail;
+        if (keep >= 0.16 && railLaneClear(ud, path, otherRail)) ud.rail = otherRail;
+        if (fwd > -0.05) {
+          blockedByPlayer = true;
+          speed = 0;
+          ud.held = true;
         }
       }
     }
@@ -31462,12 +31473,28 @@ function walkBlocked(x, z, opts) {
       }
     }
   }
+  const fromX = opts && opts.fromX != null ? opts.fromX : null;
+  const fromZ = opts && opts.fromZ != null ? opts.fromZ : null;
+  const hasFrom = fromX != null && fromZ != null;
+  function npcHit(bx, bz, r) {
+    if (bx == null || bz == null) return false;
+    const dx = x - bx, dz = z - bz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= r * r) return false;
+    if (hasFrom) {
+      // Anti-pinning: if already overlapping this NPC, allow movement that increases separation.
+      const fx = fromX - bx, fz = fromZ - bz;
+      const f2 = fx * fx + fz * fz;
+      if (f2 < r * r && d2 > f2 + 1e-6) return false;
+    }
+    return true;
+  }
   if (alleySleep && sleepNight() && !(opts && opts.sleepers === false)) {
     for (let i = 0; i < alleySleep.length; i++) {
       const rec = alleySleep[i];
       const along = rec.axis === "z" ? z - rec.z : x - rec.x;
       const cross = rec.axis === "z" ? x - rec.x : z - rec.z;
-      if (Math.abs(along) < rec.halfAlong && Math.abs(cross) < rec.halfCross) return true;
+      if (Math.abs(along) < rec.halfAlong + pad && Math.abs(cross) < rec.halfCross + pad) return true;
     }
   }
   if (opts && opts.bodies === false) return false;
@@ -31481,11 +31508,41 @@ function walkBlocked(x, z, opts) {
     const hz = (ride.free ? 0.45 : 1.15) + 0.3;
     if (Math.abs(x - wx) < hx && Math.abs(z - wz) < hz) return true;
   }
+  const bodyR = 0.34;
   for (let i = 0; i < walkers.length; i++) {
     const fig = walkers[i];
+    if (!fig.visible || walkerHome(fig.userData)) continue;
     const wx = fig.parent === city ? fig.position.x + SHEAR_K * fig.position.z : fig.position.x;
-    if (!fig.visible || walkerHome(fig.userData) || fig.userData.heat) continue;
-    if (Math.abs(x - wx) < 0.34 && Math.abs(z - fig.position.z) < 0.34) return true;
+    if (npcHit(wx, fig.position.z, bodyR)) return true;
+  }
+  if (typeof cityFolk !== "undefined") {
+    for (let i = 0; i < cityFolk.length; i++) {
+      const u = cityFolk[i];
+      if (!u || !u.fig || !u.fig.visible) continue;
+      if (npcHit(u.x, u.z, bodyR)) return true;
+    }
+  }
+  if (typeof alleyHeat !== "undefined") {
+    for (let i = 0; i < alleyHeat.length; i++) {
+      const rec = alleyHeat[i];
+      if (!rec || !rec.fig || !rec.fig.visible) continue;
+      if (npcHit(rec.x, rec.z, bodyR)) return true;
+    }
+  }
+  if (typeof gangFight !== "undefined") {
+    for (let i = 0; i < gangFight.length; i++) {
+      const rec = gangFight[i];
+      if (!rec || !rec.fig || !rec.fig.visible) continue;
+      if (npcHit(rec.x, rec.z, bodyR)) return true;
+    }
+  }
+  if (typeof run !== "undefined" && run && run.jobs) {
+    for (let i = 0; i < run.jobs.length; i++) {
+      const j = run.jobs[i];
+      if (!j || j.roof || !j.fig || !j.fig.visible) continue;
+      if (j.state !== "carried" && j.state !== "done") continue;
+      if (npcHit(j.x, j.z, bodyR)) return true;
+    }
   }
   return false;
 }
@@ -31732,7 +31789,7 @@ function roofLanding(door) {
   if (free(cx, cz)) return { x: cx, z: cz, yaw: door.inYaw };
   return null;
 }
-function roofBlocked(x, z) {
+function roofBlocked(x, z, opts) {
   const s = roofStay;
   if (!s) return true;
   if (x < s.x0 || x > s.x1 || z < s.z0 || z > s.z1) return true;
@@ -31740,6 +31797,38 @@ function roofBlocked(x, z) {
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (x > b.x - ROOF_PAD && x < b.x2 + ROOF_PAD && z > b.z - ROOF_PAD && z < b.z2 + ROOF_PAD) return true;
+  }
+  if (opts && opts.bodies === false) return false;
+  const fromX = opts && opts.fromX != null ? opts.fromX : null;
+  const fromZ = opts && opts.fromZ != null ? opts.fromZ : null;
+  const hasFrom = fromX != null && fromZ != null;
+  function roofNpcHit(bx, bz, r) {
+    if (bx == null || bz == null) return false;
+    const dx = x - bx, dz = z - bz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= r * r) return false;
+    if (hasFrom) {
+      const fx = fromX - bx, fz = fromZ - bz;
+      const f2 = fx * fx + fz * fz;
+      if (f2 < r * r && d2 > f2 + 1e-6) return false;
+    }
+    return true;
+  }
+  if (typeof roofVisit !== "undefined") {
+    for (let i = 0; i < roofVisit.length; i++) {
+      const f = roofVisit[i];
+      if (!f || !f.visible) continue;
+      if (roofNpcHit(f.position.x, f.position.z, 0.32)) return true;
+    }
+  }
+  if (typeof run !== "undefined" && run && run.jobs) {
+    for (let i = 0; i < run.jobs.length; i++) {
+      const j = run.jobs[i];
+      if (!j || !j.roof || !j.fig || !j.fig.visible) continue;
+      if (j.state !== "carried" && j.state !== "done") continue;
+      if (!roofOnDeck(roofJobDeck(j), j.door >= 0 ? roofDoors[j.door] : null)) continue;
+      if (roofNpcHit(j.x, j.z, 0.34)) return true;
+    }
   }
   return false;
 }
@@ -32870,7 +32959,7 @@ const RUN_COPY = {
     sheet: "呢班工", over: "夠鐘收工", survived: "開工時間", orders: "完成訂單", earn: "呢班實賺",
     done: "交咗貨", none: "一張單都冇", day: "日", days: "日", hour: "個鐘", hours: "個鐘",
     on: "收到錢", late: "遲咗", fail: "送唔切",
-    plusTime: "加鐘", plusCash: "有錢收", minusCash: "要扣錢",
+    plusTime: "加鐘", plusCash: "有錢收", minusCash: "要扣錢", bumped: "撞到人",
     bonus: "一齊送到", net: "呢班", close: "再嚟過", menu: "主畫面",
     green: "近單", yellow: "過舖", red: "上天台",
     first: "頭一單", ground: "喺地下", roof: "天台", door: "門口",
@@ -32883,7 +32972,7 @@ const RUN_COPY = {
     sheet: "This shift", over: "Shift Over", survived: "Shift time", orders: "Completed", earn: "Net earnings",
     done: "Completed", none: "No orders", day: "day", days: "days", hour: "hour", hours: "hours",
     on: "Paid", late: "Late", fail: "Failed",
-    plusTime: "Additional time", plusCash: "Additional amount", minusCash: "Amount down",
+    plusTime: "Additional time", plusCash: "Additional amount", minusCash: "Amount down", bumped: "Bumped",
     bonus: "Together", net: "Shift", close: "Restart", menu: "Title",
     green: "Short", yellow: "Counter", red: "Roof",
     first: "First job", ground: "On the ground", roof: "Roof", door: "door",
@@ -32896,7 +32985,7 @@ const RUN_COPY = {
     sheet: "この回", over: "シフト終了", survived: "稼働時間", orders: "完了件数", earn: "純収入",
     done: "配達完了", none: "配達なし", day: "日", days: "日", hour: "時間", hours: "時間",
     on: "入金", late: "遅れ", fail: "未配達",
-    plusTime: "追加時間", plusCash: "追加金額", minusCash: "金額減少",
+    plusTime: "追加時間", plusCash: "追加金額", minusCash: "金額減少", bumped: "ぶつかった",
     bonus: "まとめて", net: "この回", close: "やり直す", menu: "タイトル",
     green: "近い", yellow: "店", red: "屋上",
     first: "最初の一件", ground: "地面", roof: "屋上", door: "扉",
@@ -34072,8 +34161,8 @@ function runSyncFx(now) {
     const down = n.delta < 0;
     el.className = "run-pop " + n.kind + (down ? " down" : " up");
     el.dataset.id = String(n.id);
-    const label = n.kind === "time" ? runText("plusTime") : (down ? runText("minusCash") : runText("plusCash"));
-    const value = n.kind === "time" ? runDeltaClock(n.delta) : runDeltaCash(n.delta);
+    const label = n.kind === "bump" ? runText("bumped") : n.kind === "time" ? runText("plusTime") : (down ? runText("minusCash") : runText("plusCash"));
+    const value = (n.kind === "time" || n.kind === "bump") ? runDeltaClock(n.delta) : runDeltaCash(n.delta);
     el.innerHTML = "<em>" + runEsc(label) + "</em><span>" + runEsc(value) + "</span>";
     root.appendChild(el);
     if (n.kind === "cash") changedCash = true;
@@ -34609,34 +34698,40 @@ function runWeather(dt) {
   }
 }
 function runBodyNear() {
-  function close(x, z) { return x != null && Math.hypot(walkX - x, walkZ - z) < 0.5; }
+  function close(x, z) { return x != null && Math.hypot(walkX - x, walkZ - z) < 0.44; }
   if (roofStay) {
     for (let i = 0; i < roofVisit.length; i++) {
       const f = roofVisit[i];
       if (!f || !f.visible) continue;
       if (close(f.position.x, f.position.z)) return true;
     }
-    for (let i = 0; i < run.jobs.length; i++) {
-      const j = run.jobs[i];
-      if (j.state === "carried" && j.roof && roofOnDeck(roofJobDeck(j), j.door >= 0 ? roofDoors[j.door] : null) && j.fig && j.fig.visible && close(j.x, j.z)) return true;
-    }
     return false;
   }
   for (let i = 0; i < walkers.length; i++) {
     const f = walkers[i];
-    if (!f.visible || !f.userData || f.userData.errand || f.userData.heat) continue;
-    const x = f.userData.x != null ? f.userData.x : f.position.x;
+    if (!f.visible || !f.userData || f.userData.errand) continue;
+    const x = f.parent === city ? f.position.x + SHEAR_K * f.position.z : (f.userData.x != null ? f.userData.x : f.position.x);
     const z = f.userData.z != null ? f.userData.z : f.position.z;
     if (close(x, z)) return true;
   }
   for (let i = 0; i < cityFolk.length; i++) {
     const u = cityFolk[i];
-    if (!u.fig || !u.fig.visible || u.heat) continue;
+    if (!u.fig || !u.fig.visible) continue;
     if (close(u.x, u.z)) return true;
   }
-  for (let i = 0; i < run.jobs.length; i++) {
-    const j = run.jobs[i];
-    if (j.state === "carried" && !j.roof && j.fig && j.fig.visible && close(j.x, j.z)) return true;
+  if (typeof alleyHeat !== "undefined") {
+    for (let i = 0; i < alleyHeat.length; i++) {
+      const rec = alleyHeat[i];
+      if (!rec || !rec.fig || !rec.fig.visible) continue;
+      if (close(rec.x, rec.z)) return true;
+    }
+  }
+  if (typeof gangFight !== "undefined") {
+    for (let i = 0; i < gangFight.length; i++) {
+      const rec = gangFight[i];
+      if (!rec || !rec.fig || !rec.fig.visible) continue;
+      if (close(rec.x, rec.z)) return true;
+    }
   }
   return false;
 }
@@ -34648,11 +34743,15 @@ function runDropTop(now, hard) {
     const mode = j.drop || "keep";
     if (mode === "keep") {
       // Durable wrapped goods stay in hand and only lose a small time dock on collisions.
-      j.dock = (j.dock || 0) + (hard ? 3 : 2);
+      const pen = hard ? 3 : 2;
+      j.dock = (j.dock || 0) + pen;
+      runNotice("bump", -pen, now);
       return;
     }
     const fragile = mode === "break";
-    j.dock = (j.dock || 0) + (fragile ? (hard ? 10 : 6) : (hard ? 8 : 5));
+    const pen = fragile ? (hard ? 10 : 6) : (hard ? 8 : 5);
+    j.dock = (j.dock || 0) + pen;
+    runNotice("bump", -pen, now);
     if (hard) {
       // Spillable ("spill") or fragile ("break") cargo drops onto the ground/deck on a hard stop.
       j.state = "dropped";
@@ -36394,15 +36493,15 @@ function stepWalk(dt) {
       const nx = walkX + ux * s;
       const nz = walkZ + uz * s;
       if (roofStay) {
-        const hitX = roofBlocked(nx, walkZ);
+        const hitX = roofBlocked(nx, walkZ, { fromX: walkX, fromZ: walkZ });
         if (!hitX) walkX = nx;
-        const hitZ = roofBlocked(walkX, nz);
+        const hitZ = roofBlocked(walkX, nz, { fromX: walkX, fromZ: walkZ });
         if (!hitZ) walkZ = nz;
         const nearEdge = nx < roofStay.x0 + 0.18 || nx > roofStay.x1 - 0.18 || nz < roofStay.z0 + 0.18 || nz > roofStay.z1 - 0.18;
         if ((hitX || hitZ || nearEdge) && tryRoofCross(nx, nz, ux, uz)) break;
       } else {
-        if (walkInside(nx, walkZ) && !walkBlocked(nx, walkZ)) walkX = nx;
-        if (walkInside(walkX, nz) && !walkBlocked(walkX, nz)) walkZ = nz;
+        if (walkInside(nx, walkZ) && !walkBlocked(nx, walkZ, { fromX: walkX, fromZ: walkZ })) walkX = nx;
+        if (walkInside(walkX, nz) && !walkBlocked(walkX, nz, { fromX: walkX, fromZ: walkZ })) walkZ = nz;
       }
       left -= s;
     }
@@ -37779,6 +37878,13 @@ function packStatic() {
     if (mesh.parent) mesh.parent.remove(mesh);
   });
   if (made) scene.add(pack);
+  // Remove dropped static meshes from pickables before nulling/disposing their geometry.
+  if (drop.length) {
+    const droppedSet = new Set(drop);
+    for (let i = pickables.length - 1; i >= 0; i--) {
+      if (droppedSet.has(pickables[i])) pickables.splice(i, 1);
+    }
+  }
   // Dispose unshared source geometries from dropped static meshes so duplicate buffers do not linger in RAM.
   if (drop.length) {
     const liveGeos = new Set();
