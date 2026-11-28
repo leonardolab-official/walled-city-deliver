@@ -65,7 +65,7 @@
   /* The clock stays hidden while the title and subtitle are on screen. */
   body:has(#boot) header.panel { display: none; }
   header.panel {
-    position: static; align-self: flex-start; width: max-content; max-width: 100%; padding: 8px 12px 9px;
+    position: static; align-self: flex-start; width: max-content; max-width: 100%; padding: 9px 13px 10px;
     background: #120806; color: #ffffff;
     border: 1px solid #3dff88;
     border-image: none;
@@ -148,7 +148,7 @@
   h1 > .when {
     display: flex; flex-wrap: nowrap; align-items: baseline; column-gap: 0.55em; row-gap: 1px;
     width: max-content; max-width: 100%;
-    margin: 0; color: #ffc56a; font-size: 0.62em; font-weight: 500; letter-spacing: 0.12em; line-height: 1.35;
+    margin: 0; color: #ffc56a; font-size: 0.682em; font-weight: 500; letter-spacing: 0.12em; line-height: 1.35;
     text-shadow: 0 0 8px rgba(255, 160, 40, 0.8);
   }
   #wx-read {
@@ -205,14 +205,14 @@
     justify-content: center;
     width: max-content;
     max-width: calc(50vw - var(--inset-r));
-    padding: 4px 10px 5px;
+    padding: 4.5px 11px 5.5px;
     background: #120806;
     border: 1px solid #ffc56a;
     box-shadow:
       0 0 10px rgba(255, 190, 70, 0.45),
       inset 0 0 8px rgba(255, 190, 70, 0.16);
     font-weight: 700;
-    font-size: clamp(13px, 2.1vw, 17px);
+    font-size: clamp(14.3px, 2.31vw, 18.7px);
     letter-spacing: 0.06em;
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
@@ -550,7 +550,7 @@
   body:has(#boot) #run-clock { display: none; }
   @media (max-width: 720px), (max-height: 540px) {
     #run-clock { font-size: clamp(26px, min(8.2vw, 7.8dvh), 48px); padding: 4px 15px 7px; letter-spacing: 0.05em; }
-    #wx-purse { font-size: clamp(12px, 3.4vw, 15px); padding: 3px 8px 4px; }
+    #wx-purse { font-size: clamp(13.2px, 3.74vw, 16.5px); padding: 3.5px 9px 4.5px; }
     #run-board, #run-order { padding: 6px 8px 8px; }
   }
   .kicker { font-family: "PingFang HK", "Heiti TC", sans-serif; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #d4b56a; margin-bottom: 2px; overflow-wrap: anywhere; }
@@ -18472,7 +18472,11 @@ function fitPurse() {
   const ref = document.getElementById("wx-purse-ref");
   const val = document.getElementById("wx-purse-val");
   if (!purse || !ref || !val || purse.hidden || !val.textContent || getComputedStyle(purse).display === "none") return;
-  const avail = ref.getBoundingClientRect().width;
+  const cs = getComputedStyle(purse);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const borderX = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+  const boxInner = Math.floor(purse.getBoundingClientRect().width - padX - borderX);
+  const avail = boxInner > 8 ? boxInner : ref.getBoundingClientRect().width;
   if (!(avail > 8)) return;
   val.style.fontSize = "";
   val.style.letterSpacing = "";
@@ -18551,11 +18555,18 @@ function fitPurseRoom() {
       }
     }
   }
-  // Dock the separate Top-Right #wx-purse plate cleanly outside/below header.panel.
+  // Dock the separate Top-Right #wx-purse plate cleanly below header.panel, matching its exact width and the Top-Left stack gap.
   if (purse && !purse.hidden && purseVal && purseVal.textContent) {
     const nhr = header.getBoundingClientRect();
-    const wantTop = nhr.height > 1 ? Math.round(nhr.bottom + 8) + "px" : Math.round(ub.top + ub.padT) + "px";
+    const leftStack = document.getElementById("run-left");
+    const stackGap = leftStack ? (parseFloat(getComputedStyle(leftStack).rowGap) || 0) : 0;
+    const gapPx = stackGap > 0 ? stackGap : Math.max(6, Math.min(8, window.innerHeight * 0.011));
+    const wantTop = nhr.height > 1 ? Math.round(nhr.bottom + gapPx) + "px" : Math.round(ub.top + ub.padT) + "px";
     if (purse.style.top !== wantTop) purse.style.top = wantTop;
+    if (nhr.width > 1) {
+      const wantW = Math.round(nhr.width) + "px";
+      if (purse.style.width !== wantW) purse.style.width = wantW;
+    }
     fitPurse();
   }
 }
